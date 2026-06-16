@@ -215,11 +215,3 @@ class _BookingsFilterFooter extends ConsumerWidget {
   }
 }
 
-// Extension to get wire-key from booking status (mirrors booking_status.dart)
-extension _BookingStatusKey on BookingStatus {
-  String get key => switch (this) {
-        BookingStatus.created => 'new',
-        BookingStatus.atShop => 'atshop',
-        _ => name,
-      };
-}

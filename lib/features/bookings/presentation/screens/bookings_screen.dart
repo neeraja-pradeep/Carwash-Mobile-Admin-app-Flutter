@@ -32,14 +32,6 @@ import '../components/bookings_filter_sheet.dart';
 class BookingsScreen extends ConsumerWidget {
   const BookingsScreen({super.key});
 
-  static const List<SortOption> _sortOptions = [
-    ('recent', 'Most recent'),
-    ('oldest', 'Oldest first'),
-    ('amount_hi', 'Amount: high → low'),
-    ('amount_lo', 'Amount: low → high'),
-    ('name', 'Customer A–Z'),
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final segment = ref.watch(bookingsSegmentProvider);
@@ -216,7 +208,7 @@ class _CarwashBookingsList extends ConsumerWidget {
                               showBookingsFilterSheet(context, ref),
                           filterCount: filter.activeCount,
                           sort: filter.sort,
-                          sortOptions: _CarwashBookingsList._sortOptions,
+                          sortOptions: _sortOptions,
                           onSort: controller.setSort,
                         );
                       }

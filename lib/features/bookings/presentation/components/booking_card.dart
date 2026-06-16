@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
+import 'package:new_flutter_project/core/status/booking_status.dart';
 import 'package:new_flutter_project/core/status/payment_status.dart';
 import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
@@ -406,11 +407,3 @@ class BookingCard extends ConsumerWidget {
   }
 }
 
-// Expose BookingStatus for use in this file
-extension _BookingStatusKey on BookingStatus {
-  String get key => switch (this) {
-        BookingStatus.created => 'new',
-        BookingStatus.atShop => 'atshop',
-        _ => name,
-      };
-}

@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
-import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_dialog.dart';
@@ -441,7 +440,8 @@ class _AreaSheetState extends State<_AreaSheet> {
   }
 
   Future<void> _delete() async {
-    Navigator.of(context).pop();
+    // Show the confirm dialog FIRST (while the sheet is still mounted),
+    // then pop and fire the callback only after confirmation.
     final confirmed = await showConfirmDialog(
       context: context,
       title: 'Remove this service area?',
@@ -449,7 +449,9 @@ class _AreaSheetState extends State<_AreaSheet> {
       confirmLabel: 'Remove',
       destructive: true,
     );
-    if (confirmed) widget.onDelete?.call();
+    if (!confirmed) return;
+    if (mounted) Navigator.of(context).pop();
+    widget.onDelete?.call();
   }
 
   @override
@@ -602,7 +604,7 @@ class _AreaSheetState extends State<_AreaSheet> {
                     height: 40.h,
                     padding: EdgeInsets.symmetric(horizontal: 12.w),
                     decoration: BoxDecoration(
-                      color: AppColors.bgCard.withOpacity(0.85),
+                      color: AppColors.bgCard.withValues(alpha: 0.85),
                       borderRadius: BorderRadius.circular(10.r),
                       boxShadow: [
                         BoxShadow(

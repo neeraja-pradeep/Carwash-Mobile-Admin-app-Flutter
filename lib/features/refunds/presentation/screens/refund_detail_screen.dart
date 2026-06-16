@@ -33,14 +33,9 @@ class RefundDetailScreen extends ConsumerStatefulWidget {
 class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
   /// Local mutable status (demo only — not persisted).
   String? _localStatus;
-  bool _showMarkPaid = false;
-  bool _showDecline = false;
-  final _utrController = TextEditingController();
-  bool _proofAttached = false;
 
   @override
   void dispose() {
-    _utrController.dispose();
     super.dispose();
   }
 

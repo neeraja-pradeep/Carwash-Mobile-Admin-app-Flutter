@@ -6,6 +6,7 @@ import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/avatar.dart';
+import 'package:new_flutter_project/core/status/service_request_status.dart';
 import 'package:new_flutter_project/features/drivers/application/providers/drivers_providers.dart';
 import 'package:new_flutter_project/features/drivers/domain/entities/field_driver.dart';
 import 'package:new_flutter_project/features/drivers/domain/entities/team_member.dart';
@@ -37,9 +38,13 @@ class SrAssignSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final requestsAsync = ref.watch(serviceRequestsProvider);
-    final poolAsync = kind == SrKind.driver
-        ? ref.watch(fieldDriversProvider)
-        : ref.watch(inspectorsProvider);
+    final driversAsync = ref.watch(fieldDriversProvider);
+    final inspectorsAsync = ref.watch(inspectorsProvider);
+
+    // Resolve the pool as List<dynamic> based on kind.
+    final AsyncValue<List<dynamic>> poolAsync = kind == SrKind.driver
+        ? driversAsync.whenData((list) => list)
+        : inspectorsAsync.whenData((list) => list);
 
     return poolAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),

@@ -44,7 +44,7 @@ class DriverAppLocalDs {
       otp: '5821',
       fare: DriverFare(
         base: 180,
-        items: [],
+        items: const [],
         extra: 0,
         total: 180,
         collect: 0,
@@ -68,7 +68,7 @@ class DriverAppLocalDs {
       otp: '3047',
       fare: DriverFare(
         base: 200,
-        items: [],
+        items: const [],
         extra: 0,
         total: 200,
         collect: 0,
@@ -92,7 +92,7 @@ class DriverAppLocalDs {
       otp: '7391',
       fare: DriverFare(
         base: 420,
-        items: [
+        items: const [
           FareItem(label: 'Night allowance', amount: 150),
           FareItem(label: 'Toll charges', amount: 50),
         ],
@@ -120,7 +120,7 @@ class DriverAppLocalDs {
       otp: '2214',
       fare: DriverFare(
         base: 160,
-        items: [],
+        items: const [],
         extra: 0,
         total: 160,
         collect: 0,

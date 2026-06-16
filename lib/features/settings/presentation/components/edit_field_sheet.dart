@@ -27,7 +27,7 @@ Future<void> showEditFieldSheet(
     maxHeightFactor: 0.6,
     footer: label != null
         ? _EditFooter(onSaved: onSaved)
-        : _InfoFooter(),
+        : const _InfoFooter(),
     builder: (ctx) => _EditBody(
       info: info,
       label: label,

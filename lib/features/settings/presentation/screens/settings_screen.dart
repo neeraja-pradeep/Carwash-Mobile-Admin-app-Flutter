@@ -50,7 +50,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
             Expanded(
               child: async.when(
-                loading: () => _Skeleton(),
+                loading: () => const _Skeleton(),
                 error: (_, __) => const Center(
                   child: Text('Failed to load settings'),
                 ),
@@ -363,6 +363,8 @@ class _Body extends StatelessWidget {
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 class _Skeleton extends StatelessWidget {
+  const _Skeleton({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ListView(

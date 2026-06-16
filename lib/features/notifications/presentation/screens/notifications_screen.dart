@@ -93,7 +93,7 @@ class NotificationsScreen extends ConsumerWidget {
             ),
             Expanded(
               child: filteredAsync.when(
-                loading: () => _SkeletonList(),
+                loading: () => const _SkeletonList(),
                 error: (_, __) => const Center(
                   child: Text('Failed to load notifications'),
                 ),
@@ -204,6 +204,8 @@ class NotificationsScreen extends ConsumerWidget {
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 class _SkeletonList extends StatelessWidget {
+  const _SkeletonList({super.key});
+
   @override
   Widget build(BuildContext context) {
     return ListView(

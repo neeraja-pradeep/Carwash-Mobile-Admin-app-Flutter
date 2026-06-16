@@ -320,7 +320,7 @@ class _ContextMenu extends StatelessWidget {
           border: Border.all(color: AppColors.borderSoft),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.18),
+              color: Colors.black.withValues(alpha: 0.18),
               blurRadius: 20.r,
               offset: Offset(0, 6.h),
             ),

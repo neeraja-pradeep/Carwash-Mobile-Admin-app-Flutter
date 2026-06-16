@@ -102,11 +102,11 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
                             horizontal: 12.w, vertical: 7.h,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.bgCard.withOpacity(0.9),
+                            color: AppColors.bgCard.withValues(alpha: 0.9),
                             borderRadius: BorderRadius.circular(999.r),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.12),
+                                color: Colors.black.withValues(alpha: 0.12),
                                 blurRadius: 8.r,
                               ),
                             ],
@@ -795,7 +795,7 @@ class _AppToggle extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.25),
+                  color: Colors.black.withValues(alpha: 0.25),
                   blurRadius: 3.r,
                   offset: Offset(0, 1.h),
                 ),
@@ -813,7 +813,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black.withOpacity(0.04)
+      ..color = Colors.black.withValues(alpha: 0.04)
       ..strokeWidth = 1;
     const step = 22.0;
     for (double x = 0; x <= size.width; x += step) {

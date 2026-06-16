@@ -92,12 +92,12 @@ class ServiceRequestsList extends ConsumerWidget {
               child: filteredAsync.when(
                 loading: () => ListView(
                   padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 96.h),
-                  children: const [
-                    SkeletonCard(),
-                    SizedBox(height: 12),
-                    SkeletonCard(),
-                    SizedBox(height: 12),
-                    SkeletonCard(),
+                  children: [
+                    const SkeletonCard(),
+                    SizedBox(height: 12.h),
+                    const SkeletonCard(),
+                    SizedBox(height: 12.h),
+                    const SkeletonCard(),
                   ],
                 ),
                 error: (e, _) => Center(
