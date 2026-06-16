@@ -46,8 +46,8 @@ class _DocumentsSectionState extends State<DocumentsSection> {
       final finalType = type == 'Other'
           ? (customTitle.trim().isEmpty ? 'Other' : customTitle.trim())
           : type;
-      final id = existingDoc?.id ??
-          'dc_${DateTime.now().millisecondsSinceEpoch}';
+      final id =
+          existingDoc?.id ?? 'dc_${DateTime.now().millisecondsSinceEpoch}';
       final updated = DriverDocument(
         id: id,
         type: finalType,
@@ -79,6 +79,7 @@ class _DocumentsSectionState extends State<DocumentsSection> {
           onSave: () => doSave(ctx),
           onDeleteRequest: existingDoc != null
               ? () async {
+                  final sheetNavigator = Navigator.of(ctx);
                   final confirmed = await showConfirmDialog(
                     context: context,
                     title: 'Delete this document?',
@@ -87,12 +88,12 @@ class _DocumentsSectionState extends State<DocumentsSection> {
                     confirmLabel: 'Delete',
                     destructive: true,
                   );
-                  if (confirmed) {
+                  if (confirmed && context.mounted) {
                     final docs = widget.documents
                         .where((d) => d.id != existingDoc.id)
                         .toList();
                     widget.onChanged(docs);
-                    Navigator.of(ctx).pop();
+                    sheetNavigator.pop();
                     AppToast.show(context, 'Document removed');
                   }
                 }
@@ -170,8 +171,7 @@ class _DocumentsSectionState extends State<DocumentsSection> {
             Column(
               children: [
                 for (var i = 0; i < docs.length; i++) ...[
-                  if (i > 0)
-                    Divider(height: 1.h, color: AppColors.borderSoft),
+                  if (i > 0) Divider(height: 1.h, color: AppColors.borderSoft),
                   _DocRow(
                     doc: docs[i],
                     onView: () =>

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:go_router/go_router.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
@@ -15,15 +14,21 @@ import 'package:new_flutter_project/core/constants/app_options.dart';
 import '../../domain/entities/field_driver.dart';
 import '../components/documents_section.dart';
 
-/// "Hire Driver" full-screen form. Pushed from [DriversScreen] FAB.
+/// "Hire Driver" / "Edit Driver" full-screen form.
+///
+/// Add mode (no [driver]) — pushed from the [DriversScreen] FAB.
+/// Edit mode ([driver] set) — pushed from the driver detail 3-dot "Edit profile";
+/// fields are prefilled and the copy switches to "Edit Driver" / "Save Changes".
 ///
 /// Sections: Personal (name/phone/email), Role (segmented + vehicle classes),
 /// Driving License (number/expiry/verified toggle), Documents.
-/// Footer: primary "Add Driver & Send Invite" button (disabled until name +
-/// phone + licenseNo are filled).
-/// Back: shows discard-changes confirm dialog if the form is dirty.
+/// Footer: primary CTA, disabled until name + phone + licenseNo are filled.
+/// Back: shows a discard confirm dialog if the form is dirty.
 class HireDriverScreen extends StatefulWidget {
-  const HireDriverScreen({super.key});
+  const HireDriverScreen({this.driver, super.key});
+
+  /// When non-null the form is in edit mode and prefilled from this driver.
+  final FieldDriver? driver;
 
   @override
   State<HireDriverScreen> createState() => _HireDriverScreenState();
@@ -31,25 +36,41 @@ class HireDriverScreen extends StatefulWidget {
 
 class _HireDriverScreenState extends State<HireDriverScreen> {
   // Form state
-  String _name = '';
-  String _phone = '';
-  String _email = '';
-  String _role = kDriverRoles.first;
-  String _licenseNo = '';
-  String _licenseExpiry = '';
-  bool _verified = false;
-  List<String> _classes = ['Hatchback', 'Sedan'];
-  List<DriverDocument> _docs = [];
+  late String _name;
+  late String _phone;
+  late String _email;
+  late String _role;
+  late String _licenseNo;
+  late String _licenseExpiry;
+  late bool _verified;
+  late List<String> _classes;
+  late List<DriverDocument> _docs;
 
-  bool _confirmExitOpen = false;
+  bool get _isEdit => widget.driver != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final d = widget.driver;
+    _name = d?.name ?? '';
+    _phone = d?.phone ?? '';
+    _email = d?.email ?? '';
+    _role = d?.role ?? kDriverRoles.first;
+    _licenseNo = d?.license.number ?? '';
+    _licenseExpiry = d?.license.expiry ?? '';
+    _verified = d?.license.verified ?? false;
+    _classes = d != null ? [...d.vehicleClasses] : ['Hatchback', 'Sedan'];
+    _docs = d != null ? [...d.documents] : [];
+  }
 
   bool get _valid =>
       _name.trim().isNotEmpty &&
       _phone.trim().length >= 10 &&
       _licenseNo.trim().isNotEmpty;
 
+  // Editing an existing driver is always treated as dirty (mirrors the design).
   bool get _dirty =>
-      _name.isNotEmpty || _phone.isNotEmpty || _licenseNo.isNotEmpty;
+      _isEdit || _name.isNotEmpty || _phone.isNotEmpty || _licenseNo.isNotEmpty;
 
   void _toggleClass(String c) {
     setState(() {
@@ -63,18 +84,18 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
 
   Future<void> _handleBack() async {
     if (!_dirty) {
-      context.pop();
+      Navigator.of(context).pop();
       return;
     }
     final confirmed = await showConfirmDialog(
       context: context,
-      title: 'Discard new driver?',
+      title: _isEdit ? 'Discard changes?' : 'Discard new driver?',
       body: 'Your entered details will be lost.',
       confirmLabel: 'Discard',
       destructive: true,
     );
     if (confirmed && mounted) {
-      context.pop();
+      Navigator.of(context).pop();
     }
   }
 
@@ -87,17 +108,19 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
         child: Column(
           children: [
             TopBar(
-              title: 'Hire Driver',
-              subtitle: 'New team member',
+              title: _isEdit ? 'Edit Driver' : 'Hire Driver',
+              subtitle: _isEdit ? widget.driver!.name : 'New team member',
               onBack: _handleBack,
             ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
                 children: [
-                  // Info banner
-                  _InfoBanner(),
-                  SizedBox(height: 14.h),
+                  // Info banner — add mode only
+                  if (!_isEdit) ...[
+                    _InfoBanner(),
+                    SizedBox(height: 14.h),
+                  ],
 
                   // Personal section
                   _FormCard(
@@ -187,16 +210,13 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
                         label: 'Expiry (MM-YYYY)',
                         value: _licenseExpiry,
                         placeholder: '08-2029',
-                        onChanged: (v) =>
-                            setState(() => _licenseExpiry = v),
+                        onChanged: (v) => setState(() => _licenseExpiry = v),
                       ),
                       Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Mark as verified',
@@ -230,8 +250,7 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
                   // Documents
                   DocumentsSection(
                     documents: _docs,
-                    onChanged: (updated) =>
-                        setState(() => _docs = updated),
+                    onChanged: (updated) => setState(() => _docs = updated),
                   ),
                 ],
               ),
@@ -247,16 +266,18 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
                 ),
               ),
               child: AppButton(
-                label: 'Add Driver & Send Invite',
+                label: _isEdit ? 'Save Changes' : 'Add Driver & Send Invite',
                 full: true,
                 disabled: !_valid,
                 onPressed: _valid
                     ? () {
                         AppToast.show(
                           context,
-                          'Driver added · invite sent to $_phone',
+                          _isEdit
+                              ? 'Driver updated'
+                              : 'Driver added · invite sent to $_phone',
                         );
-                        context.pop();
+                        Navigator.of(context).pop();
                       }
                     : null,
               ),

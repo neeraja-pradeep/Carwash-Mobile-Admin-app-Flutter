@@ -28,20 +28,25 @@ class _LoginScreenState extends State<LoginScreen> {
   String _mode = 'driver';
 
   // ── Driver OTP flow ──────────────────────────────────────────────────────
-  final _phoneController =
-      TextEditingController(text: '+91 97447 30021');
+  final _phoneController = TextEditingController(text: '+91 97447 30021');
   final _otpController = TextEditingController();
   bool _otpSent = false;
   String? _driverError;
 
   // ── Admin flow ───────────────────────────────────────────────────────────
-  final _adminPhoneController =
-      TextEditingController(text: '+91 98470 22119');
+  final _adminPhoneController = TextEditingController(text: '+91 98470 22119');
   final _adminPasswordController =
       TextEditingController(text: AppConstants.demoAdminPassword);
   bool _showPassword = false;
   bool _showForgotMessage = false;
   String? _adminError;
+
+  /// Failed sign-in attempts. At [_lockThreshold] the account is "locked" for
+  /// the demo (mirrors the lockout state in screen_login.jsx).
+  int _adminAttempts = 0;
+  static const int _lockThreshold = 5;
+
+  bool get _adminLocked => _adminAttempts >= _lockThreshold;
 
   // ── Registered driver phone numbers (non-suspended) ──────────────────────
   static const _registeredDrivers = {
@@ -63,7 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final phone = _phoneController.text.trim();
     if (!_registeredDrivers.contains(phone)) {
       setState(() => _driverError =
-          'This number is not registered as a driver. Please check and try again.');
+          "This number isn't registered. Ask your admin to add you.");
       return;
     }
     setState(() {
@@ -77,17 +82,47 @@ class _LoginScreenState extends State<LoginScreen> {
     if (otp == AppConstants.demoOtp) {
       context.go(Routes.driverToday);
     } else {
-      setState(() => _driverError = 'Incorrect OTP. Try 1234.');
+      setState(() => _driverError = 'Incorrect OTP. Demo OTP is 1234.');
+    }
+  }
+
+  /// Editing the password clears any demo lock so a reviewer is never trapped
+  /// (matches the `onPwd` behaviour in screen_login.jsx).
+  void _handlePasswordChanged(String _) {
+    if (_adminError != null || _adminAttempts != 0) {
+      setState(() {
+        _adminError = null;
+        _adminAttempts = 0;
+      });
     }
   }
 
   void _handleAdminSignIn() {
+    if (_adminLocked) return;
     final password = _adminPasswordController.text;
-    if (password == AppConstants.demoAdminPassword) {
-      context.go(Routes.dashboard);
-    } else {
-      setState(() => _adminError = 'Incorrect password.');
+    if (password.isEmpty) {
+      setState(() => _adminError = 'Enter your password to continue.');
+      return;
     }
+    if (password == AppConstants.demoAdminPassword) {
+      setState(() => _adminError = null);
+      context.go(Routes.dashboard);
+      return;
+    }
+    setState(() {
+      _adminAttempts++;
+      final left = _lockThreshold - _adminAttempts;
+      _adminError = _adminLocked
+          ? 'Too many attempts. Locked for 15 minutes.'
+          : 'Incorrect password. $left attempt${left == 1 ? '' : 's'} left.';
+    });
+  }
+
+  void _resetLock() {
+    setState(() {
+      _adminAttempts = 0;
+      _adminError = null;
+    });
   }
 
   @override
@@ -130,21 +165,23 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     SizedBox(height: 12.h),
                     Text(
-                      AppConstants.appName,
+                      _mode == 'admin' ? AppConstants.appName : 'Drivey',
                       style: AppText.figtree(
-                        size: 26,
+                        size: 25,
                         weight: FontWeight.w800,
+                        letterSpacing: -0.5,
+                        height: 1,
                       ),
                     ),
-                    SizedBox(height: 2.h),
+                    SizedBox(height: 5.h),
                     Text(
-                      _mode == 'admin'
-                          ? 'Operator Console'
-                          : 'Driver Partner',
+                      (_mode == 'admin' ? 'Operator Console' : 'Driver Partner')
+                          .toUpperCase(),
                       style: AppText.figtree(
-                        size: 13,
-                        weight: FontWeight.w400,
+                        size: 10.5,
+                        weight: FontWeight.w700,
                         color: AppColors.fgTertiary,
+                        letterSpacing: 0.18 * 10.5,
                       ),
                     ),
                   ],
@@ -160,6 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   _mode = m;
                   _driverError = null;
                   _adminError = null;
+                  _adminAttempts = 0;
                   _otpSent = false;
                   _otpController.clear();
                   _showForgotMessage = false;
@@ -169,33 +207,37 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(height: 24.h),
 
               // ── Form ─────────────────────────────────────────────────────
-              if (_mode == 'driver') _buildDriverForm()
-              else _buildAdminForm(),
+              if (_mode == 'driver') _buildDriverForm() else _buildAdminForm(),
 
               SizedBox(height: 48.h),
 
               // ── Footer ───────────────────────────────────────────────────
               Center(
                 child: Text(
-                  'Single-city operations · Alappuzha, Kerala',
+                  _mode == 'admin'
+                      ? 'Single-city operations · Alappuzha, Kerala'
+                      : 'Drivey Driver · Alappuzha',
+                  textAlign: TextAlign.center,
                   style: AppText.figtree(
-                    size: 11,
-                    weight: FontWeight.w400,
+                    size: 11.5,
+                    weight: FontWeight.w500,
                     color: AppColors.fgMuted,
                   ),
                 ),
               ),
-              SizedBox(height: 4.h),
-              Center(
-                child: Text(
-                  'DriveDeck ${AppConstants.appVersion}',
-                  style: AppText.figtree(
-                    size: 11,
-                    weight: FontWeight.w400,
-                    color: AppColors.fgMuted,
+              if (_mode == 'admin') ...[
+                SizedBox(height: 4.h),
+                Center(
+                  child: Text(
+                    'DriveDeck Operator v0.1',
+                    style: AppText.figtree(
+                      size: 11.5,
+                      weight: FontWeight.w500,
+                      color: AppColors.fgMuted,
+                    ),
                   ),
                 ),
-              ),
+              ],
               SizedBox(height: 24.h),
             ],
           ),
@@ -211,27 +253,29 @@ class _LoginScreenState extends State<LoginScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          _otpSent ? 'Enter OTP' : 'Sign in to continue',
-          style: AppText.figtree(size: 20, weight: FontWeight.w700),
+          _otpSent ? 'Enter OTP' : 'Sign in',
+          style: AppText.figtree(
+              size: 26, weight: FontWeight.w700, letterSpacing: -0.6),
         ),
-        SizedBox(height: 4.h),
+        SizedBox(height: 6.h),
         Text(
           _otpSent
-              ? 'We sent a demo OTP to ${_phoneController.text}.'
-              : 'Enter your registered mobile number.',
+              ? 'Sent to ${_phoneController.text}.'
+              : "Use the mobile number your admin registered. "
+                  "We'll send a one-time code.",
           style: AppText.figtree(
-            size: 13.5,
+            size: 14.5,
             weight: FontWeight.w400,
             color: AppColors.fgTertiary,
-            height: 1.4,
+            height: 1.45,
           ),
         ),
-        SizedBox(height: 20.h),
+        SizedBox(height: 28.h),
 
         if (!_otpSent) ...[
           // Phone field
-          _InputLabel(label: 'Mobile Number'),
-          SizedBox(height: 6.h),
+          _InputLabel(label: 'Mobile number'),
+          SizedBox(height: 7.h),
           _TextField(
             controller: _phoneController,
             hint: '+91 00000 00000',
@@ -296,18 +340,14 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
 
-        // Error
-        if (_driverError != null) ...[
-          SizedBox(height: 8.h),
-          Text(
-            _driverError!,
-            style: AppText.figtree(
-              size: 12.5,
-              weight: FontWeight.w500,
-              color: AppColors.danger,
-            ),
-          ),
-        ],
+        // Error / demo hint
+        SizedBox(height: 8.h),
+        _HintLine(
+          error: _driverError,
+          hint: _otpSent
+              ? 'Demo OTP is 1234'
+              : "Demo · Manoj's number is pre-filled",
+        ),
 
         SizedBox(height: 20.h),
 
@@ -321,6 +361,7 @@ class _LoginScreenState extends State<LoginScreen> {
           AppButton(
             label: 'Verify & Sign In',
             full: true,
+            disabled: _otpController.text.length != 4,
             onPressed: _handleVerifyOtp,
           ),
           SizedBox(height: 12.h),
@@ -354,22 +395,24 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           'Sign in to continue',
-          style: AppText.figtree(size: 20, weight: FontWeight.w700),
-        ),
-        SizedBox(height: 4.h),
-        Text(
-          'Enter your operator credentials.',
           style: AppText.figtree(
-            size: 13.5,
+              size: 26, weight: FontWeight.w700, letterSpacing: -0.6),
+        ),
+        SizedBox(height: 6.h),
+        Text(
+          "Run today's washes, assignments, and refunds from one place.",
+          style: AppText.figtree(
+            size: 14.5,
             weight: FontWeight.w400,
             color: AppColors.fgTertiary,
+            height: 1.45,
           ),
         ),
-        SizedBox(height: 20.h),
+        SizedBox(height: 28.h),
 
         // Phone
-        _InputLabel(label: 'Mobile Number'),
-        SizedBox(height: 6.h),
+        _InputLabel(label: 'Phone number'),
+        SizedBox(height: 7.h),
         _TextField(
           controller: _adminPhoneController,
           hint: '+91 00000 00000',
@@ -377,50 +420,58 @@ class _LoginScreenState extends State<LoginScreen> {
           keyboardType: TextInputType.phone,
         ),
 
-        SizedBox(height: 14.h),
+        SizedBox(height: 18.h),
 
         // Password
         _InputLabel(label: 'Password'),
-        SizedBox(height: 6.h),
+        SizedBox(height: 7.h),
         _PasswordField(
           controller: _adminPasswordController,
           visible: _showPassword,
           onToggleVisibility: () =>
               setState(() => _showPassword = !_showPassword),
+          onChanged: _handlePasswordChanged,
           onSubmitted: (_) => _handleAdminSignIn(),
-          hasError: _adminError != null,
+          hasError: _adminError != null && !_adminLocked,
         ),
 
-        // Error + forgot
-        SizedBox(height: 8.h),
+        // Error / demo hint  +  forgot / reset-lock
+        SizedBox(height: 6.h),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            if (_adminError != null)
-              Expanded(
+            Expanded(
+              child: _HintLine(
+                error: _adminError,
+                hint: 'Demo · password pre-filled, just tap Sign In',
+              ),
+            ),
+            SizedBox(width: 8.w),
+            if (_adminLocked)
+              GestureDetector(
+                onTap: _resetLock,
                 child: Text(
-                  _adminError!,
+                  'Reset lock',
                   style: AppText.figtree(
                     size: 12.5,
-                    weight: FontWeight.w500,
+                    weight: FontWeight.w700,
                     color: AppColors.danger,
                   ),
                 ),
               )
             else
-              const Spacer(),
-            GestureDetector(
-              onTap: () =>
-                  setState(() => _showForgotMessage = !_showForgotMessage),
-              child: Text(
-                'Forgot password?',
-                style: AppText.figtree(
-                  size: 12.5,
-                  weight: FontWeight.w600,
-                  color: AppColors.fgSecondary,
+              GestureDetector(
+                onTap: () =>
+                    setState(() => _showForgotMessage = !_showForgotMessage),
+                child: Text(
+                  'Forgot password?',
+                  style: AppText.figtree(
+                    size: 12.5,
+                    weight: FontWeight.w600,
+                    color: AppColors.fgSecondary,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
 
@@ -434,21 +485,24 @@ class _LoginScreenState extends State<LoginScreen> {
               border: Border.all(color: AppColors.borderDefault),
             ),
             child: Text(
-              'Contact your co-founder to reset.',
+              'No self-serve reset in v0.1. Contact your co-founder to reset '
+              'your password.',
               style: AppText.figtree(
                 size: 13,
                 weight: FontWeight.w500,
                 color: AppColors.fgSecondary,
+                height: 1.4,
               ),
             ),
           ),
         ],
 
-        SizedBox(height: 20.h),
+        SizedBox(height: 14.h),
 
         AppButton(
-          label: 'Sign In',
+          label: _adminLocked ? 'Locked — try later' : 'Sign In',
           full: true,
+          disabled: _adminLocked,
           onPressed: _handleAdminSignIn,
         ),
       ],
@@ -457,6 +511,41 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 // ── Sub-widgets ──────────────────────────────────────────────────────────────
+
+/// One-line error-or-hint row under a field. Shows [error] (danger colour with
+/// an alert glyph) when non-null, otherwise the muted [hint] — mirrors the
+/// error/hint line in screen_login.jsx.
+class _HintLine extends StatelessWidget {
+  const _HintLine({required this.error, required this.hint});
+
+  final String? error;
+  final String hint;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasError = error != null;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (hasError) ...[
+          Icon(AppIcons.alert, size: 14.sp, color: AppColors.danger),
+          SizedBox(width: 5.w),
+        ],
+        Flexible(
+          child: Text(
+            hasError ? error! : hint,
+            style: AppText.figtree(
+              size: 12.5,
+              weight: FontWeight.w500,
+              color: hasError ? AppColors.danger : AppColors.fgMuted,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _ModeToggle extends StatelessWidget {
   const _ModeToggle({required this.selected, required this.onSelect});
@@ -584,12 +673,10 @@ class _TextField extends StatelessWidget {
           weight: FontWeight.w400,
           color: AppColors.fgMuted,
         ),
-        prefixIcon:
-            Icon(icon, size: 18.sp, color: AppColors.fgTertiary),
+        prefixIcon: Icon(icon, size: 18.sp, color: AppColors.fgTertiary),
         filled: true,
         fillColor: AppColors.bgInput,
-        contentPadding:
-            EdgeInsets.symmetric(vertical: 16.h, horizontal: 14.w),
+        contentPadding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 14.w),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12.r),
           borderSide: const BorderSide(color: AppColors.borderDefault),
@@ -600,8 +687,7 @@ class _TextField extends StatelessWidget {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12.r),
-          borderSide:
-              const BorderSide(color: AppColors.brandYellow, width: 2),
+          borderSide: const BorderSide(color: AppColors.brandYellow, width: 2),
         ),
       ),
     );
@@ -613,6 +699,7 @@ class _PasswordField extends StatelessWidget {
     required this.controller,
     required this.visible,
     required this.onToggleVisibility,
+    this.onChanged,
     this.onSubmitted,
     this.hasError = false,
   });
@@ -620,6 +707,7 @@ class _PasswordField extends StatelessWidget {
   final TextEditingController controller;
   final bool visible;
   final VoidCallback onToggleVisibility;
+  final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final bool hasError;
 
@@ -628,29 +716,38 @@ class _PasswordField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: !visible,
+      onChanged: onChanged,
       onSubmitted: onSubmitted,
       style: AppText.figtree(size: 15, weight: FontWeight.w500),
       decoration: InputDecoration(
-        hintText: 'Password',
+        hintText: 'Enter password',
         hintStyle: AppText.figtree(
           size: 15,
           weight: FontWeight.w400,
           color: AppColors.fgMuted,
         ),
-        prefixIcon: Icon(AppIcons.gear,
-            size: 18.sp, color: AppColors.fgTertiary),
+        prefixIcon:
+            Icon(AppIcons.gear, size: 18.sp, color: AppColors.fgTertiary),
         suffixIcon: GestureDetector(
           onTap: onToggleVisibility,
-          child: Icon(
-            visible ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-            size: 18.sp,
-            color: AppColors.fgTertiary,
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            alignment: Alignment.center,
+            padding: EdgeInsets.symmetric(horizontal: 14.w),
+            child: Text(
+              visible ? 'Hide' : 'Show',
+              style: AppText.figtree(
+                size: 12.5,
+                weight: FontWeight.w600,
+                color: AppColors.fgSecondary,
+              ),
+            ),
           ),
         ),
+        suffixIconConstraints: BoxConstraints(minWidth: 0, minHeight: 0),
         filled: true,
         fillColor: AppColors.bgInput,
-        contentPadding:
-            EdgeInsets.symmetric(vertical: 16.h, horizontal: 14.w),
+        contentPadding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 14.w),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12.r),
           borderSide: const BorderSide(color: AppColors.borderDefault),

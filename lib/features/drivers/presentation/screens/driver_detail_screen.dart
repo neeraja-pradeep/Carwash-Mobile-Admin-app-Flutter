@@ -23,6 +23,7 @@ import '../../application/providers/drivers_providers.dart';
 import '../../domain/entities/field_driver.dart';
 import '../components/documents_section.dart';
 import '../components/live_job_card.dart';
+import 'hire_driver_screen.dart';
 
 /// Full driver profile screen — pushed from DriversScreen via [Routes.driverDetail].
 ///
@@ -41,8 +42,7 @@ class DriverDetailScreen extends ConsumerStatefulWidget {
   final String driverId;
 
   @override
-  ConsumerState<DriverDetailScreen> createState() =>
-      _DriverDetailScreenState();
+  ConsumerState<DriverDetailScreen> createState() => _DriverDetailScreenState();
 }
 
 class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
@@ -150,8 +150,7 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
                         AppIconButton(
                           icon: AppIcons.more,
                           semanticLabel: 'More options',
-                          onTap: () =>
-                              setState(() => _menuOpen = !_menuOpen),
+                          onTap: () => setState(() => _menuOpen = !_menuOpen),
                         ),
                       ],
                     ),
@@ -222,7 +221,12 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
                     onDismiss: () => setState(() => _menuOpen = false),
                     onEditProfile: () {
                       setState(() => _menuOpen = false);
-                      context.push(Routes.hireDriver); // edit form reuse
+                      // Full-screen edit form, prefilled from this driver.
+                      Navigator.of(context, rootNavigator: true).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => HireDriverScreen(driver: driver),
+                        ),
+                      );
                     },
                     onResendInvite: () {
                       setState(() => _menuOpen = false);
@@ -233,8 +237,7 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
                     },
                     onToggleSuspend: () async {
                       setState(() => _menuOpen = false);
-                      final isSuspended =
-                          status == DriverStatus.suspended;
+                      final isSuspended = status == DriverStatus.suspended;
                       final confirmed = await showConfirmDialog(
                         context: context,
                         title: isSuspended
@@ -246,19 +249,16 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
                         confirmLabel: isSuspended ? 'Reactivate' : 'Suspend',
                         destructive: !isSuspended,
                       );
-                      if (confirmed && mounted) {
-                        setState(() {
-                          _localStatus = isSuspended
-                              ? DriverStatus.active
-                              : DriverStatus.suspended;
-                        });
-                        AppToast.show(
-                          context,
-                          isSuspended
-                              ? 'Driver reactivated'
-                              : 'Driver suspended',
-                        );
-                      }
+                      if (!confirmed || !context.mounted) return;
+                      setState(() {
+                        _localStatus = isSuspended
+                            ? DriverStatus.active
+                            : DriverStatus.suspended;
+                      });
+                      AppToast.show(
+                        context,
+                        isSuspended ? 'Driver reactivated' : 'Driver suspended',
+                      );
                     },
                   ),
               ],
@@ -440,8 +440,7 @@ class _ProfileCard extends StatelessWidget {
           ),
           _ProfileRow(
             label: 'Verification',
-            value:
-                driver.license.verified ? 'Verified' : 'Pending',
+            value: driver.license.verified ? 'Verified' : 'Pending',
             verified: driver.license.verified,
           ),
           // Joined (last row, no border)
@@ -514,8 +513,7 @@ class _ProfileRow extends StatelessWidget {
                   Icon(
                     verified! ? AppIcons.checkCircle : AppIcons.clock,
                     size: 14.sp,
-                    color:
-                        verified! ? AppColors.greenFg : AppColors.amberFg,
+                    color: verified! ? AppColors.greenFg : AppColors.amberFg,
                   ),
                   SizedBox(width: 5.w),
                 ],

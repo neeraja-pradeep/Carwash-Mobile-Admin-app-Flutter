@@ -33,12 +33,10 @@ class KpiTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final bg = alert ? AppColors.brandYellow : AppColors.bgCard;
     final border = alert ? AppColors.brandYellowDeep : AppColors.borderSoft;
-    final eyebrowColor =
-        alert ? const Color(0x99000000) : AppColors.fgTertiary;
+    final eyebrowColor = alert ? const Color(0x99000000) : AppColors.fgTertiary;
     final iconColor = alert ? AppColors.fgPrimary : AppColors.fgTertiary;
-    final resolvedSubColor = alert
-        ? const Color(0xB3000000)
-        : (subColor ?? AppColors.fgTertiary);
+    final resolvedSubColor =
+        alert ? const Color(0xB3000000) : (subColor ?? AppColors.fgTertiary);
 
     return Material(
       color: Colors.transparent,
@@ -52,7 +50,8 @@ class KpiTile extends StatelessWidget {
             border: Border.all(color: border),
             boxShadow: [
               BoxShadow(
-                color: const Color(0x080000000),
+                // rgba(0,0,0,0.03) from screen_dashboard.jsx KpiTile.
+                color: const Color(0x08000000),
                 offset: Offset(0, 1.h),
                 blurRadius: 2.r,
               ),

@@ -115,7 +115,7 @@ class DashboardScreen extends ConsumerWidget {
                             children: [
                               QuickActionTile(
                                 icon: AppIcons.plus,
-                                label: 'New Manual Booking',
+                                label: 'New Booking',
                                 onTap: () => context.push(Routes.newBooking),
                               ),
                               QuickActionTile(
@@ -152,6 +152,9 @@ class DashboardScreen extends ConsumerWidget {
                             physics: const NeverScrollableScrollPhysics(),
                             crossAxisSpacing: 12.w,
                             mainAxisSpacing: 12.h,
+                            // Order/labels mirror the More Tools grid in
+                            // screen_dashboard.jsx (Drivers is a bottom-nav tab,
+                            // not a tile here).
                             children: [
                               ModuleTile(
                                 icon: AppIcons.store,
@@ -166,11 +169,16 @@ class DashboardScreen extends ConsumerWidget {
                               ModuleTile(
                                 icon: AppIcons.receipt,
                                 label: 'Refunds',
+                                // Pending-refund count badge (data-driven from
+                                // the snapshot; matches `badge={2}` in
+                                // screen_dashboard.jsx).
+                                badge:
+                                    snapshotAsync.valueOrNull?.pendingRefunds,
                                 onTap: () => context.push(Routes.refunds),
                               ),
                               ModuleTile(
                                 icon: AppIcons.wallet,
-                                label: 'Payout Log',
+                                label: 'Payouts',
                                 onTap: () => context.push(Routes.payouts),
                               ),
                               ModuleTile(
@@ -184,20 +192,15 @@ class DashboardScreen extends ConsumerWidget {
                                 onTap: () => context.push(Routes.reports),
                               ),
                               ModuleTile(
-                                icon: AppIcons.users,
-                                label: 'Drivers',
-                                onTap: () => context.go(Routes.drivers),
+                                icon: AppIcons.bell,
+                                label: 'Push',
+                                onTap: () =>
+                                    context.push(Routes.pushNotifications),
                               ),
                               ModuleTile(
                                 icon: AppIcons.gear,
                                 label: 'Settings',
                                 onTap: () => context.push(Routes.settings),
-                              ),
-                              ModuleTile(
-                                icon: AppIcons.bell,
-                                label: 'Push',
-                                onTap: () =>
-                                    context.push(Routes.pushNotifications),
                               ),
                             ],
                           ),
@@ -251,7 +254,12 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.bgCard,
+      decoration: const BoxDecoration(
+        color: AppColors.bgCard,
+        border: Border(
+          bottom: BorderSide(color: AppColors.borderSoft),
+        ),
+      ),
       padding: EdgeInsets.fromLTRB(14.w, 6.h, 14.w, 12.h),
       child: Row(
         children: [
