@@ -62,22 +62,21 @@ class _ShopFormBody extends StatefulWidget {
 class _ShopFormBodyState extends State<_ShopFormBody> {
   late _FormState _f;
   bool _touched = false;
-  bool _showExitConfirm = false;
 
   bool get _isEdit => widget.shop != null;
 
   @override
   void initState() {
     super.initState();
-    _f = _isEdit
-        ? _FormState.fromShop(widget.shop!)
-        : const _FormState();
+    _f = _isEdit ? _FormState.fromShop(widget.shop!) : const _FormState();
   }
 
-  bool get _dirty =>
-      _isEdit ? _touched : _f.name.isNotEmpty || _f.ownerName.isNotEmpty || _f.address.isNotEmpty;
+  bool get _dirty => _isEdit
+      ? _touched
+      : _f.name.isNotEmpty || _f.ownerName.isNotEmpty || _f.address.isNotEmpty;
 
-  bool get _valid => _f.name.trim().isNotEmpty && _f.ownerPhone.trim().isNotEmpty;
+  bool get _valid =>
+      _f.name.trim().isNotEmpty && _f.ownerPhone.trim().isNotEmpty;
 
   void _set(_FormState updated) => setState(() {
         _f = updated;
@@ -85,6 +84,23 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
       });
 
   void _toast(String msg) => AppToast.show(context, msg);
+
+  /// Prompts to discard unsaved details before leaving (matches the design's
+  /// discard pattern). Pops only when confirmed or when not dirty.
+  Future<void> _handleBack() async {
+    if (!_dirty) {
+      context.pop();
+      return;
+    }
+    final discard = await showConfirmDialog(
+      context: context,
+      title: _isEdit ? 'Discard changes?' : 'Discard new shop?',
+      body: 'Your entered details will be lost.',
+      confirmLabel: 'Discard',
+      destructive: true,
+    );
+    if (discard && mounted) context.pop();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,13 +118,7 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
               TopBar(
                 title: _isEdit ? 'Edit Shop' : 'Add Shop',
                 subtitle: _isEdit ? widget.shop!.name : null,
-                onBack: () {
-                  if (_dirty) {
-                    setState(() => _showExitConfirm = true);
-                  } else {
-                    context.pop();
-                  }
-                },
+                onBack: _handleBack,
               ),
               Expanded(
                 child: SingleChildScrollView(
@@ -143,8 +153,8 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
                                       TextSpan(text: 'Shop is created '),
                                       TextSpan(
                                         text: 'Inactive',
-                                        style:
-                                            TextStyle(fontWeight: FontWeight.w700),
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700),
                                       ),
                                       TextSpan(
                                         text:
@@ -202,8 +212,7 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
                             value: _f.ownerPhone,
                             placeholder: '+91 …',
                             keyboardType: TextInputType.phone,
-                            onChanged: (v) =>
-                                _set(_f.copyWith(ownerPhone: v)),
+                            onChanged: (v) => _set(_f.copyWith(ownerPhone: v)),
                           ),
                           _FInput(
                             label: 'Shop phone',
@@ -211,8 +220,7 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
                             placeholder: 'Number drivers see',
                             optional: true,
                             keyboardType: TextInputType.phone,
-                            onChanged: (v) =>
-                                _set(_f.copyWith(shopPhone: v)),
+                            onChanged: (v) => _set(_f.copyWith(shopPhone: v)),
                           ),
                         ],
                       ),
@@ -224,8 +232,8 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
                         children: [
                           if (_isEdit)
                             GestureDetector(
-                              onTap: () =>
-                                  context.push(Routes.shopHours(widget.shop!.id)),
+                              onTap: () => context
+                                  .push(Routes.shopHours(widget.shop!.id)),
                               child: Row(
                                 children: [
                                   Container(
@@ -234,8 +242,7 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
                                       color: AppColors.bgPage,
-                                      borderRadius:
-                                          BorderRadius.circular(11.r),
+                                      borderRadius: BorderRadius.circular(11.r),
                                     ),
                                     child: Icon(
                                       AppIcons.clock,
@@ -341,7 +348,8 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
                                     },
                                     child: Container(
                                       padding: EdgeInsets.symmetric(
-                                        horizontal: 13.w, vertical: 8.h,
+                                        horizontal: 13.w,
+                                        vertical: 8.h,
                                       ),
                                       decoration: BoxDecoration(
                                         color: on
@@ -411,8 +419,7 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
                                     keyboardType:
                                         const TextInputType.numberWithOptions(
                                             decimal: true),
-                                    onChanged: (v) =>
-                                        _set(_f.copyWith(pct: v)),
+                                    onChanged: (v) => _set(_f.copyWith(pct: v)),
                                   ),
                                 ),
                                 SizedBox(width: 12.w),
@@ -685,9 +692,8 @@ class _CommissionSeg extends StatelessWidget {
                   style: AppText.figtree(
                     size: 12.5,
                     weight: FontWeight.w700,
-                    color: value == k
-                        ? AppColors.fgOnDark
-                        : AppColors.fgSecondary,
+                    color:
+                        value == k ? AppColors.fgOnDark : AppColors.fgSecondary,
                   ),
                 ),
               ),

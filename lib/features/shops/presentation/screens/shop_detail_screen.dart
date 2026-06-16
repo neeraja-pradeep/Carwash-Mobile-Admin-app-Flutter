@@ -251,7 +251,6 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
           shop: live,
           active: isActive,
           onActiveChanged: (v) => setState(() => _activeOverride = v),
-          onManageHours: () => context.push(Routes.shopHours(live.id)),
         );
       case 1:
         return ServicesSection(
@@ -320,7 +319,7 @@ class _ContextMenu extends StatelessWidget {
           border: Border.all(color: AppColors.borderSoft),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
+              color: Colors.black.withOpacity(0.18),
               blurRadius: 20.r,
               offset: Offset(0, 6.h),
             ),
@@ -334,7 +333,8 @@ class _ContextMenu extends StatelessWidget {
               onTap: action,
               child: Container(
                 padding: EdgeInsets.symmetric(
-                  horizontal: 14.w, vertical: 13.h,
+                  horizontal: 14.w,
+                  vertical: 13.h,
                 ),
                 decoration: i > 0
                     ? const BoxDecoration(

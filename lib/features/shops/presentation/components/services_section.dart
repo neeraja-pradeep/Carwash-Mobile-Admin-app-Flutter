@@ -87,8 +87,8 @@ class _ServiceRow extends StatelessWidget {
     final activePricing = service.pricing.where((p) => p.active).toList();
     if (activePricing.isEmpty) return 'No vehicle types active';
     final minPrice = activePricing.map((p) => p.price).reduce(
-      (a, b) => a < b ? a : b,
-    );
+          (a, b) => a < b ? a : b,
+        );
     return '${activePricing.length} vehicle types · from ${Formatters.money(minPrice)}';
   }
 
@@ -122,7 +122,8 @@ class _ServiceRow extends StatelessWidget {
                           SizedBox(width: 8.w),
                           Container(
                             padding: EdgeInsets.symmetric(
-                              horizontal: 6.w, vertical: 2.h,
+                              horizontal: 6.w,
+                              vertical: 2.h,
                             ),
                             decoration: BoxDecoration(
                               color: AppColors.blueBg,
@@ -226,7 +227,7 @@ class _ServiceToggle extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
+                  color: Colors.black.withOpacity(0.25),
                   blurRadius: 2.r,
                   offset: Offset(0, 1.h),
                 ),

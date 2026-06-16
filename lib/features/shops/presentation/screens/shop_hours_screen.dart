@@ -50,7 +50,10 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
   }
 
   List<_SlotState> _buildSlots(
-    int open, int close, List<int> offSlots, int defCap,
+    int open,
+    int close,
+    List<int> offSlots,
+    int defCap,
   ) {
     return List.generate(
       close - open,
@@ -102,7 +105,10 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
           child: Column(
             children: [
               TopBar(title: 'Hours & Slots', onBack: () => context.pop()),
-              Expanded(child: ErrorView(onRetry: () => ref.invalidate(shopByIdProvider(widget.shopId)))),
+              Expanded(
+                  child: ErrorView(
+                      onRetry: () =>
+                          ref.invalidate(shopByIdProvider(widget.shopId)))),
             ],
           ),
         ),
@@ -115,15 +121,16 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
               child: Column(
                 children: [
                   TopBar(title: 'Hours & Slots', onBack: () => context.pop()),
-                  const Expanded(child: EmptyState(title: 'Shop not found', body: '')),
+                  const Expanded(
+                      child: EmptyState(title: 'Shop not found', body: '')),
                 ],
               ),
             ),
           );
         }
 
-        final holidays = _localHolidays ??
-            (holidaysAsync.valueOrNull ?? <Holiday>[]);
+        final holidays =
+            _localHolidays ?? (holidaysAsync.valueOrNull ?? <Holiday>[]);
         _init(shop, holidays);
 
         final days = _days!;
@@ -326,9 +333,8 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
                               slotCapEnabled: slotCapEnabled,
                               expanded: _expandedDay == d.day,
                               onToggleExpand: () => setState(() {
-                                _expandedDay = _expandedDay == d.day
-                                    ? null
-                                    : d.day;
+                                _expandedDay =
+                                    _expandedDay == d.day ? null : d.day;
                               }),
                               onSetClosed: (closed) =>
                                   _patch(i, (d) => d.copyWith(closed: closed)),
@@ -491,7 +497,8 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
                                               borderRadius:
                                                   BorderRadius.circular(8.r),
                                               border: Border.all(
-                                                  color: AppColors.borderDefault),
+                                                  color:
+                                                      AppColors.borderDefault),
                                             ),
                                             child: Icon(
                                               AppIcons.close,
@@ -504,7 +511,8 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
                                     ),
                                   );
                                 }),
-                              SizedBox(height: holidays.isNotEmpty ? 12.h : 4.h),
+                              SizedBox(
+                                  height: holidays.isNotEmpty ? 12.h : 4.h),
                               GestureDetector(
                                 onTap: () =>
                                     _showMarkHolidayModal(context, shop),
@@ -550,7 +558,8 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
                   color: AppColors.bgCard,
                   padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
                   decoration: const BoxDecoration(
-                    border: Border(top: BorderSide(color: AppColors.borderSoft)),
+                    border:
+                        Border(top: BorderSide(color: AppColors.borderSoft)),
                   ),
                   child: AppButton(
                     label: 'Save Changes',
@@ -861,7 +870,8 @@ class _DayCard extends StatelessWidget {
                         if (d.closed)
                           Container(
                             padding: EdgeInsets.symmetric(
-                              horizontal: 9.w, vertical: 4.h,
+                              horizontal: 9.w,
+                              vertical: 4.h,
                             ),
                             decoration: BoxDecoration(
                               color: AppColors.bgPage,
@@ -997,12 +1007,12 @@ class _DayCard extends StatelessWidget {
                           padding: EdgeInsets.only(bottom: 8.h),
                           child: Container(
                             padding: EdgeInsets.symmetric(
-                              horizontal: 10.w, vertical: 8.h,
+                              horizontal: 10.w,
+                              vertical: 8.h,
                             ),
                             decoration: BoxDecoration(
-                              color: s.off
-                                  ? AppColors.bgPage
-                                  : AppColors.bgCard,
+                              color:
+                                  s.off ? AppColors.bgPage : AppColors.bgCard,
                               borderRadius: BorderRadius.circular(10.r),
                               border: Border.all(color: AppColors.borderSoft),
                             ),
@@ -1025,7 +1035,8 @@ class _DayCard extends StatelessWidget {
                                   if (s.off)
                                     Container(
                                       padding: EdgeInsets.symmetric(
-                                        horizontal: 7.w, vertical: 3.h,
+                                        horizontal: 7.w,
+                                        vertical: 3.h,
                                       ),
                                       decoration: BoxDecoration(
                                         color: AppColors.amberBg,
@@ -1065,7 +1076,9 @@ class _DayCard extends StatelessWidget {
                                             color: AppColors.borderDefault),
                                       ),
                                       child: Icon(
-                                        s.off ? AppIcons.refresh : AppIcons.close,
+                                        s.off
+                                            ? AppIcons.refresh
+                                            : AppIcons.close,
                                         size: s.off ? 15.sp : 16.sp,
                                         color: s.off
                                             ? AppColors.greenFg
@@ -1089,7 +1102,8 @@ class _DayCard extends StatelessWidget {
                           onTap: () => onToggleSlot(s.h),
                           child: Container(
                             padding: EdgeInsets.symmetric(
-                              horizontal: 11.w, vertical: 8.h,
+                              horizontal: 11.w,
+                              vertical: 8.h,
                             ),
                             decoration: BoxDecoration(
                               color: s.off
@@ -1175,7 +1189,8 @@ class _Stepper extends StatelessWidget {
 }
 
 class _StepBtn extends StatelessWidget {
-  const _StepBtn({required this.label, required this.enabled, required this.onTap});
+  const _StepBtn(
+      {required this.label, required this.enabled, required this.onTap});
   final String label;
   final bool enabled;
   final VoidCallback onTap;
@@ -1237,7 +1252,7 @@ class _AppToggle extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
+                  color: Colors.black.withOpacity(0.25),
                   blurRadius: 3.r,
                   offset: Offset(0, 1.h),
                 ),

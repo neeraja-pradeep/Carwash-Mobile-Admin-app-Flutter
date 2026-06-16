@@ -5,7 +5,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
-import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/core/widgets/widgets.dart';
 
 import '../../application/providers/shops_providers.dart';
@@ -20,14 +19,12 @@ class InfoSection extends ConsumerStatefulWidget {
     required this.shop,
     required this.active,
     required this.onActiveChanged,
-    required this.onManageHours,
     super.key,
   });
 
   final Shop shop;
   final bool active;
   final ValueChanged<bool> onActiveChanged;
-  final VoidCallback onManageHours;
 
   @override
   ConsumerState<InfoSection> createState() => _InfoSectionState();
@@ -99,14 +96,15 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
                         right: 10.w,
                         child: Container(
                           padding: EdgeInsets.symmetric(
-                            horizontal: 12.w, vertical: 7.h,
+                            horizontal: 12.w,
+                            vertical: 7.h,
                           ),
                           decoration: BoxDecoration(
-                            color: AppColors.bgCard.withValues(alpha: 0.9),
+                            color: AppColors.bgCard.withOpacity(0.9),
                             borderRadius: BorderRadius.circular(999.r),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.12),
+                                color: Colors.black.withOpacity(0.12),
                                 blurRadius: 8.r,
                               ),
                             ],
@@ -139,8 +137,6 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
         // Operating hours
         _SectionCard(
           label: 'Operating Hours',
-          action: 'Manage',
-          onAction: widget.onManageHours,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -265,7 +261,8 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
                         final on = s.vehicleTypes.contains(vt);
                         return Container(
                           padding: EdgeInsets.symmetric(
-                            horizontal: 11.w, vertical: 6.h,
+                            horizontal: 11.w,
+                            vertical: 6.h,
                           ),
                           decoration: BoxDecoration(
                             color: on ? AppColors.blueBg : AppColors.bgPage,
@@ -319,6 +316,12 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
                   _AppToggle(
                     on: widget.active,
                     onChanged: (v) {
+                      // Activation gate: a shop can't go live without at least
+                      // one active service (matches the add-shop rule).
+                      if (v && widget.shop.activeServices == 0) {
+                        _toast('Add an active service before activating');
+                        return;
+                      }
                       widget.onActiveChanged(v);
                       _toast(v ? 'Shop activated' : 'Shop marked inactive');
                     },
@@ -431,7 +434,10 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
                 mono: true,
               ),
               _FieldRow(
-                label: 'PAN', value: s.bank.pan, mono: true, isLast: true,
+                label: 'PAN',
+                value: s.bank.pan,
+                mono: true,
+                isLast: true,
               ),
             ],
           ),
@@ -563,7 +569,8 @@ class _PhotoStrip extends StatelessWidget {
                         child: Container(
                           margin: EdgeInsets.all(7.r),
                           padding: EdgeInsets.symmetric(
-                            horizontal: 7.w, vertical: 3.h,
+                            horizontal: 7.w,
+                            vertical: 3.h,
                           ),
                           decoration: BoxDecoration(
                             color: AppColors.brandYellow,
@@ -602,7 +609,8 @@ class _PhotoStrip extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(AppIcons.plus, size: 20.sp, color: AppColors.fgTertiary),
+                    Icon(AppIcons.plus,
+                        size: 20.sp, color: AppColors.fgTertiary),
                     SizedBox(height: 4.h),
                     Text(
                       'Add',
@@ -630,14 +638,10 @@ class _SectionCard extends StatelessWidget {
   const _SectionCard({
     required this.label,
     required this.child,
-    this.action,
-    this.onAction,
   });
 
   final String label;
   final Widget child;
-  final String? action;
-  final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -645,31 +649,14 @@ class _SectionCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                label.toUpperCase(),
-                style: AppText.figtree(
-                  size: 11,
-                  weight: FontWeight.w700,
-                  color: AppColors.fgSecondary,
-                  letterSpacing: 0.1,
-                ),
-              ),
-              if (action != null)
-                GestureDetector(
-                  onTap: onAction,
-                  child: Text(
-                    action!,
-                    style: AppText.figtree(
-                      size: 12.5,
-                      weight: FontWeight.w600,
-                      color: AppColors.fgSecondary,
-                    ),
-                  ),
-                ),
-            ],
+          Text(
+            label.toUpperCase(),
+            style: AppText.figtree(
+              size: 11,
+              weight: FontWeight.w700,
+              color: AppColors.fgSecondary,
+              letterSpacing: 0.1,
+            ),
           ),
           SizedBox(height: 4.h),
           child,
@@ -679,7 +666,7 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
-enum _RowAction { call_, navigate }
+enum _RowAction { call_ }
 
 class _FieldRow extends StatelessWidget {
   const _FieldRow({
@@ -752,7 +739,7 @@ class _FieldRow extends StatelessWidget {
                   border: Border.all(color: AppColors.borderDefault),
                 ),
                 child: Icon(
-                  action == _RowAction.call_ ? AppIcons.phone : AppIcons.nav,
+                  AppIcons.phone,
                   size: 16.sp,
                   color: AppColors.fgSecondary,
                 ),
@@ -795,7 +782,7 @@ class _AppToggle extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
+                  color: Colors.black.withOpacity(0.25),
                   blurRadius: 3.r,
                   offset: Offset(0, 1.h),
                 ),
@@ -813,7 +800,7 @@ class _GridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.04)
+      ..color = Colors.black.withOpacity(0.04)
       ..strokeWidth = 1;
     const step = 22.0;
     for (double x = 0; x <= size.width; x += step) {

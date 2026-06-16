@@ -104,7 +104,6 @@ class _ServiceFormBodyState extends State<_ServiceFormBody> {
   late String _flatMin;
   late bool _active;
   late List<_PricingRow> _rows;
-  bool _confirmExit = false;
 
   bool get _isEdit => widget.existing != null;
 
@@ -167,6 +166,23 @@ class _ServiceFormBodyState extends State<_ServiceFormBody> {
 
   void _toast(String msg) => AppToast.show(context, msg);
 
+  /// Prompts to discard unsaved edits before leaving (matches the design's
+  /// edit-mode discard pattern). Pops only when confirmed or when not dirty.
+  Future<void> _handleBack() async {
+    if (!_dirty) {
+      context.pop();
+      return;
+    }
+    final discard = await showConfirmDialog(
+      context: context,
+      title: 'Discard changes?',
+      body: 'Your edits to this service will be lost.',
+      confirmLabel: 'Discard',
+      destructive: true,
+    );
+    if (discard && mounted) context.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -178,13 +194,7 @@ class _ServiceFormBodyState extends State<_ServiceFormBody> {
             TopBar(
               title: _isEdit ? 'Edit Service' : 'Add Service',
               subtitle: widget.shop.name,
-              onBack: () {
-                if (_dirty) {
-                  setState(() => _confirmExit = true);
-                } else {
-                  context.pop();
-                }
-              },
+              onBack: _handleBack,
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -489,7 +499,6 @@ class _FInput extends StatelessWidget {
     this.placeholder,
     this.prefix,
     this.suffix,
-    this.optional = false,
     this.keyboardType,
   });
 
@@ -499,7 +508,6 @@ class _FInput extends StatelessWidget {
   final String? placeholder;
   final String? prefix;
   final String? suffix;
-  final bool optional;
   final TextInputType? keyboardType;
 
   @override
@@ -507,28 +515,13 @@ class _FInput extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              label,
-              style: AppText.figtree(
-                size: 12.5,
-                weight: FontWeight.w600,
-                color: AppColors.fgSecondary,
-              ),
-            ),
-            if (optional) ...[
-              SizedBox(width: 6.w),
-              Text(
-                '· optional',
-                style: AppText.figtree(
-                  size: 12.5,
-                  weight: FontWeight.w500,
-                  color: AppColors.fgMuted,
-                ),
-              ),
-            ],
-          ],
+        Text(
+          label,
+          style: AppText.figtree(
+            size: 12.5,
+            weight: FontWeight.w600,
+            color: AppColors.fgSecondary,
+          ),
         ),
         SizedBox(height: 7.h),
         Container(
@@ -760,7 +753,7 @@ class _AppToggle extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
+                  color: Colors.black.withOpacity(0.25),
                   blurRadius: 3.r,
                   offset: Offset(0, 1.h),
                 ),
@@ -802,7 +795,7 @@ class _SmallToggle extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
+                  color: Colors.black.withOpacity(0.25),
                   blurRadius: 2.r,
                   offset: Offset(0, 1.h),
                 ),
