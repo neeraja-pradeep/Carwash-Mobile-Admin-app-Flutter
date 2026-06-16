@@ -11,8 +11,7 @@ import 'package:new_flutter_project/core/widgets/app_chip.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
-import 'package:new_flutter_project/features/customers/application/providers/customers_providers.dart';
-import 'package:new_flutter_project/features/customers/domain/entities/customer.dart';
+import 'package:new_flutter_project/features/bookings/presentation/components/customer_picker.dart';
 
 import '../../domain/entities/service_request.dart';
 
@@ -34,34 +33,29 @@ class NewServiceRequestScreen extends ConsumerStatefulWidget {
 
 class _NewServiceRequestScreenState
     extends ConsumerState<NewServiceRequestScreen> {
-  // Form state.
-  Customer? _customer;
+  // Form state — mirrors NewServiceReqForm in screen_servicereq.jsx.
+  CustomerPick? _customer;
   final _makeCtrl = TextEditingController();
-  final _modelCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
-  String? _reason;
+  late String _reason = _isDriver ? 'Round Trip' : '';
   final _whenCtrl = TextEditingController();
-  final _durationCtrl = TextEditingController();
+  late final _durationCtrl =
+      TextEditingController(text: _isDriver ? '4 hrs' : '~1 hr');
   final _locationCtrl = TextEditingController();
   final _feeCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
 
   bool get _isDriver => widget.kind == SrKind.driver;
 
-  bool get _isValid {
-    return _customer != null &&
-        _makeCtrl.text.trim().isNotEmpty &&
-        _modelCtrl.text.trim().isNotEmpty &&
-        _whenCtrl.text.trim().isNotEmpty &&
-        _durationCtrl.text.trim().isNotEmpty &&
-        _locationCtrl.text.trim().isNotEmpty &&
-        (!_isDriver || _reason != null);
-  }
+  // Matches the JSX `valid` check: customer + when + location.
+  bool get _isValid =>
+      _customer != null &&
+      _whenCtrl.text.trim().isNotEmpty &&
+      _locationCtrl.text.trim().isNotEmpty;
 
   @override
   void dispose() {
     _makeCtrl.dispose();
-    _modelCtrl.dispose();
     _plateCtrl.dispose();
     _whenCtrl.dispose();
     _durationCtrl.dispose();
@@ -73,9 +67,11 @@ class _NewServiceRequestScreenState
 
   void _submit() {
     if (!_isValid) return;
+    final isNew = _customer?.isNew ?? false;
     AppToast.show(
       context,
-      '${_isDriver ? 'Driver hire' : 'Inspection'} request created',
+      '${_isDriver ? 'Driver hire' : 'Inspection'} request created'
+      '${isNew ? ' · new customer added' : ''}',
     );
     context.pop();
   }
@@ -112,13 +108,13 @@ class _NewServiceRequestScreenState
                         SizedBox(width: 9.w),
                         Expanded(
                           child: Text(
-                            'Creating a phone-in request on behalf of the customer. '
-                            'They will receive a confirmation SMS.',
+                            "Capture the basics now — you'll call the "
+                            'customer to confirm fee, timing and assign someone.',
                             style: AppText.figtree(
-                              size: 13,
-                              weight: FontWeight.w400,
+                              size: 12.5,
+                              weight: FontWeight.w500,
                               color: AppColors.blueFg,
-                              height: 1.4,
+                              height: 1.45,
                             ),
                           ),
                         ),
@@ -127,10 +123,10 @@ class _NewServiceRequestScreenState
                   ),
                   SizedBox(height: 16.h),
 
-                  // Customer section.
+                  // Customer section — shared picker (search existing / quick-add).
                   _FormCard(
                     label: 'Customer',
-                    child: _InlineCustomerPicker(
+                    child: CustomerPicker(
                       value: _customer,
                       onChanged: (c) => setState(() => _customer = c),
                     ),
@@ -142,32 +138,18 @@ class _NewServiceRequestScreenState
                     label: 'Vehicle',
                     child: Column(
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _FormInput(
-                                controller: _makeCtrl,
-                                label: 'Make',
-                                hint: 'e.g. Toyota',
-                                onChanged: (_) => setState(() {}),
-                              ),
-                            ),
-                            SizedBox(width: 10.w),
-                            Expanded(
-                              child: _FormInput(
-                                controller: _modelCtrl,
-                                label: 'Model',
-                                hint: 'e.g. Fortuner',
-                                onChanged: (_) => setState(() {}),
-                              ),
-                            ),
-                          ],
+                        _FormInput(
+                          controller: _makeCtrl,
+                          label: 'Make & model',
+                          hint: 'e.g. Maruti Ertiga',
                         ),
                         SizedBox(height: 10.h),
                         _FormInput(
                           controller: _plateCtrl,
-                          label: 'Plate number',
-                          hint: 'KL-04-X-XXXX (optional)',
+                          label: _isDriver ? 'Plate' : 'Plate / pre-purchase',
+                          hint: _isDriver
+                              ? 'KL-04-… (optional)'
+                              : 'KL-04-… or Pre-purchase (optional)',
                         ),
                       ],
                     ),
@@ -199,8 +181,7 @@ class _NewServiceRequestScreenState
                                 AppChip(
                                   label: r,
                                   active: _reason == r,
-                                  onTap: () =>
-                                      setState(() => _reason = r),
+                                  onTap: () => setState(() => _reason = r),
                                 ),
                             ],
                           ),
@@ -360,12 +341,9 @@ class _FormInput extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: AppText.figtree(
-                size: 14.5,
-                weight: FontWeight.w400,
-                color: AppColors.fgMuted),
+                size: 14.5, weight: FontWeight.w400, color: AppColors.fgMuted),
             prefixText: prefixText,
-            prefixStyle:
-                AppText.figtree(size: 14.5, weight: FontWeight.w600),
+            prefixStyle: AppText.figtree(size: 14.5, weight: FontWeight.w600),
             prefixIcon: prefixIcon != null
                 ? Icon(prefixIcon, size: 16.sp, color: AppColors.fgTertiary)
                 : null,
@@ -376,8 +354,7 @@ class _FormInput extends StatelessWidget {
             fillColor: AppColors.bgPage,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(9.r),
-              borderSide:
-                  const BorderSide(color: AppColors.borderDefault),
+              borderSide: const BorderSide(color: AppColors.borderDefault),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(9.r),
@@ -423,9 +400,7 @@ class _FormTextArea extends StatelessWidget {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: AppText.figtree(
-                size: 14.5,
-                weight: FontWeight.w400,
-                color: AppColors.fgMuted),
+                size: 14.5, weight: FontWeight.w400, color: AppColors.fgMuted),
             isDense: true,
             contentPadding:
                 EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
@@ -433,215 +408,16 @@ class _FormTextArea extends StatelessWidget {
             fillColor: AppColors.bgPage,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(9.r),
-              borderSide:
-                  const BorderSide(color: AppColors.borderDefault),
+              borderSide: const BorderSide(color: AppColors.borderDefault),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(9.r),
-              borderSide: const BorderSide(
-                  color: AppColors.borderDefault, width: 1.5),
+              borderSide:
+                  const BorderSide(color: AppColors.borderDefault, width: 1.5),
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-/// Inline customer picker — searches the customers list and shows a
-/// selected-customer chip once picked. Used in place of the shared
-/// `CustomerPicker` which resides in the bookings feature (not yet available).
-class _InlineCustomerPicker extends ConsumerStatefulWidget {
-  const _InlineCustomerPicker({
-    required this.value,
-    required this.onChanged,
-  });
-
-  final Customer? value;
-  final ValueChanged<Customer?> onChanged;
-
-  @override
-  ConsumerState<_InlineCustomerPicker> createState() =>
-      _InlineCustomerPickerState();
-}
-
-class _InlineCustomerPickerState
-    extends ConsumerState<_InlineCustomerPicker> {
-  final _searchCtrl = TextEditingController();
-  String _query = '';
-  bool _open = false;
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final customersAsync = ref.watch(customersProvider);
-
-    if (widget.value != null) {
-      return Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.value!.name,
-                  style: AppText.figtree(
-                      size: 14.5, weight: FontWeight.w700),
-                ),
-                Text(
-                  widget.value!.phone,
-                  style: AppText.figtree(
-                    size: 12.5,
-                    weight: FontWeight.w500,
-                    color: AppColors.fgTertiary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          GestureDetector(
-            onTap: () {
-              widget.onChanged(null);
-              _searchCtrl.clear();
-              setState(() => _query = '');
-            },
-            child: Container(
-              padding: EdgeInsets.symmetric(
-                  horizontal: 12.w, vertical: 8.h),
-              decoration: BoxDecoration(
-                color: AppColors.bgPage,
-                borderRadius: BorderRadius.circular(8.r),
-                border: Border.all(color: AppColors.borderDefault),
-              ),
-              child: Text(
-                'Change',
-                style: AppText.figtree(
-                    size: 13, weight: FontWeight.w600),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    return customersAsync.when(
-      loading: () => Text('Loading customers…',
-          style: AppText.figtree(
-              size: 13, color: AppColors.fgTertiary)),
-      error: (e, _) => Text('Error loading customers',
-          style: AppText.figtree(size: 13, color: AppColors.danger)),
-      data: (customers) {
-        final filtered = _query.isEmpty
-            ? customers
-            : customers.where((c) {
-                final q = _query.toLowerCase();
-                return c.name.toLowerCase().contains(q) ||
-                    c.phone.toLowerCase().contains(q);
-              }).toList();
-
-        return Column(
-          children: [
-            TextField(
-              controller: _searchCtrl,
-              onChanged: (v) =>
-                  setState(() => _query = v),
-              onTap: () => setState(() => _open = true),
-              style: AppText.figtree(
-                  size: 14.5, weight: FontWeight.w400),
-              decoration: InputDecoration(
-                hintText: 'Search customer name or phone',
-                hintStyle: AppText.figtree(
-                    size: 14.5,
-                    weight: FontWeight.w400,
-                    color: AppColors.fgMuted),
-                prefixIcon: Icon(AppIcons.search,
-                    size: 18.sp, color: AppColors.fgTertiary),
-                isDense: true,
-                contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12.w, vertical: 12.h),
-                filled: true,
-                fillColor: AppColors.bgPage,
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(9.r),
-                  borderSide:
-                      const BorderSide(color: AppColors.borderDefault),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(9.r),
-                  borderSide: const BorderSide(
-                      color: AppColors.borderDefault, width: 1.5),
-                ),
-              ),
-            ),
-            if (_open && _query.isNotEmpty) ...[
-              SizedBox(height: 6.h),
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.bgCard,
-                  borderRadius: BorderRadius.circular(9.r),
-                  border: Border.all(color: AppColors.borderSoft),
-                ),
-                constraints: BoxConstraints(maxHeight: 180.h),
-                child: filtered.isEmpty
-                    ? Padding(
-                        padding: EdgeInsets.all(12.r),
-                        child: Text('No customers found',
-                            style: AppText.figtree(
-                                size: 13,
-                                color: AppColors.fgTertiary)),
-                      )
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const Divider(
-                            height: 1, color: AppColors.borderSoft),
-                        itemBuilder: (_, i) {
-                          final c = filtered[i];
-                          return GestureDetector(
-                            onTap: () {
-                              widget.onChanged(c);
-                              _searchCtrl.clear();
-                              setState(() {
-                                _query = '';
-                                _open = false;
-                              });
-                            },
-                            child: Padding(
-                              padding: EdgeInsets.symmetric(
-                                  horizontal: 12.w, vertical: 10.h),
-                              child: Column(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    c.name,
-                                    style: AppText.figtree(
-                                        size: 14, weight: FontWeight.w600),
-                                  ),
-                                  Text(
-                                    c.phone,
-                                    style: AppText.figtree(
-                                      size: 12.5,
-                                      weight: FontWeight.w400,
-                                      color: AppColors.fgTertiary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ],
-        );
-      },
     );
   }
 }

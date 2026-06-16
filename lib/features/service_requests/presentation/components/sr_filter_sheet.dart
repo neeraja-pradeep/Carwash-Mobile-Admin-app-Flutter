@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/status/service_request_status.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
@@ -49,7 +48,7 @@ class SrFilterSheet extends ConsumerWidget {
           runSpacing: 8.h,
           children: [
             AppChip(
-              label: 'Driver Hire',
+              label: 'Driver',
               active: draft.kind == SrKind.driver,
               onTap: () => toggleKind(SrKind.driver),
             ),
@@ -94,9 +93,7 @@ class SrFilterSheet extends ConsumerWidget {
                 label: 'Apply',
                 full: true,
                 onPressed: () {
-                  ref
-                      .read(serviceRequestsFilterProvider.notifier)
-                      .apply(draft);
+                  ref.read(serviceRequestsFilterProvider.notifier).apply(draft);
                   Navigator.of(sheetContext).pop();
                 },
               ),

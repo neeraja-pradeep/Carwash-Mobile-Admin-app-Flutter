@@ -6,8 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:new_flutter_project/app/router/app_router.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
+import 'package:new_flutter_project/core/status/service_request_status.dart';
 import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
-import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_chip.dart';
 import 'package:new_flutter_project/core/widgets/app_fab.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
@@ -114,7 +114,8 @@ class ServiceRequestsList extends ConsumerWidget {
                     return EmptyState(
                       icon: AppIcons.inbox,
                       title: 'No requests match',
-                      body: filter.activeFilterCount > 0 || filter.query.isNotEmpty
+                      body: filter.activeFilterCount > 0 ||
+                              filter.query.isNotEmpty
                           ? 'Try adjusting your search or filters.'
                           : 'New driver hire and inspection requests will appear here.',
                       actionLabel: filter.activeFilterCount > 0 ||
@@ -153,10 +154,11 @@ class ServiceRequestsList extends ConsumerWidget {
           ],
         ),
 
-        // Create FAB — bottom-right, above the bottom nav.
+        // Create FAB — bottom-right, clearing the bottom nav (matches the
+        // Carwash segment's FAB offset).
         Positioned(
           right: 18.w,
-          bottom: 18.h,
+          bottom: 96.h,
           child: AppFab(
             semanticLabel: 'New service request',
             onPressed: () => _openCreateSheet(context),
@@ -181,7 +183,7 @@ class ServiceRequestsList extends ConsumerWidget {
     await showAppBottomSheet<void>(
       context: context,
       title: 'New request',
-      maxHeightFactor: 0.4,
+      maxHeightFactor: 0.48,
       builder: (sheetCtx) => _CreateTypeSheet(sheetContext: sheetCtx),
     );
   }
@@ -196,22 +198,24 @@ class _CreateTypeSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'Choose the type of service request to create.',
+          "Log a phone-in request on the customer's behalf. "
+          "You'll call to confirm fee and timing.",
           style: AppText.figtree(
-            size: 13.5,
+            size: 13,
             weight: FontWeight.w400,
             color: AppColors.fgTertiary,
-            height: 1.4,
+            height: 1.5,
           ),
         ),
         SizedBox(height: 16.h),
         _TypeTile(
           icon: AppIcons.car,
-          label: 'Driver Hire',
-          subtitle: 'Assign a driver for the customer\'s vehicle',
+          label: 'Driver hire',
+          subtitle: 'Hire a driver hourly or by day',
           onTap: () {
             Navigator.of(sheetContext).pop();
             context.push(Routes.newServiceRequest(SrKind.driver));
@@ -220,8 +224,8 @@ class _CreateTypeSheet extends StatelessWidget {
         SizedBox(height: 10.h),
         _TypeTile(
           icon: AppIcons.search,
-          label: 'Vehicle Inspection',
-          subtitle: 'Pre-purchase or pre-sale inspection',
+          label: 'Vehicle inspection',
+          subtitle: 'Pre-purchase / pre-sale check',
           onTap: () {
             Navigator.of(sheetContext).pop();
             context.push(Routes.newServiceRequest(SrKind.inspection));
@@ -275,8 +279,7 @@ class _TypeTile extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style:
-                        AppText.figtree(size: 14.5, weight: FontWeight.w700),
+                    style: AppText.figtree(size: 14.5, weight: FontWeight.w700),
                   ),
                   SizedBox(height: 2.h),
                   Text(
@@ -312,8 +315,8 @@ class _RequestCardWrapper extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final assigneeAsync = request.assigneeId != null
         ? ref.watch(assigneeByIdProvider(request.assigneeId!))
-        : const AsyncValue<({String name, String phone, String role})?>
-            .data(null);
+        : const AsyncValue<({String name, String phone, String role})?>.data(
+            null);
 
     final assigneeName = assigneeAsync.valueOrNull?.name;
 

@@ -33,7 +33,9 @@ class SrAssignSheet extends ConsumerWidget {
   final String currentRequestId;
   final String? currentAssigneeId;
   final BuildContext sheetContext;
-  final ValueChanged<String> onPick;
+
+  /// Called with the picked assignee's id and display name.
+  final void Function(String id, String name) onPick;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -41,9 +43,14 @@ class SrAssignSheet extends ConsumerWidget {
     final driversAsync = ref.watch(fieldDriversProvider);
     final inspectorsAsync = ref.watch(inspectorsProvider);
 
-    // Resolve the pool as List<dynamic> based on kind.
+    // Resolve the pool as List<dynamic> based on kind. Drivers are limited to
+    // ACTIVE field drivers (matches `FIELD_DRIVERS.filter(d => d.status ===
+    // "active")` in the JSX — invited / suspended drivers aren't assignable).
     final AsyncValue<List<dynamic>> poolAsync = kind == SrKind.driver
-        ? driversAsync.whenData((list) => list.cast<dynamic>())
+        ? driversAsync.whenData((list) => list
+            .where((d) => d.status == DriverStatus.active)
+            .cast<dynamic>()
+            .toList())
         : inspectorsAsync.whenData((list) => list.cast<dynamic>());
 
     return poolAsync.when(
@@ -90,7 +97,7 @@ class _AssignSheetBody extends StatelessWidget {
   final String currentRequestId;
   final String? currentAssigneeId;
   final BuildContext sheetContext;
-  final ValueChanged<String> onPick;
+  final void Function(String id, String name) onPick;
   final List<ServiceRequest> activeRequests;
 
   bool _isBusy(String id) {
@@ -127,17 +134,18 @@ class _AssignSheetBody extends StatelessWidget {
           ),
         ),
         SizedBox(height: 12.h),
-        for (final p in pool) _AssigneeRow(
-          id: _getId(p),
-          name: _getName(p),
-          role: _getRole(p),
-          isActive: _getId(p) == currentAssigneeId,
-          isBusy: _isBusy(_getId(p)),
-          onTap: () {
-            onPick(_getId(p));
-            Navigator.of(sheetContext).pop();
-          },
-        ),
+        for (final p in pool)
+          _AssigneeRow(
+            id: _getId(p),
+            name: _getName(p),
+            role: _getRole(p),
+            isActive: _getId(p) == currentAssigneeId,
+            isBusy: _isBusy(_getId(p)),
+            onTap: () {
+              onPick(_getId(p), _getName(p));
+              Navigator.of(sheetContext).pop();
+            },
+          ),
       ],
     );
   }
@@ -193,9 +201,8 @@ class _AssigneeRow extends StatelessWidget {
               color: isActive ? AppColors.brandYellow : AppColors.bgCard,
               borderRadius: BorderRadius.circular(13.r),
               border: Border.all(
-                color: isActive
-                    ? AppColors.brandYellowDeep
-                    : AppColors.borderSoft,
+                color:
+                    isActive ? AppColors.brandYellowDeep : AppColors.borderSoft,
               ),
             ),
             child: Row(

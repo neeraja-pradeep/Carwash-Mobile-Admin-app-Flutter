@@ -10,6 +10,7 @@ import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
+import 'package:new_flutter_project/core/widgets/app_dialog.dart';
 import 'package:new_flutter_project/core/widgets/app_icon_button.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
@@ -94,8 +95,8 @@ class _ServiceRequestDetailScreenState
             context,
             title: 'Request',
             body: Center(
-              child: Text('Request not found',
-                  style: AppText.figtree(size: 14)),
+              child:
+                  Text('Request not found', style: AppText.figtree(size: 14)),
             ),
           );
         }
@@ -120,8 +121,8 @@ class _ServiceRequestDetailScreenState
             _menuOpen = false;
           }),
           onAssigneeChange: (id) => setState(() => _assigneeIdOverride = id),
-          onTimelineAdd: (e) => setState(
-              () => _timelineOverride = [...timeline, e]),
+          onTimelineAdd: (e) =>
+              setState(() => _timelineOverride = [...timeline, e]),
           onSummarySet: (s) => setState(() => _summaryOverride = s),
           onNoteChange: (n) => setState(() => _opsNote = n),
         );
@@ -187,8 +188,8 @@ class _DetailBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final assigneeAsync = assigneeId != null
         ? ref.watch(assigneeByIdProvider(assigneeId!))
-        : const AsyncValue<({String name, String phone, String role})?>
-            .data(null);
+        : const AsyncValue<({String name, String phone, String role})?>.data(
+            null);
     final assignee = assigneeAsync.valueOrNull;
 
     // Next action (mirrors nextStep in JSX).
@@ -244,14 +245,18 @@ class _DetailBody extends ConsumerWidget {
                   SizedBox(height: 14.h),
                   if (status == ServiceRequestStatus.inProgress &&
                       request.live != null) ...[
-                    _LiveCard(live: request.live!),
+                    _LiveCard(
+                      live: request.live!,
+                      kind: request.kind,
+                      assigneeName: assignee?.name,
+                    ),
                     SizedBox(height: 14.h),
                   ],
                   _DetailsCard(request: request),
                   SizedBox(height: 14.h),
                   if (request.note.isNotEmpty) ...[
                     _NoteCard(
-                      label: 'Customer note',
+                      label: 'CUSTOMER NOTE',
                       icon: AppIcons.message,
                       text: request.note,
                     ),
@@ -259,9 +264,10 @@ class _DetailBody extends ConsumerWidget {
                   ],
                   if (opsNote.isNotEmpty) ...[
                     _NoteCard(
-                      label: 'Founder note',
+                      label: 'FOUNDER NOTE',
                       icon: AppIcons.note,
                       text: opsNote,
+                      onEdit: () => _showNoteModal(context),
                     ),
                     SizedBox(height: 14.h),
                   ],
@@ -286,39 +292,41 @@ class _DetailBody extends ConsumerWidget {
             Container(
               decoration: const BoxDecoration(
                 color: AppColors.bgCard,
-                border:
-                    Border(top: BorderSide(color: AppColors.borderSoft)),
+                border: Border(top: BorderSide(color: AppColors.borderSoft)),
               ),
-              padding: EdgeInsets.fromLTRB(14.w, 10.h, 14.w, 24.h),
-              child: isDone
-                  ? AppButton(
-                      label: status == ServiceRequestStatus.completed
-                          ? 'Request completed'
-                          : 'Request cancelled',
-                      full: true,
-                      disabled: true,
-                    )
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: AppButton(
-                            label: 'Cancel',
-                            kind: AppButtonKind.secondary,
-                            full: true,
-                            onPressed: () => _confirmCancel(context),
+              padding: EdgeInsets.fromLTRB(14.w, 10.h, 14.w, 14.h),
+              child: SafeArea(
+                top: false,
+                child: isDone
+                    ? AppButton(
+                        label: status == ServiceRequestStatus.completed
+                            ? 'Request completed'
+                            : 'Request cancelled',
+                        kind: AppButtonKind.secondary,
+                        full: true,
+                        disabled: true,
+                      )
+                    : Row(
+                        children: [
+                          Expanded(
+                            flex: 1,
+                            child: _CancelButton(
+                              onTap: () => _confirmCancel(context),
+                            ),
                           ),
-                        ),
-                        SizedBox(width: 10.w),
-                        Expanded(
-                          child: AppButton(
-                            label: nextStep?.label ?? 'Assign first',
-                            full: true,
-                            disabled: nextStep == null,
-                            onPressed: nextStep?.action,
+                          SizedBox(width: 10.w),
+                          Expanded(
+                            flex: 2,
+                            child: AppButton(
+                              label: nextStep?.label ?? 'Assign first',
+                              full: true,
+                              disabled: nextStep == null,
+                              onPressed: nextStep?.action,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
+                        ],
+                      ),
+              ),
             ),
           ],
         ),
@@ -350,8 +358,7 @@ class _DetailBody extends ConsumerWidget {
               status: ServiceRequestStatus.inProgress,
               at: nowStamp,
               by: assignee?.name ?? 'Anand',
-              location:
-                  request.startLoc ?? request.location,
+              location: request.startLoc ?? request.location,
             ));
             AppToast.show(context, 'Job started · location captured');
           } else {
@@ -360,9 +367,7 @@ class _DetailBody extends ConsumerWidget {
               status: ServiceRequestStatus.completed,
               at: nowStamp,
               by: assignee?.name ?? 'Anand',
-              location: request.endLoc ??
-                  request.startLoc ??
-                  request.location,
+              location: request.endLoc ?? request.startLoc ?? request.location,
             ));
             onSummarySet(SrSummary(
               plannedHours: 0,
@@ -384,19 +389,20 @@ class _DetailBody extends ConsumerWidget {
   Future<void> _openAssignSheet(BuildContext context, WidgetRef ref) async {
     await showAppBottomSheet<void>(
       context: context,
-      title: request.kind == SrKind.driver
-          ? 'Assign driver'
-          : 'Assign inspector',
+      title:
+          request.kind == SrKind.driver ? 'Assign driver' : 'Assign inspector',
       maxHeightFactor: 0.64,
       builder: (sheetCtx) => SrAssignSheet(
         kind: request.kind,
         currentRequestId: request.id,
         currentAssigneeId: assigneeId,
         sheetContext: sheetCtx,
-        onPick: (id) {
+        onPick: (id, name) {
+          final isFirst = assigneeId == null;
           onAssigneeChange(id);
-          if (status == ServiceRequestStatus.created ||
-              status == ServiceRequestStatus.contacted) {
+          if (isFirst &&
+              (status == ServiceRequestStatus.created ||
+                  status == ServiceRequestStatus.contacted)) {
             onStatusChange(ServiceRequestStatus.assigned);
             onTimelineAdd(SrTimelineEntry(
               status: ServiceRequestStatus.assigned,
@@ -404,14 +410,15 @@ class _DetailBody extends ConsumerWidget {
               by: 'Anand',
             ));
           }
-          AppToast.show(context, 'Assignee updated');
+          AppToast.show(context, 'Assigned to $name');
         },
       ),
     );
   }
 
   Future<void> _showNoteModal(BuildContext context) async {
-    String draft = opsNote;
+    final controller = TextEditingController(text: opsNote);
+    final hadNote = opsNote.isNotEmpty;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -430,51 +437,63 @@ class _DetailBody extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Add founder note',
-                style:
-                    AppText.figtree(size: 17, weight: FontWeight.w700)),
-            SizedBox(height: 14.h),
-            StatefulBuilder(builder: (_, set) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller:
-                        TextEditingController(text: draft),
-                    maxLines: 4,
-                    onChanged: (v) => draft = v,
-                    decoration: InputDecoration(
-                      hintText:
-                          'Internal note visible to ops…',
-                      hintStyle: AppText.figtree(
-                          size: 14, color: AppColors.fgMuted),
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(10.r),
-                        borderSide: const BorderSide(
-                            color: AppColors.borderDefault),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(10.r),
-                        borderSide: const BorderSide(
-                            color: AppColors.borderDefault),
-                      ),
-                    ),
+            Text(hadNote ? 'Edit note' : 'Add note',
+                style: AppText.figtree(size: 19, weight: FontWeight.w700)),
+            SizedBox(height: 6.h),
+            Text(
+              'Internal note for this request — founders only.',
+              style: AppText.figtree(
+                size: 13,
+                weight: FontWeight.w400,
+                color: AppColors.fgSecondary,
+                height: 1.5,
+              ),
+            ),
+            SizedBox(height: 16.h),
+            TextField(
+              controller: controller,
+              maxLines: 4,
+              autofocus: true,
+              decoration: InputDecoration(
+                hintText: 'Type a note…',
+                hintStyle: AppText.figtree(size: 14, color: AppColors.fgMuted),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                  borderSide: const BorderSide(color: AppColors.borderDefault),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                  borderSide: const BorderSide(color: AppColors.borderDefault),
+                ),
+              ),
+            ),
+            SizedBox(height: 20.h),
+            Row(
+              children: [
+                Expanded(
+                  child: AppButton(
+                    label: 'Cancel',
+                    kind: AppButtonKind.secondary,
+                    full: true,
+                    onPressed: () => Navigator.of(ctx).pop(),
                   ),
-                  SizedBox(height: 14.h),
-                  AppButton(
-                    label: 'Save note',
+                ),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: AppButton(
+                    label: 'Save',
                     full: true,
                     onPressed: () {
-                      onNoteChange(draft);
+                      final text = controller.text.trim();
+                      onNoteChange(text);
                       Navigator.of(ctx).pop();
-                      AppToast.show(context, 'Note saved');
+                      AppToast.show(context,
+                          text.isEmpty ? 'Note cleared' : 'Note saved');
                     },
                   ),
-                ],
-              );
-            }),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -482,41 +501,14 @@ class _DetailBody extends ConsumerWidget {
   }
 
   Future<void> _confirmCancel(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgCard,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.r)),
-        title: Text('Cancel request?',
-            style:
-                AppText.figtree(size: 17, weight: FontWeight.w700)),
-        content: Text(
-          'This will mark the request as cancelled. This cannot be undone.',
-          style: AppText.figtree(
-              size: 14,
-              color: AppColors.fgSecondary,
-              height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Keep',
-                style: AppText.figtree(
-                    size: 14, weight: FontWeight.w600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('Cancel request',
-                style: AppText.figtree(
-                    size: 14,
-                    weight: FontWeight.w700,
-                    color: AppColors.danger)),
-          ),
-        ],
-      ),
+      title: 'Cancel this request?',
+      body: 'The customer will be notified.',
+      confirmLabel: 'Yes, cancel',
+      destructive: true,
     );
-    if (confirmed == true && context.mounted) {
+    if (confirmed && context.mounted) {
       onStatusChange(ServiceRequestStatus.cancelled);
       onTimelineAdd(SrTimelineEntry(
         status: ServiceRequestStatus.cancelled,
@@ -534,6 +526,42 @@ class _NextStep {
   const _NextStep({required this.label, required this.action});
   final String label;
   final VoidCallback action;
+}
+
+/// Red-tinted "Cancel" footer button (matches the destructive Cancel in the
+/// JSX SR-detail footer: red-bg fill + red foreground/border).
+class _CancelButton extends StatelessWidget {
+  const _CancelButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12.r),
+        child: Container(
+          height: 50.h,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.redBg,
+            borderRadius: BorderRadius.circular(12.r),
+            border: Border.all(color: AppColors.redFg),
+          ),
+          child: Text(
+            'Cancel',
+            style: AppText.figtree(
+              size: 14,
+              weight: FontWeight.w700,
+              color: AppColors.redFg,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _TopBar extends StatelessWidget {
@@ -640,13 +668,12 @@ class _DropdownMenu extends StatelessWidget {
                   }
                 },
                 child: Container(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: 16.w, vertical: 13.h),
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 16.w, vertical: 13.h),
                   decoration: BoxDecoration(
                     border: i < items.length - 1
                         ? const Border(
-                            bottom: BorderSide(
-                                color: AppColors.borderSoft))
+                            bottom: BorderSide(color: AppColors.borderSoft))
                         : null,
                   ),
                   child: Row(
@@ -656,8 +683,8 @@ class _DropdownMenu extends StatelessWidget {
                       SizedBox(width: 10.w),
                       Text(
                         items[i].$2,
-                        style: AppText.figtree(
-                            size: 14, weight: FontWeight.w500),
+                        style:
+                            AppText.figtree(size: 14, weight: FontWeight.w500),
                       ),
                     ],
                   ),
@@ -685,8 +712,7 @@ class _HeaderCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: EdgeInsets.symmetric(
-                    horizontal: 10.w, vertical: 5.h),
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
                 decoration: BoxDecoration(
                   color: AppColors.bgPage,
                   borderRadius: BorderRadius.circular(8.r),
@@ -726,8 +752,7 @@ class _HeaderCard extends StatelessWidget {
           SizedBox(height: 4.h),
           Row(
             children: [
-              Icon(AppIcons.phone,
-                  size: 14.sp, color: AppColors.fgTertiary),
+              Icon(AppIcons.phone, size: 14.sp, color: AppColors.fgTertiary),
               SizedBox(width: 6.w),
               Text(
                 request.customer.phone,
@@ -745,94 +770,231 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
+/// Live-location card shown while a job is in progress.
+///
+/// Mirrors the live card in `screen_servicereq.jsx`: a GREEN left-accent white
+/// card with a pulsing green dot + "LIVE LOCATION" header and the assignee on
+/// the right, a map preview with a "Track" pill, and a current-location box
+/// carrying a Moving / Static chip and the "Updated …" timestamp.
 class _LiveCard extends StatelessWidget {
-  const _LiveCard({required this.live});
+  const _LiveCard({
+    required this.live,
+    required this.kind,
+    required this.assigneeName,
+  });
 
   final LiveLocation live;
+  final SrKind kind;
+  final String? assigneeName;
 
   @override
   Widget build(BuildContext context) {
     final moving = live.moving;
-    final label = live.label;
-    final lastUpdate = live.lastUpdate;
+    final moveColor = moving ? AppColors.blueFg : AppColors.fgSecondary;
 
     return AppCard(
       accent: AppColors.success,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header: pulsing dot · LIVE LOCATION · assignee.
           Row(
             children: [
-              Text('Live Location',
-                  style:
-                      AppText.figtree(size: 13, weight: FontWeight.w700)),
-              const Spacer(),
               Container(
-                padding: EdgeInsets.symmetric(
-                    horizontal: 10.w, vertical: 4.h),
+                width: 8.r,
+                height: 8.r,
                 decoration: BoxDecoration(
-                  color: moving ? AppColors.blueBg : AppColors.greyBg,
-                  borderRadius: BorderRadius.circular(999.r),
+                  color: AppColors.success,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.success.withOpacity(0.18),
+                      blurRadius: 0,
+                      spreadRadius: 3.r,
+                    ),
+                  ],
                 ),
+              ),
+              SizedBox(width: 8.w),
+              Text(
+                'LIVE LOCATION',
+                style: AppText.figtree(
+                  size: 11,
+                  weight: FontWeight.w700,
+                  letterSpacing: 0.08 * 11,
+                  color: AppColors.success,
+                ),
+              ),
+              const Spacer(),
+              Icon(
+                kind == SrKind.driver ? AppIcons.car : AppIcons.users,
+                size: 13.sp,
+                color: AppColors.fgSecondary,
+              ),
+              SizedBox(width: 5.w),
+              Flexible(
                 child: Text(
-                  moving ? 'Moving' : 'Static',
+                  assigneeName ?? '—',
+                  overflow: TextOverflow.ellipsis,
                   style: AppText.figtree(
                     size: 11.5,
                     weight: FontWeight.w600,
-                    color: moving ? AppColors.blueFg : AppColors.greyFg,
+                    color: AppColors.fgSecondary,
                   ),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 12.h),
-          // Map placeholder.
+          SizedBox(height: 13.h),
+
+          // Map preview with a Track pill.
+          GestureDetector(
+            onTap: () => AppToast.show(context, 'Open live tracking on map'),
+            child: Container(
+              height: 120.h,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFEEF3EC), Color(0xFFE2E9EE)],
+                ),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(color: AppColors.borderSoft),
+              ),
+              child: Stack(
+                children: [
+                  Center(
+                    child: Icon(
+                      moving ? AppIcons.nav : AppIcons.pin,
+                      size: moving ? 28.sp : 30.sp,
+                      color: moving ? AppColors.blueFg : AppColors.danger,
+                    ),
+                  ),
+                  Positioned(
+                    right: 9.w,
+                    bottom: 9.h,
+                    child: Container(
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.85),
+                        borderRadius: BorderRadius.circular(999.r),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.12),
+                            blurRadius: 8.r,
+                            offset: Offset(0, 2.h),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(AppIcons.nav,
+                              size: 13.sp, color: AppColors.fgPrimary),
+                          SizedBox(width: 5.w),
+                          Text(
+                            'Track',
+                            style: AppText.figtree(
+                                size: 11, weight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: 13.h),
+
+          // Current-location box.
           Container(
-            height: 100.h,
+            padding: EdgeInsets.all(12.r),
             decoration: BoxDecoration(
               color: AppColors.bgPage,
-              borderRadius: BorderRadius.circular(10.r),
-              border: Border.all(color: AppColors.borderSoft),
+              borderRadius: BorderRadius.circular(11.r),
             ),
-            alignment: Alignment.center,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
               children: [
-                Icon(AppIcons.pin,
-                    size: 24.sp, color: AppColors.fgTertiary),
-                SizedBox(height: 4.h),
-                Text(
-                  'Map view — coming soon',
-                  style: AppText.figtree(
-                      size: 12,
-                      weight: FontWeight.w500,
-                      color: AppColors.fgMuted),
+                Container(
+                  width: 36.r,
+                  height: 36.r,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.bgCard,
+                    borderRadius: BorderRadius.circular(10.r),
+                    border: Border.all(color: AppColors.borderSoft),
+                  ),
+                  child: Icon(
+                    moving ? AppIcons.nav : AppIcons.pin,
+                    size: 18.sp,
+                    color: moveColor,
+                  ),
+                ),
+                SizedBox(width: 11.w),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'CURRENT LOCATION',
+                        style: AppText.figtree(
+                          size: 9.5,
+                          weight: FontWeight.w700,
+                          letterSpacing: 0.06 * 9.5,
+                          color: AppColors.fgTertiary,
+                        ),
+                      ),
+                      SizedBox(height: 3.h),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              live.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.figtree(
+                                  size: 12.5, weight: FontWeight.w600),
+                            ),
+                          ),
+                          SizedBox(width: 7.w),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 7.w, vertical: 2.h),
+                            decoration: BoxDecoration(
+                              color:
+                                  moving ? AppColors.blueBg : AppColors.greyBg,
+                              borderRadius: BorderRadius.circular(5.r),
+                            ),
+                            child: Text(
+                              moving ? 'MOVING' : 'STATIC',
+                              style: AppText.figtree(
+                                size: 9,
+                                weight: FontWeight.w600,
+                                letterSpacing: 0.04 * 9,
+                                color: moving
+                                    ? AppColors.blueFg
+                                    : AppColors.greyFg,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 3.h),
+                      Text(
+                        'Updated ${live.lastUpdate}',
+                        style: AppText.figtree(
+                          size: 11,
+                          weight: FontWeight.w500,
+                          color: AppColors.fgMuted,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-          SizedBox(height: 10.h),
-          Row(
-            children: [
-              Icon(AppIcons.pin,
-                  size: 14.sp, color: AppColors.fgTertiary),
-              SizedBox(width: 6.w),
-              Expanded(
-                child: Text(
-                  label,
-                  style:
-                      AppText.figtree(size: 13, weight: FontWeight.w600),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 4.h),
-          Text(
-            'Updated $lastUpdate',
-            style: AppText.figtree(
-                size: 12,
-                weight: FontWeight.w400,
-                color: AppColors.fgTertiary),
           ),
         ],
       ),
@@ -850,16 +1012,19 @@ class _DetailsCard extends StatelessWidget {
     return AppCard(
       padded: false,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 4.h),
+            child: Text('REQUEST', style: AppText.eyebrow),
+          ),
           _DetailRow(
             icon: AppIcons.car,
             label: 'Vehicle',
-            value:
-                '${request.vehicle.title} · ${request.vehicle.type}',
+            value: '${request.vehicle.title} · ${request.vehicle.type}',
             sub: request.vehicle.plate,
           ),
-          if (request.kind == SrKind.driver &&
-              request.reason != null)
+          if (request.kind == SrKind.driver && request.reason != null)
             _DetailRow(
               icon: AppIcons.note,
               label: 'Reason for hire',
@@ -879,9 +1044,7 @@ class _DetailsCard extends StatelessWidget {
           _DetailRow(
             icon: AppIcons.rupee,
             label: 'Quoted fee',
-            value: request.fee != null
-                ? Formatters.money(request.fee!)
-                : 'TBD',
+            value: request.fee != null ? Formatters.money(request.fee!) : 'TBD',
             isLast: true,
           ),
         ],
@@ -914,8 +1077,7 @@ class _DetailRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: isLast
             ? null
-            : const Border(
-                bottom: BorderSide(color: AppColors.borderSoft)),
+            : const Border(bottom: BorderSide(color: AppColors.borderSoft)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -941,9 +1103,7 @@ class _DetailRow extends StatelessWidget {
                 Text(
                   value,
                   style: AppText.figtree(
-                      size: 13.5,
-                      weight: FontWeight.w600,
-                      height: 1.4),
+                      size: 13.5, weight: FontWeight.w600, height: 1.4),
                 ),
                 if (sub != null) ...[
                   SizedBox(height: 2.h),
@@ -961,8 +1121,7 @@ class _DetailRow extends StatelessWidget {
           ),
           if (hasNav)
             GestureDetector(
-              onTap: () =>
-                  AppToast.show(context, 'Opening navigation…'),
+              onTap: () => AppToast.show(context, 'Opening navigation…'),
               child: Container(
                 width: 34.r,
                 height: 34.r,
@@ -972,8 +1131,8 @@ class _DetailRow extends StatelessWidget {
                   borderRadius: BorderRadius.circular(9.r),
                   border: Border.all(color: AppColors.borderDefault),
                 ),
-                child: Icon(AppIcons.nav,
-                    size: 16.sp, color: AppColors.fgPrimary),
+                child:
+                    Icon(AppIcons.nav, size: 16.sp, color: AppColors.fgPrimary),
               ),
             ),
         ],
@@ -987,11 +1146,15 @@ class _NoteCard extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.text,
+    this.onEdit,
   });
 
   final String label;
   final IconData icon;
   final String text;
+
+  /// When non-null, an "Edit" link is shown in the header (Founder Note).
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -1004,6 +1167,20 @@ class _NoteCard extends StatelessWidget {
               Icon(icon, size: 15.sp, color: AppColors.fgTertiary),
               SizedBox(width: 7.w),
               Text(label, style: AppText.eyebrow),
+              if (onEdit != null) ...[
+                const Spacer(),
+                GestureDetector(
+                  onTap: onEdit,
+                  child: Text(
+                    'Edit',
+                    style: AppText.figtree(
+                      size: 12.5,
+                      weight: FontWeight.w600,
+                      color: AppColors.fgSecondary,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
           SizedBox(height: 10.h),
@@ -1048,9 +1225,9 @@ class _AssignCard extends StatelessWidget {
         children: [
           Text(
             request.kind == SrKind.driver
-                ? 'Assigned Driver'
-                : 'Assigned Inspector',
-            style: AppText.figtree(size: 13.5, weight: FontWeight.w700),
+                ? 'ASSIGNED DRIVER'
+                : 'ASSIGNED INSPECTOR',
+            style: AppText.eyebrow,
           ),
           SizedBox(height: 12.h),
           if (assignee != null)
@@ -1090,11 +1267,10 @@ class _AssignCard extends StatelessWidget {
           else if (canAssign)
             AppButton(
               label: request.kind == SrKind.driver
-                  ? 'Assign driver'
-                  : 'Assign inspector',
+                  ? 'Assign Driver'
+                  : 'Assign Inspector',
               full: true,
-              kind: AppButtonKind.secondary,
-              icon: AppIcons.users,
+              icon: AppIcons.plus,
               onPressed: onAssign,
             )
           else
@@ -1123,9 +1299,7 @@ class _TimelineCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Timeline',
-              style:
-                  AppText.figtree(size: 13.5, weight: FontWeight.w700)),
+          Text('STATUS TIMELINE', style: AppText.eyebrow),
           SizedBox(height: 12.h),
           for (var i = 0; i < timeline.length; i++)
             _TimelineRow(
@@ -1154,35 +1328,42 @@ class _TimelineRow extends StatelessWidget {
             width: 20.w,
             child: Column(
               children: [
-                Container(
-                  width: 10.r,
-                  height: 10.r,
-                  decoration: BoxDecoration(
-                    color: entry.status.tone.foreground,
-                    shape: BoxShape.circle,
+                Padding(
+                  padding: EdgeInsets.only(top: 5.h),
+                  child: Container(
+                    width: 9.r,
+                    height: 9.r,
+                    decoration: BoxDecoration(
+                      color: isLast
+                          ? AppColors.brandYellowDeep
+                          : AppColors.borderStrong,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                 ),
                 if (!isLast)
                   Expanded(
                     child: Container(
                       width: 1.5.w,
+                      margin: EdgeInsets.symmetric(vertical: 2.h),
                       color: AppColors.borderSoft,
                     ),
                   ),
               ],
             ),
           ),
-          SizedBox(width: 10.w),
+          SizedBox(width: 12.w),
           Expanded(
             child: Padding(
               padding: EdgeInsets.only(bottom: isLast ? 0 : 14.h),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  StatusBadge(
-                      label: entry.status.label,
-                      tone: entry.status.tone),
-                  SizedBox(height: 3.h),
+                  Text(
+                    entry.status.label,
+                    style: AppText.figtree(size: 13.5, weight: FontWeight.w700),
+                  ),
+                  SizedBox(height: 2.h),
                   Text(
                     '${entry.at} · ${entry.by}',
                     style: AppText.figtree(
@@ -1192,14 +1373,24 @@ class _TimelineRow extends StatelessWidget {
                     ),
                   ),
                   if (entry.location != null) ...[
-                    SizedBox(height: 2.h),
-                    Text(
-                      entry.location!,
-                      style: AppText.figtree(
-                        size: 12,
-                        weight: FontWeight.w400,
-                        color: AppColors.fgTertiary,
-                      ),
+                    SizedBox(height: 4.h),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(AppIcons.pin,
+                            size: 12.sp, color: AppColors.fgSecondary),
+                        SizedBox(width: 5.w),
+                        Expanded(
+                          child: Text(
+                            entry.location!,
+                            style: AppText.figtree(
+                              size: 11.5,
+                              weight: FontWeight.w500,
+                              color: AppColors.fgSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ],
