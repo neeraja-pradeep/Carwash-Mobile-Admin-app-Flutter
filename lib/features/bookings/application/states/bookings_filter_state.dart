@@ -111,8 +111,7 @@ List<Booking> applyBookingsFilter(List<Booking> source, BookingsFilterState f) {
     case 'amount_lo':
       filtered.sort((a, b) => a.total.compareTo(b.total));
     case 'name':
-      filtered.sort(
-          (a, b) => a.customer.name.compareTo(b.customer.name));
+      filtered.sort((a, b) => a.customer.name.compareTo(b.customer.name));
     default: // recent
       filtered.sort((a, b) => b.id.compareTo(a.id));
   }

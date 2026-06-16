@@ -140,8 +140,7 @@ class _DamageSheetState extends State<_DamageSheet> {
                 Expanded(
                   child: Text(
                     title,
-                    style:
-                        AppText.figtree(size: 17, weight: FontWeight.w700),
+                    style: AppText.figtree(size: 17, weight: FontWeight.w700),
                   ),
                 ),
                 GestureDetector(
@@ -181,9 +180,8 @@ class _DamageSheetState extends State<_DamageSheet> {
                       width: double.infinity,
                       padding: EdgeInsets.all(14.r),
                       decoration: BoxDecoration(
-                        color: _checked
-                            ? AppColors.brandYellow
-                            : AppColors.bgCard,
+                        color:
+                            _checked ? AppColors.brandYellow : AppColors.bgCard,
                         borderRadius: BorderRadius.circular(12.r),
                         border: Border.all(
                           color: _checked
@@ -272,8 +270,7 @@ class _DamageSheetState extends State<_DamageSheet> {
                           _Pill(
                             label: t,
                             active: _types.contains(t),
-                            onTap: () =>
-                                _toggle(_types, t, (v) => _types = v),
+                            onTap: () => _toggle(_types, t, (v) => _types = v),
                           ),
                       ],
                     ),
@@ -315,13 +312,13 @@ class _DamageSheetState extends State<_DamageSheet> {
                         contentPadding: EdgeInsets.all(12.r),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12.r),
-                          borderSide: const BorderSide(
-                              color: AppColors.borderDefault),
+                          borderSide:
+                              const BorderSide(color: AppColors.borderDefault),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12.r),
-                          borderSide: const BorderSide(
-                              color: AppColors.borderDefault),
+                          borderSide:
+                              const BorderSide(color: AppColors.borderDefault),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12.r),
@@ -329,8 +326,7 @@ class _DamageSheetState extends State<_DamageSheet> {
                               color: AppColors.brandYellowDeep),
                         ),
                       ),
-                      style:
-                          AppText.figtree(size: 14, weight: FontWeight.w400),
+                      style: AppText.figtree(size: 14, weight: FontWeight.w400),
                     ),
 
                     SizedBox(height: 18.h),
@@ -509,8 +505,7 @@ class _Pill extends StatelessWidget {
           color: active ? AppColors.brandYellow : AppColors.bgCard,
           borderRadius: BorderRadius.circular(999.r),
           border: Border.all(
-            color:
-                active ? AppColors.brandYellowDeep : AppColors.borderDefault,
+            color: active ? AppColors.brandYellowDeep : AppColors.borderDefault,
           ),
         ),
         child: Text(

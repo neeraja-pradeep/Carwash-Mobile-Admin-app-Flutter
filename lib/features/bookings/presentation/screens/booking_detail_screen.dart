@@ -169,13 +169,14 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
         final ci = kBookingStatusOrder.indexOf(status);
         final totalMin = booking.estimatedMinutes;
 
-        final canCancel =
-            status != BookingStatus.completed && status != BookingStatus.cancelled;
+        final canCancel = status != BookingStatus.completed &&
+            status != BookingStatus.cancelled;
         final canRefund = booking.payment == PaymentStatus.paid ||
             booking.payment == PaymentStatus.refunded;
-        final canReassign = ci < kBookingStatusOrder.indexOf(BookingStatus.picked) &&
-            status != BookingStatus.cancelled &&
-            status != BookingStatus.completed;
+        final canReassign =
+            ci < kBookingStatusOrder.indexOf(BookingStatus.picked) &&
+                status != BookingStatus.cancelled &&
+                status != BookingStatus.completed;
 
         // Damage summary
         final dmgPickup = booking.damage.pickup;
@@ -190,10 +191,8 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
               ].join(' · ');
 
         final issueList = [
-          if (dmgPickup != null && dmgPickup.issues)
-            ('pickup', dmgPickup),
-          if (dmgDrop != null && dmgDrop.issues)
-            ('drop', dmgDrop),
+          if (dmgPickup != null && dmgPickup.issues) ('pickup', dmgPickup),
+          if (dmgDrop != null && dmgDrop.issues) ('drop', dmgDrop),
         ];
 
         return Scaffold(
@@ -216,8 +215,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                       },
                       onCopyId: () {
                         setState(() => _menuOpen = false);
-                        Clipboard.setData(
-                            ClipboardData(text: booking.id));
+                        Clipboard.setData(ClipboardData(text: booking.id));
                         AppToast.show(context, 'Booking ID copied');
                       },
                       onAddNote: () {
@@ -237,8 +235,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                         child: Column(
                           children: [
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 StatusBadge(
                                   label: status.label,
@@ -256,14 +253,11 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                             ),
                             SizedBox(height: 14.h),
                             Row(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.end,
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       'TOTAL',
@@ -286,8 +280,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                                     ),
                                   ],
                                 ),
-                                _PaymentPill(
-                                    payment: booking.payment),
+                                _PaymentPill(payment: booking.payment),
                               ],
                             ),
                           ],
@@ -304,8 +297,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                             children: [
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       booking.customer.name,
@@ -351,8 +343,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                             children: [
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       booking.vehicle.title,
@@ -383,10 +374,9 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: AppColors.bgPage,
-                                    borderRadius:
-                                        BorderRadius.circular(8.r),
-                                    border: Border.all(
-                                        color: AppColors.borderSoft),
+                                    borderRadius: BorderRadius.circular(8.r),
+                                    border:
+                                        Border.all(color: AppColors.borderSoft),
                                   ),
                                   child: Text(
                                     booking.vehicle.plate!,
@@ -427,8 +417,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                             children: [
                               for (final sv in booking.services)
                                 Padding(
-                                  padding:
-                                      EdgeInsets.only(bottom: 11.h),
+                                  padding: EdgeInsets.only(bottom: 11.h),
                                   child: Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
@@ -450,8 +439,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                                             style: AppText.figtree(
                                               size: 12,
                                               weight: FontWeight.w500,
-                                              color:
-                                                  AppColors.fgTertiary,
+                                              color: AppColors.fgTertiary,
                                             ),
                                           ),
                                         ],
@@ -537,8 +525,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Padding(
-                            padding: EdgeInsets.only(
-                                left: 2.w, bottom: 10.h),
+                            padding: EdgeInsets.only(left: 2.w, bottom: 10.h),
                             child: Text(
                               'UPDATE STATUS',
                               style: AppText.eyebrow,
@@ -547,8 +534,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                           StatusUpdateBlock(
                             status: status,
                             timeline: timeline,
-                            onAdvance: (action) =>
-                                _advance(action, booking),
+                            onAdvance: (action) => _advance(action, booking),
                           ),
                         ],
                       ),
@@ -559,8 +545,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Padding(
-                            padding: EdgeInsets.only(
-                                left: 2.w, bottom: 10.h),
+                            padding: EdgeInsets.only(left: 2.w, bottom: 10.h),
                             child: Text(
                               'DAMAGE & ISSUES',
                               style: AppText.eyebrow,
@@ -587,24 +572,19 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                             '${timeline.length} updates · now ${status.label}',
                         child: Column(
                           children: [
-                            for (int i = 0;
-                                i < timeline.length;
-                                i++)
+                            for (int i = 0; i < timeline.length; i++)
                               Row(
-                                crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Column(
                                     children: [
                                       Container(
                                         width: 9.r,
                                         height: 9.r,
-                                        margin:
-                                            EdgeInsets.only(top: 5.h),
+                                        margin: EdgeInsets.only(top: 5.h),
                                         decoration: BoxDecoration(
                                           shape: BoxShape.circle,
-                                          color: i ==
-                                                  timeline.length - 1
+                                          color: i == timeline.length - 1
                                               ? AppColors.brandYellowDeep
                                               : AppColors.borderStrong,
                                         ),
@@ -616,8 +596,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                                           decoration: const BoxDecoration(
                                             border: Border(
                                               left: BorderSide(
-                                                color:
-                                                    AppColors.borderSoft,
+                                                color: AppColors.borderSoft,
                                                 width: 1.5,
                                               ),
                                             ),
@@ -628,8 +607,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                                   SizedBox(width: 12.w),
                                   Expanded(
                                     child: Padding(
-                                      padding: EdgeInsets.only(
-                                          bottom: 14.h),
+                                      padding: EdgeInsets.only(bottom: 14.h),
                                       child: Column(
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
@@ -647,8 +625,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                                             style: AppText.figtree(
                                               size: 12,
                                               weight: FontWeight.w500,
-                                              color:
-                                                  AppColors.fgTertiary,
+                                              color: AppColors.fgTertiary,
                                             ),
                                           ),
                                         ],
@@ -700,8 +677,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                           color: AppColors.fgSecondary,
                         ),
                         initiallyOpen: notes.isNotEmpty,
-                        summary:
-                            notes.isNotEmpty ? '1 note' : 'No notes',
+                        summary: notes.isNotEmpty ? '1 note' : 'No notes',
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -725,8 +701,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                                   ),
                             SizedBox(height: 12.h),
                             GestureDetector(
-                              onTap: () =>
-                                  _showNoteModal(context, notes),
+                              onTap: () => _showNoteModal(context, notes),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -737,9 +712,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                                   ),
                                   SizedBox(width: 6.w),
                                   Text(
-                                    notes.isNotEmpty
-                                        ? 'Edit note'
-                                        : 'Add note',
+                                    notes.isNotEmpty ? 'Edit note' : 'Add note',
                                     style: AppText.figtree(
                                       size: 12.5,
                                       weight: FontWeight.w700,
@@ -766,8 +739,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                       top: BorderSide(color: AppColors.borderSoft),
                     ),
                   ),
-                  padding:
-                      EdgeInsets.fromLTRB(14.w, 10.h, 14.w, 14.h),
+                  padding: EdgeInsets.fromLTRB(14.w, 10.h, 14.w, 14.h),
                   child: SafeArea(
                     top: false,
                     child: Row(
@@ -786,31 +758,26 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                               confirmLabel: 'Yes, cancel',
                               destructive: true,
                             );
-                            if (confirmed) {
-                              setState(() {
-                                _status = BookingStatus.cancelled;
-                                _timeline = [
-                                  ..._timeline!,
-                                  TimelineEntry(
-                                    status: BookingStatus.cancelled,
-                                    at: _nowStamp(),
-                                    by: 'Anand',
-                                  ),
-                                ];
-                              });
-                              if (mounted) {
-                                AppToast.show(
-                                    context, 'Booking cancelled');
-                              }
-                            }
+                            if (!confirmed || !context.mounted) return;
+                            setState(() {
+                              _status = BookingStatus.cancelled;
+                              _timeline = [
+                                ..._timeline!,
+                                TimelineEntry(
+                                  status: BookingStatus.cancelled,
+                                  at: _nowStamp(),
+                                  by: 'Anand',
+                                ),
+                              ];
+                            });
+                            AppToast.show(context, 'Booking cancelled');
                           },
                         ),
                         _FooterBtn(
                           label: 'Refund',
                           icon: AppIcons.receipt,
                           enabled: canRefund,
-                          onTap: () =>
-                              context.push(Routes.refunds),
+                          onTap: () => context.push(Routes.refunds),
                         ),
                         _FooterBtn(
                           label: 'Reassign',
@@ -878,18 +845,15 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
               contentPadding: EdgeInsets.all(12.r),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12.r),
-                borderSide:
-                    const BorderSide(color: AppColors.borderDefault),
+                borderSide: const BorderSide(color: AppColors.borderDefault),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12.r),
-                borderSide:
-                    const BorderSide(color: AppColors.borderDefault),
+                borderSide: const BorderSide(color: AppColors.borderDefault),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12.r),
-                borderSide:
-                    const BorderSide(color: AppColors.brandYellowDeep),
+                borderSide: const BorderSide(color: AppColors.brandYellowDeep),
               ),
             ),
             style: AppText.figtree(size: 14, weight: FontWeight.w400),
@@ -956,8 +920,7 @@ class _JourneyCard extends ConsumerWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: AppColors.brandYellowDeep,
-                    border: Border.all(
-                        color: AppColors.brandYellow, width: 2),
+                    border: Border.all(color: AppColors.brandYellow, width: 2),
                   ),
                 ),
                 Container(
@@ -965,8 +928,8 @@ class _JourneyCard extends ConsumerWidget {
                   height: 52.h,
                   decoration: const BoxDecoration(
                     border: Border(
-                      left: BorderSide(
-                          color: AppColors.borderDefault, width: 2),
+                      left:
+                          BorderSide(color: AppColors.borderDefault, width: 2),
                     ),
                   ),
                 ),
@@ -988,8 +951,8 @@ class _JourneyCard extends ConsumerWidget {
                   height: 52.h,
                   decoration: const BoxDecoration(
                     border: Border(
-                      left: BorderSide(
-                          color: AppColors.borderDefault, width: 2),
+                      left:
+                          BorderSide(color: AppColors.borderDefault, width: 2),
                     ),
                   ),
                 ),
@@ -999,8 +962,7 @@ class _JourneyCard extends ConsumerWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: AppColors.bgCard,
-                    border: Border.all(
-                        color: AppColors.borderStrong, width: 2),
+                    border: Border.all(color: AppColors.borderStrong, width: 2),
                   ),
                 ),
               ],
@@ -1053,13 +1015,10 @@ class _JourneyCard extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: shopAsync.when(
-                          loading: () =>
-                              const SizedBox(height: 36),
-                          error: (_, __) =>
-                              const SizedBox(height: 36),
+                          loading: () => const SizedBox(height: 36),
+                          error: (_, __) => const SizedBox(height: 36),
                           data: (shop) => Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'SHOP',
@@ -1154,7 +1113,6 @@ class _DriverCard extends ConsumerWidget {
     required this.driverId,
     required this.onAssign,
     required this.onCall,
-    super.key,
   });
 
   final String? driverId;
@@ -1283,8 +1241,7 @@ class _DamageSection extends StatelessWidget {
           children: [
             Container(
               color: AppColors.redBg,
-              padding:
-                  EdgeInsets.symmetric(horizontal: 14.w, vertical: 11.h),
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 11.h),
               child: Row(
                 children: [
                   Icon(
@@ -1305,19 +1262,16 @@ class _DamageSection extends StatelessWidget {
               ),
             ),
             Padding(
-              padding:
-                  EdgeInsets.fromLTRB(14.w, 4.h, 14.w, 6.h),
+              padding: EdgeInsets.fromLTRB(14.w, 4.h, 14.w, 6.h),
               child: Column(
                 children: [
                   for (int i = 0; i < issueList.length; i++)
                     Container(
-                      padding:
-                          EdgeInsets.symmetric(vertical: 11.h),
+                      padding: EdgeInsets.symmetric(vertical: 11.h),
                       decoration: BoxDecoration(
                         border: i < issueList.length - 1
                             ? const Border(
-                                bottom: BorderSide(
-                                    color: AppColors.borderSoft),
+                                bottom: BorderSide(color: AppColors.borderSoft),
                               )
                             : null,
                       ),
@@ -1325,8 +1279,7 @@ class _DamageSection extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 issueList[i].$1[0].toUpperCase() +
@@ -1580,7 +1533,7 @@ class _ActionPill extends StatelessWidget {
 }
 
 class _PaymentPill extends StatelessWidget {
-  const _PaymentPill({required this.payment, super.key});
+  const _PaymentPill({required this.payment});
 
   final PaymentStatus payment;
 

@@ -449,8 +449,7 @@ class BookingsLocalDs {
         ),
       ],
       damage: DamageReport(),
-      notes:
-          'Cancelled by customer before assignment — 100% refund issued.',
+      notes: 'Cancelled by customer before assignment — 100% refund issued.',
     ),
     Booking(
       id: 'DD-KL-20260529-0039',

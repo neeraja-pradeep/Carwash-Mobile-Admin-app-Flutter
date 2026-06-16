@@ -61,10 +61,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
   // Step 8: Payment
   String _pay = 'pending';
 
-  bool _confirmExit = false;
-
-  bool get _dirty =>
-      _customer != null || _shopId != null || _picked.isNotEmpty;
+  bool get _dirty => _customer != null || _shopId != null || _picked.isNotEmpty;
 
   bool get _valid => _customer != null && _shopId != null && _picked.isNotEmpty;
 
@@ -177,7 +174,6 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                   subtitle: 'Manual / phone-in',
                   onBack: () {
                     if (_dirty) {
-                      setState(() => _confirmExit = true);
                       _showExitDialog(context);
                     } else {
                       context.pop();
@@ -187,8 +183,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
 
                 Expanded(
                   child: ListView(
-                    padding:
-                        EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+                    padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
                     children: [
                       // ── 1. Customer ──────────────────────────────────
                       _FormCard(
@@ -211,7 +206,8 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                                   onSelect: (i) {
                                     setState(() {
                                       _vehIdx = i;
-                                      _picked = []; // reset services when vehicle changes
+                                      _picked =
+                                          []; // reset services when vehicle changes
                                     });
                                   },
                                   onAddNew: () => AppToast.show(
@@ -339,8 +335,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                         child: Column(
                           children: [
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
                                   'Same as pickup',
@@ -351,8 +346,8 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                                 ),
                                 _Toggle(
                                   on: _dropSame,
-                                  onTap: () => setState(
-                                      () => _dropSame = !_dropSame),
+                                  onTap: () =>
+                                      setState(() => _dropSame = !_dropSame),
                                 ),
                               ],
                             ),
@@ -377,8 +372,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                           controller: _couponCtrl,
                           placeholder: 'Optional',
                           optional: true,
-                          onChanged: (v) =>
-                              _couponCtrl.text = v.toUpperCase(),
+                          onChanged: (v) => _couponCtrl.text = v.toUpperCase(),
                         ),
                       ),
                       SizedBox(height: 14.h),
@@ -390,12 +384,10 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       'TOTAL${totalMin > 0 ? " · ~$totalMin min" : ""}',
@@ -442,8 +434,8 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                                         left: opt.$1 == 'paid' ? 4.w : 0,
                                       ),
                                       child: GestureDetector(
-                                        onTap: () => setState(
-                                            () => _pay = opt.$1),
+                                        onTap: () =>
+                                            setState(() => _pay = opt.$1),
                                         child: Container(
                                           height: 46.h,
                                           alignment: Alignment.center,
@@ -518,7 +510,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
     );
   }
 
-  void _showExitDialog(BuildContext context) async {
+  Future<void> _showExitDialog(BuildContext context) async {
     final confirmed = await showConfirmDialog(
       context: context,
       title: 'Discard this booking?',
@@ -526,7 +518,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
       confirmLabel: 'Discard',
       destructive: true,
     );
-    if (confirmed && mounted) {
+    if (confirmed && context.mounted) {
       context.pop();
     }
   }
@@ -554,15 +546,10 @@ class _FormCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
-            style: AppText.figtree(
-              size: 12,
-              weight: FontWeight.w700,
-              color: AppColors.fgSecondary,
-              letterSpacing: 0.3,
-            ),
+            label.toUpperCase(),
+            style: AppText.eyebrow,
           ),
-          SizedBox(height: 12.h),
+          SizedBox(height: 14.h),
           child,
         ],
       ),
@@ -576,13 +563,11 @@ class _SelectRow extends StatelessWidget {
     required this.title,
     required this.onTap,
     this.sub,
-    this.right,
   });
 
   final bool active;
   final String title;
   final String? sub;
-  final String? right;
   final VoidCallback onTap;
 
   @override
@@ -648,14 +633,6 @@ class _SelectRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (right != null)
-              Text(
-                right!,
-                style: AppText.figtree(
-                  size: 13,
-                  weight: FontWeight.w700,
-                ),
-              ),
           ],
         ),
       ),
@@ -760,7 +737,6 @@ class _TextField extends StatelessWidget {
     required this.placeholder,
     this.optional = false,
     this.onChanged,
-    this.keyboardType,
   });
 
   final String label;
@@ -768,7 +744,6 @@ class _TextField extends StatelessWidget {
   final String placeholder;
   final bool optional;
   final void Function(String)? onChanged;
-  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
@@ -780,26 +755,25 @@ class _TextField extends StatelessWidget {
             Text(
               label,
               style: AppText.figtree(
-                size: 12,
+                size: 12.5,
                 weight: FontWeight.w600,
                 color: AppColors.fgSecondary,
               ),
             ),
             if (optional)
               Text(
-                '  (optional)',
+                ' · optional',
                 style: AppText.figtree(
-                  size: 11.5,
-                  weight: FontWeight.w400,
+                  size: 12.5,
+                  weight: FontWeight.w500,
                   color: AppColors.fgMuted,
                 ),
               ),
           ],
         ),
-        SizedBox(height: 6.h),
+        SizedBox(height: 7.h),
         TextField(
           controller: controller,
-          keyboardType: keyboardType,
           onChanged: onChanged,
           decoration: InputDecoration(
             hintText: placeholder,
@@ -812,18 +786,15 @@ class _TextField extends StatelessWidget {
                 EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(11.r),
-              borderSide:
-                  const BorderSide(color: AppColors.borderDefault),
+              borderSide: const BorderSide(color: AppColors.borderDefault),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(11.r),
-              borderSide:
-                  const BorderSide(color: AppColors.borderDefault),
+              borderSide: const BorderSide(color: AppColors.borderDefault),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(11.r),
-              borderSide:
-                  const BorderSide(color: AppColors.brandYellowDeep),
+              borderSide: const BorderSide(color: AppColors.brandYellowDeep),
             ),
           ),
           style: AppText.figtree(size: 14, weight: FontWeight.w500),

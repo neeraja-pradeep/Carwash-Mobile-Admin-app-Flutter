@@ -174,9 +174,7 @@ class _ActionRow extends StatelessWidget {
             color: current ? AppColors.brandYellow : AppColors.bgCard,
             borderRadius: BorderRadius.circular(11.r),
             border: Border.all(
-              color: current
-                  ? AppColors.brandYellowDeep
-                  : AppColors.borderSoft,
+              color: current ? AppColors.brandYellowDeep : AppColors.borderSoft,
             ),
           ),
           child: Opacity(

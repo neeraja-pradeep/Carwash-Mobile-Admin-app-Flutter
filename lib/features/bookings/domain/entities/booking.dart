@@ -41,8 +41,7 @@ class Booking {
   final DamageReport damage;
   final String notes;
 
-  int get estimatedMinutes =>
-      services.fold(0, (sum, s) => sum + s.minutes);
+  int get estimatedMinutes => services.fold(0, (sum, s) => sum + s.minutes);
 }
 
 /// A named contact with a tap-to-call phone (customer on a booking).

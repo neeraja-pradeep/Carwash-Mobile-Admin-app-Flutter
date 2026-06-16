@@ -191,9 +191,9 @@ class _BookingsFilterFooter extends ConsumerWidget {
             label: 'Reset',
             kind: AppButtonKind.secondary,
             full: true,
-            onPressed: () =>
-                ref.read(bookingsFilterDraftProvider.notifier).state =
-                    const BookingsFilterState(),
+            onPressed: () => ref
+                .read(bookingsFilterDraftProvider.notifier)
+                .state = const BookingsFilterState(),
           ),
         ),
         SizedBox(width: 12.w),
@@ -214,4 +214,3 @@ class _BookingsFilterFooter extends ConsumerWidget {
     );
   }
 }
-

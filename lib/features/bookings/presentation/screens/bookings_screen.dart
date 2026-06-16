@@ -7,6 +7,7 @@ import 'package:new_flutter_project/app/router/app_router.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/error/error_view.dart';
+import 'package:new_flutter_project/core/status/booking_status.dart';
 import 'package:new_flutter_project/core/widgets/app_chip.dart';
 import 'package:new_flutter_project/core/widgets/app_fab.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
@@ -17,6 +18,7 @@ import 'package:new_flutter_project/core/widgets/search_field.dart';
 import 'package:new_flutter_project/core/widgets/skeleton_card.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/features/service_requests/presentation/components/service_requests_list.dart';
+import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
 
 import '../../application/providers/bookings_providers.dart';
 import '../../application/states/bookings_filter_state.dart';
@@ -197,15 +199,15 @@ class _CarwashBookingsList extends ConsumerWidget {
                   return ListView.separated(
                     padding: EdgeInsets.all(16.r),
                     itemCount: bookings.length + 2, // controls + items + spacer
-                    separatorBuilder: (_, i) =>
-                        i == 0 ? const SizedBox.shrink() : SizedBox(height: 12.h),
+                    separatorBuilder: (_, i) => i == 0
+                        ? const SizedBox.shrink()
+                        : SizedBox(height: 12.h),
                     itemBuilder: (context, index) {
                       if (index == 0) {
                         return ListControls(
                           count: bookings.length,
                           noun: 'booking',
-                          onFilter: () =>
-                              showBookingsFilterSheet(context, ref),
+                          onFilter: () => showBookingsFilterSheet(context, ref),
                           filterCount: filter.activeCount,
                           sort: filter.sort,
                           sortOptions: _sortOptions,
@@ -236,16 +238,21 @@ class _CarwashBookingsList extends ConsumerWidget {
           ],
         ),
 
-        // FAB
-        Positioned(
-          right: 18.w,
-          bottom: 96.h,
-          child: AppFab(
-            onPressed: () => context.push(Routes.newBooking),
-            icon: AppIcons.plus,
-            semanticLabel: 'New booking',
+        // FAB — only in the loaded "live" state (mirrors the JSX, which hides
+        // it during skeleton/empty/error so it never overlaps those CTAs).
+        if (filtered.maybeWhen(
+          data: (bookings) => bookings.isNotEmpty,
+          orElse: () => false,
+        ))
+          Positioned(
+            right: 18.w,
+            bottom: 96.h,
+            child: AppFab(
+              onPressed: () => context.push(Routes.newBooking),
+              icon: AppIcons.plus,
+              semanticLabel: 'New booking',
+            ),
           ),
-        ),
       ],
     );
   }
@@ -261,7 +268,7 @@ class _CarwashBookingsList extends ConsumerWidget {
 
 // ── Active chips row ──────────────────────────────────────────────────────────
 
-class _ActiveChips extends StatelessWidget {
+class _ActiveChips extends ConsumerWidget {
   const _ActiveChips({
     required this.filter,
     required this.controller,
@@ -291,7 +298,15 @@ class _ActiveChips extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Resolve shop ids → short names for chip labels (matches the JSX, which
+    // shows `shop.name.split(" ")[0]`). Falls back to the id while loading.
+    final shopNames = ref.watch(shopsProvider).maybeWhen(
+          data: (shops) =>
+              {for (final s in shops) s.id: s.name.split(' ').first},
+          orElse: () => const <String, String>{},
+        );
+
     final chips = <Widget>[];
 
     if (filter.date != 'today') {
@@ -326,7 +341,7 @@ class _ActiveChips extends StatelessWidget {
 
     for (final s in filter.statuses) {
       chips.add(AppChip(
-        label: s,
+        label: bookingStatusFromKey(s).label,
         active: true,
         removable: true,
         onRemove: () => controller.removeStatus(s),
@@ -335,7 +350,7 @@ class _ActiveChips extends StatelessWidget {
 
     for (final sh in filter.shops) {
       chips.add(AppChip(
-        label: sh,
+        label: shopNames[sh] ?? sh,
         active: true,
         removable: true,
         onRemove: () => controller.removeShop(sh),

@@ -118,8 +118,7 @@ class BookingCard extends ConsumerWidget {
               padding: EdgeInsets.only(top: 13.h),
               child: Container(
                 decoration: const BoxDecoration(
-                  border:
-                      Border(top: BorderSide(color: AppColors.borderSoft)),
+                  border: Border(top: BorderSide(color: AppColors.borderSoft)),
                 ),
                 padding: EdgeInsets.only(top: 13.h),
                 child: Row(
@@ -264,8 +263,7 @@ class BookingCard extends ConsumerWidget {
               padding: EdgeInsets.only(top: 12.h),
               child: Container(
                 decoration: const BoxDecoration(
-                  border:
-                      Border(top: BorderSide(color: AppColors.borderSoft)),
+                  border: Border(top: BorderSide(color: AppColors.borderSoft)),
                 ),
                 padding: EdgeInsets.only(top: 11.h),
                 child: Row(
@@ -406,4 +404,3 @@ class BookingCard extends ConsumerWidget {
     }
   }
 }
-

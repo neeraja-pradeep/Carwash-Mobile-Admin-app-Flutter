@@ -121,9 +121,7 @@ class _DriverRow extends StatelessWidget {
             color: active ? AppColors.brandYellow : AppColors.bgCard,
             borderRadius: BorderRadius.circular(13.r),
             border: Border.all(
-              color: active
-                  ? AppColors.brandYellowDeep
-                  : AppColors.borderSoft,
+              color: active ? AppColors.brandYellowDeep : AppColors.borderSoft,
             ),
           ),
           child: Row(

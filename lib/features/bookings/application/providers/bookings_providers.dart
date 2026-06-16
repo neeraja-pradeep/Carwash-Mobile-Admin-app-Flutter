@@ -38,17 +38,26 @@ final bookingByIdProvider =
 
 // ── Bookings screen segment ───────────────────────────────────────────────────
 
-/// Tracks which segment is visible: 0 = "Driver & Inspection", 1 = "Carwash".
-final bookingsSegmentProvider = StateProvider.autoDispose<int>(
+/// Tracks which segment is visible: 0 = "Driver & Inspection" (default), 1 =
+/// "Carwash".
+///
+/// Session-scoped (NOT autoDispose) so the selected segment survives detail
+/// round-trips and tab switches — it only resets to the default on a fresh app
+/// launch, mirroring the JSX `keep` ref. See INTENT.md §3 (state preservation).
+final bookingsSegmentProvider = StateProvider<int>(
   (ref) => 0,
 );
 
 // ── Filter/sort/search state for the Carwash list ────────────────────────────
 
 /// Committed filter state for the Carwash bookings list.
+///
+/// Session-scoped (NOT autoDispose): search, filters, sort and the default-to-
+/// today date must be preserved when returning from the booking detail or when
+/// switching bottom-nav tabs. A fresh launch starts from [BookingsFilterState]'s
+/// defaults (date = today).
 final bookingsFilterProvider =
-    StateNotifierProvider.autoDispose<BookingsFilterController,
-        BookingsFilterState>(
+    StateNotifierProvider<BookingsFilterController, BookingsFilterState>(
   (ref) => BookingsFilterController(),
 );
 
