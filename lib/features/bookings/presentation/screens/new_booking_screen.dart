@@ -11,6 +11,7 @@ import 'package:new_flutter_project/core/widgets/app_dialog.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
+import 'package:new_flutter_project/features/customers/application/providers/customers_providers.dart';
 import 'package:new_flutter_project/features/customers/domain/entities/customer.dart';
 import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
 import 'package:new_flutter_project/features/shops/domain/entities/shop.dart';
