@@ -17,7 +17,8 @@ import '../components/driver_job_card.dart';
 
 /// Driver app "Schedule" tab — today's assigned jobs (active + upcoming) then
 /// completed jobs. Mirrors the `schedule` branch of `DriverApp` in
-/// `screen_driver_app.jsx`.
+/// `screen_driver_app.jsx`. The persistent driver header (avatar + name/role +
+/// Online/Offline toggle) is rendered above this tab by [DriverShell].
 class DriverScheduleScreen extends ConsumerWidget {
   const DriverScheduleScreen({super.key});
 
@@ -29,81 +30,46 @@ class DriverScheduleScreen extends ConsumerWidget {
     final todayShort =
         AppConstants.sampleToday.split(' ').take(2).join(' '); // "29 May"
 
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // Header bar
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-              decoration: const BoxDecoration(
-                color: AppColors.bgCard,
-                border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Schedule',
-                      style: AppText.figtree(size: 18, weight: FontWeight.w700),
-                    ),
-                  ),
-                  Icon(AppIcons.cal, size: 22.sp, color: AppColors.fgTertiary),
-                ],
-              ),
-            ),
-
-            // Jobs list
-            Expanded(
-              child: jobsAsync.when(
-                loading: () => ListView.separated(
-                  padding: EdgeInsets.all(16.r),
-                  itemCount: 3,
-                  separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                  itemBuilder: (_, __) => const SkeletonCard(),
-                ),
-                error: (_, __) =>
-                    const Center(child: Text('Could not load schedule.')),
-                data: (jobs) {
-                  final today = jobs
-                      .where((j) =>
-                          j.state == DriverJobState.active ||
-                          j.state == DriverJobState.upcoming)
-                      .toList();
-                  final completed = jobs
-                      .where((j) => j.state == DriverJobState.completed)
-                      .toList();
-
-                  if (today.isEmpty && completed.isEmpty) {
-                    return EmptyState(
-                      icon: AppIcons.cal,
-                      title: 'No jobs today',
-                      body: 'Your schedule is clear for today.',
-                    );
-                  }
-
-                  return ListView(
-                    padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 32.h),
-                    children: [
-                      _SectionLabel('Today · $todayShort'),
-                      SizedBox(height: 8.h),
-                      ...today.map((job) => _card(context, job)),
-                      if (completed.isNotEmpty) ...[
-                        SizedBox(height: 2.h),
-                        _SectionLabel('Completed'),
-                        SizedBox(height: 8.h),
-                        ...completed.map((job) => _card(context, job)),
-                      ],
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+    return jobsAsync.when(
+      loading: () => ListView.separated(
+        padding: EdgeInsets.all(16.r),
+        itemCount: 3,
+        separatorBuilder: (_, __) => SizedBox(height: 12.h),
+        itemBuilder: (_, __) => const SkeletonCard(),
       ),
+      error: (_, __) => const Center(child: Text('Could not load schedule.')),
+      data: (jobs) {
+        final today = jobs
+            .where((j) =>
+                j.state == DriverJobState.active ||
+                j.state == DriverJobState.upcoming)
+            .toList();
+        final completed =
+            jobs.where((j) => j.state == DriverJobState.completed).toList();
+
+        if (today.isEmpty && completed.isEmpty) {
+          return EmptyState(
+            icon: AppIcons.cal,
+            title: 'No jobs today',
+            body: 'Your schedule is clear for today.',
+          );
+        }
+
+        return ListView(
+          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 32.h),
+          children: [
+            _SectionLabel('Today · $todayShort'),
+            SizedBox(height: 8.h),
+            ...today.map((job) => _card(context, job)),
+            if (completed.isNotEmpty) ...[
+              SizedBox(height: 2.h),
+              _SectionLabel('Completed'),
+              SizedBox(height: 8.h),
+              ...completed.map((job) => _card(context, job)),
+            ],
+          ],
+        );
+      },
     );
   }
 

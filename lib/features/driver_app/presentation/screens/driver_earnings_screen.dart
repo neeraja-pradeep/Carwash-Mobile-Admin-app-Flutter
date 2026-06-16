@@ -6,7 +6,6 @@ import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/skeleton_card.dart';
 import '../../../drivers/domain/entities/driver_earnings.dart';
 import '../../application/providers/driver_app_providers.dart';
@@ -14,7 +13,9 @@ import '../components/earnings_bar_chart.dart';
 
 /// Driver app "Earnings" tab — a weekly total + bar chart, a per-category
 /// breakdown, and a pending-payout card. Mirrors the `earnings` branch of
-/// `DriverApp` in `screen_driver_app.jsx`.
+/// `DriverApp` in `screen_driver_app.jsx`. The persistent driver header
+/// (avatar + name/role + Online/Offline toggle) is rendered above this tab by
+/// [DriverShell].
 class DriverEarningsScreen extends ConsumerWidget {
   const DriverEarningsScreen({super.key});
 
@@ -22,53 +23,15 @@ class DriverEarningsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final earningsAsync = ref.watch(driverEarningsProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            _Header(),
-            Expanded(
-              child: earningsAsync.when(
-                loading: () => ListView.separated(
-                  padding: EdgeInsets.all(16.r),
-                  itemCount: 3,
-                  separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                  itemBuilder: (_, __) => const SkeletonCard(),
-                ),
-                error: (_, __) =>
-                    const Center(child: Text('Could not load earnings.')),
-                data: (earnings) => _EarningsBody(earnings: earnings),
-              ),
-            ),
-          ],
-        ),
+    return earningsAsync.when(
+      loading: () => ListView.separated(
+        padding: EdgeInsets.all(16.r),
+        itemCount: 3,
+        separatorBuilder: (_, __) => SizedBox(height: 12.h),
+        itemBuilder: (_, __) => const SkeletonCard(),
       ),
-    );
-  }
-}
-
-class _Header extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-      decoration: const BoxDecoration(
-        color: AppColors.bgCard,
-        border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              'Earnings',
-              style: AppText.figtree(size: 18, weight: FontWeight.w700),
-            ),
-          ),
-          Icon(AppIcons.wallet, size: 22.sp, color: AppColors.fgTertiary),
-        ],
-      ),
+      error: (_, __) => const Center(child: Text('Could not load earnings.')),
+      data: (earnings) => _EarningsBody(earnings: earnings),
     );
   }
 }

@@ -17,7 +17,8 @@ import '../../application/providers/driver_app_providers.dart';
 
 /// Driver app "Profile" tab — profile header (name, status, rating), an info
 /// card, support/legal links and Sign out. Mirrors the `profile` branch of
-/// `DriverApp` in `screen_driver_app.jsx`.
+/// `DriverApp` in `screen_driver_app.jsx`, which has no per-tab title bar — the
+/// shared driver header (rendered by [DriverShell]) sits above this content.
 class DriverProfileScreen extends ConsumerWidget {
   const DriverProfileScreen({super.key});
 
@@ -25,50 +26,17 @@ class DriverProfileScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final driverAsync = ref.watch(signedInDriverProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
-              decoration: const BoxDecoration(
-                color: AppColors.bgCard,
-                border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Profile',
-                      style: AppText.figtree(size: 18, weight: FontWeight.w700),
-                    ),
-                  ),
-                  Icon(AppIcons.users,
-                      size: 22.sp, color: AppColors.fgTertiary),
-                ],
-              ),
-            ),
-            Expanded(
-              child: driverAsync.when(
-                loading: () => ListView.separated(
-                  padding: EdgeInsets.all(16.r),
-                  itemCount: 2,
-                  separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                  itemBuilder: (_, __) => const SkeletonCard(),
-                ),
-                error: (_, __) =>
-                    const Center(child: Text('Could not load profile.')),
-                data: (driver) => _ProfileBody(
-                  driver: driver,
-                  onSignOut: () => context.go(Routes.login),
-                ),
-              ),
-            ),
-          ],
-        ),
+    return driverAsync.when(
+      loading: () => ListView.separated(
+        padding: EdgeInsets.all(16.r),
+        itemCount: 2,
+        separatorBuilder: (_, __) => SizedBox(height: 12.h),
+        itemBuilder: (_, __) => const SkeletonCard(),
+      ),
+      error: (_, __) => const Center(child: Text('Could not load profile.')),
+      data: (driver) => _ProfileBody(
+        driver: driver,
+        onSignOut: () => context.go(Routes.login),
       ),
     );
   }

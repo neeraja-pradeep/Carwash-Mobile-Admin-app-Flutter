@@ -50,11 +50,14 @@ final signedInDriverProvider = FutureProvider<FieldDriver?>(
   (ref) => ref.watch(fieldDriverByIdProvider('fd1').future),
 );
 
-// ── UI state providers (autoDispose — reset on navigation) ───────────────────
+// ── UI state providers ───────────────────────────────────────────────────────
 
-/// Online / offline toggle. `true` = online (accepting jobs). The Start/End
-/// job OTP flow is held in local widget state on the job-detail screen (it
-/// transitions the visible status), so no provider is needed for it.
-final driverOnlineProvider = StateProvider.autoDispose<bool>(
+/// Online / offline toggle. `true` = online (accepting jobs). Shared across the
+/// driver tabs (the persistent header in [DriverShell] owns the toggle), so it
+/// is NOT autoDispose — the chosen state stays consistent as the driver moves
+/// between Today / Schedule / Earnings / Profile. The Start/End job OTP flow is
+/// held in local widget state on the job-detail screen (it transitions the
+/// visible status), so no provider is needed for it.
+final driverOnlineProvider = StateProvider<bool>(
   (ref) => true,
 );
