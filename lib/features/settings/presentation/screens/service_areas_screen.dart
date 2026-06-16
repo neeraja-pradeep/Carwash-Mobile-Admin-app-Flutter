@@ -32,7 +32,7 @@ class _ServiceAreasScreenState extends ConsumerState<ServiceAreasScreen> {
   List<ServiceArea>? _carwash;
   List<ServiceArea>? _hire;
 
-  List<ServiceArea> get _currentList => _seg == 'carwash' ? _carwash! : _hire!;
+  List<ServiceArea> get _currentList => _seg == 'carwash' ? (_carwash ?? []) : (_hire ?? []);
 
   void _init(AppSettings settings) {
     _carwash ??= List<ServiceArea>.from(settings.serviceAreas.carwash);
