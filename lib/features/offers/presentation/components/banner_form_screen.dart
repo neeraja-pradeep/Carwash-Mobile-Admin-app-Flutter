@@ -36,8 +36,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
     _titleCtrl = TextEditingController(text: b?.title ?? '');
     _subtitleCtrl = TextEditingController(text: b?.subtitle ?? '');
     _linkCtrl = TextEditingController(text: b?.link ?? '');
-    _orderCtrl = TextEditingController(
-        text: b != null ? '${b.order}' : '1');
+    _orderCtrl = TextEditingController(text: b != null ? '${b.order}' : '1');
     _placement =
         (b != null && b.placement.contains('Strip')) ? 'strip' : 'hero';
     _active = b?.status == 'active';
@@ -70,8 +69,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
             ),
             Expanded(
               child: ListView(
-                padding:
-                    EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+                padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
                 children: [
                   OfferFCard(
                     label: 'Image',
@@ -83,8 +81,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                           width: double.infinity,
                           height: 130.h,
                           decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(12.r),
+                            borderRadius: BorderRadius.circular(12.r),
                             border: b == null
                                 ? Border.all(
                                     color: AppColors.borderDefault,
@@ -92,8 +89,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                                 : null,
                             color: b == null
                                 ? AppColors.bgCard
-                                : AppColors.fgPrimary
-                                    .withValues(alpha: 0.1),
+                                : AppColors.fgPrimary.withOpacity(0.1),
                             image: b != null
                                 ? DecorationImage(
                                     image: AssetImage(b.image),
@@ -108,10 +104,8 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                               if (b != null)
                                 Container(
                                   decoration: BoxDecoration(
-                                    borderRadius:
-                                        BorderRadius.circular(12.r),
-                                    color:
-                                        const Color(0x4D000000),
+                                    borderRadius: BorderRadius.circular(12.r),
+                                    color: const Color(0x4D000000),
                                   ),
                                 ),
                               Column(
@@ -183,15 +177,13 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                           ('hero', 'Home — Hero'),
                           ('strip', 'Home — Strip'),
                         ],
-                        onChanged: (v) =>
-                            setState(() => _placement = v),
+                        onChanged: (v) => setState(() => _placement = v),
                       ),
                       SizedBox(height: 14.h),
                       OfferFInput(
                         label: 'Links to',
                         controller: _linkCtrl,
-                        placeholder:
-                            'Coupon, service, or screen',
+                        placeholder: 'Coupon, service, or screen',
                         optional: true,
                       ),
                       SizedBox(height: 14.h),
@@ -202,12 +194,10 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                       ),
                       SizedBox(height: 14.h),
                       Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Active',
@@ -218,9 +208,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                               ),
                               SizedBox(height: 2.h),
                               Text(
-                                _active
-                                    ? 'Visible in app'
-                                    : 'Hidden',
+                                _active ? 'Visible in app' : 'Hidden',
                                 style: AppText.figtree(
                                   size: 12,
                                   color: AppColors.fgTertiary,
@@ -230,8 +218,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                           ),
                           OfferToggle(
                             on: _active,
-                            onTap: () => setState(
-                                () => _active = !_active),
+                            onTap: () => setState(() => _active = !_active),
                           ),
                         ],
                       ),
@@ -246,12 +233,10 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
       ),
       bottomNavigationBar: SafeArea(
         child: Container(
-          padding:
-              EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
+          padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
           decoration: const BoxDecoration(
             color: AppColors.bgCard,
-            border:
-                Border(top: BorderSide(color: AppColors.borderSoft)),
+            border: Border(top: BorderSide(color: AppColors.borderSoft)),
           ),
           child: AppButton(
             label: isEdit ? 'Save Changes' : 'Create Banner',

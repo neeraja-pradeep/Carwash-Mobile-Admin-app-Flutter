@@ -49,8 +49,7 @@ class CouponCard extends StatelessWidget {
             Container(
               width: 86.w,
               color: isActive ? AppColors.brandYellow : AppColors.bgPage,
-              padding: EdgeInsets.symmetric(
-                  horizontal: 8.w, vertical: 14.h),
+              padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 14.h),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -71,7 +70,7 @@ class CouponCard extends StatelessWidget {
                     style: AppText.figtree(
                       size: 9,
                       weight: FontWeight.w600,
-                      color: AppColors.fgPrimary.withValues(alpha: 0.55),
+                      color: AppColors.fgPrimary.withOpacity(0.55),
                       letterSpacing: 0.9,
                     ),
                   ),

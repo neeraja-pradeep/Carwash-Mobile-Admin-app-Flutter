@@ -45,7 +45,10 @@ class NotificationsScreen extends ConsumerWidget {
 
     void openNotification(AppNotification n) {
       // Mark as read
-      readController.state = {...ref.read(notificationsReadStateProvider), n.id};
+      readController.state = {
+        ...ref.read(notificationsReadStateProvider),
+        n.id
+      };
 
       // Deep-link
       if (n.bookingId case final bookingId?) {
@@ -69,7 +72,8 @@ class NotificationsScreen extends ConsumerWidget {
           children: [
             TopBar(
               title: 'Notifications',
-              subtitle: unreadCount > 0 ? '$unreadCount unread' : 'All caught up',
+              subtitle:
+                  unreadCount > 0 ? '$unreadCount unread' : 'All caught up',
               onBack: () => context.pop(),
               actions: [
                 if (unreadCount > 0)
@@ -161,7 +165,10 @@ class NotificationsScreen extends ConsumerWidget {
       builder: (sheetCtx) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final option in [('all', 'All notifications'), ('unread', 'Unread only')])
+          for (final option in [
+            ('all', 'All notifications'),
+            ('unread', 'Unread only')
+          ])
             GestureDetector(
               onTap: () {
                 onChanged(option.$1);
@@ -171,7 +178,8 @@ class NotificationsScreen extends ConsumerWidget {
               child: Container(
                 padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 4.w),
                 decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
+                  border:
+                      Border(bottom: BorderSide(color: AppColors.borderSoft)),
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -204,7 +212,7 @@ class NotificationsScreen extends ConsumerWidget {
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 class _SkeletonList extends StatelessWidget {
-  const _SkeletonList({super.key});
+  const _SkeletonList();
 
   @override
   Widget build(BuildContext context) {

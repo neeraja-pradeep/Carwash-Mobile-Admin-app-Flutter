@@ -58,7 +58,7 @@ class BannerCard extends StatelessWidget {
                   // Background image or colour placeholder
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.fgSecondary.withValues(alpha: 0.25),
+                      color: AppColors.fgSecondary.withOpacity(0.25),
                       image: DecorationImage(
                         image: AssetImage(banner.image),
                         fit: BoxFit.cover,
@@ -90,8 +90,8 @@ class BannerCard extends StatelessWidget {
                     top: 10.h,
                     right: 10.w,
                     child: Container(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 8.w, vertical: 4.h),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 8.w, vertical: 4.h),
                       decoration: BoxDecoration(
                         color: const Color(0x73000000),
                         borderRadius: BorderRadius.circular(6.r),
@@ -132,8 +132,7 @@ class BannerCard extends StatelessWidget {
                           style: AppText.figtree(
                             size: 12,
                             weight: FontWeight.w500,
-                            color: AppColors.fgOnDark
-                                .withValues(alpha: 0.85),
+                            color: AppColors.fgOnDark.withOpacity(0.85),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -146,8 +145,7 @@ class BannerCard extends StatelessWidget {
             ),
             // Footer row: link + impressions/taps
             Padding(
-              padding: EdgeInsets.symmetric(
-                  horizontal: 14.w, vertical: 11.h),
+              padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 11.h),
               child: Row(
                 children: [
                   Icon(
@@ -190,7 +188,9 @@ class BannerCard extends StatelessWidget {
       final s = n.toString();
       // Indian grouping: last 3, then pairs
       if (s.length <= 3) return s;
-      if (s.length <= 5) return '${s.substring(0, s.length - 3)},${s.substring(s.length - 3)}';
+      if (s.length <= 5) {
+        return '${s.substring(0, s.length - 3)},${s.substring(s.length - 3)}';
+      }
       return '${s.substring(0, s.length - 5)},${s.substring(s.length - 5, s.length - 3)},${s.substring(s.length - 3)}';
     }
     return '$n';
