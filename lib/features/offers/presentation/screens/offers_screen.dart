@@ -204,14 +204,19 @@ class _TabItem extends StatelessWidget {
             ),
             if (active)
               Positioned(
-                left: MediaQuery.of(context).size.width * 0.3 / 2,
-                right: MediaQuery.of(context).size.width * 0.3 / 2,
+                left: 0,
+                right: 0,
                 bottom: 0,
-                child: Container(
-                  height: 2.5.h,
-                  decoration: BoxDecoration(
-                    color: AppColors.brandYellowDeep,
-                    borderRadius: BorderRadius.circular(99.r),
+                child: Center(
+                  child: FractionallySizedBox(
+                    widthFactor: 0.4,
+                    child: Container(
+                      height: 2.5.h,
+                      decoration: BoxDecoration(
+                        color: AppColors.brandYellowDeep,
+                        borderRadius: BorderRadius.circular(99.r),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -275,7 +280,7 @@ class _CouponsList extends StatelessWidget {
         final coupons = _apply(all);
         return ListView.builder(
           padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
-          itemCount: coupons.isEmpty ? 2 : coupons.length + 1,
+          itemCount: coupons.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
               return Column(
@@ -400,7 +405,7 @@ class _BannersList extends StatelessWidget {
         final banners = _apply(all);
         return ListView.builder(
           padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
-          itemCount: banners.isEmpty ? 2 : banners.length + 1,
+          itemCount: banners.length + 1,
           itemBuilder: (context, index) {
             if (index == 0) {
               return Column(

@@ -7,7 +7,6 @@ import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/core/widgets/widgets.dart';
 
 import '../../domain/entities/shop.dart';
-import 'shop_card.dart';
 
 /// Settlement tab body for ShopDetailScreen.
 /// Mirrors `SettlementTab` in `screen_shopdetail.jsx`.

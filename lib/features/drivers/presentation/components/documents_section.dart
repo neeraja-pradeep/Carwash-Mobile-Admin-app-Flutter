@@ -17,7 +17,7 @@ import '../../domain/entities/field_driver.dart';
 /// The Documents card with inline list, add / edit / delete flow.
 ///
 /// Mirrors `DocumentsCard` + `DocSheet` in `screen_drivers.jsx`.
-/// Uses [StatefulWidget] because the doc list and sheet state are purely visual.
+/// Uses [StatefulWidget] because the doc list is locally mutable.
 class DocumentsSection extends StatefulWidget {
   const DocumentsSection({
     required this.documents,
@@ -33,41 +33,90 @@ class DocumentsSection extends StatefulWidget {
 }
 
 class _DocumentsSectionState extends State<DocumentsSection> {
-  // null = closed; empty object = add new; {doc: x} = edit existing
-  DriverDocument? _sheetDoc; // existing doc being edited
-  bool _sheetOpen = false;
+  /// Opens the add/edit bottom sheet for [existingDoc] (null = add new).
+  Future<void> _openSheet(BuildContext context, DriverDocument? existingDoc) {
+    // Mutable state for the sheet (boxed so body+footer share state)
+    String type = existingDoc?.type ?? kDocTypes.first;
+    String customTitle = '';
+    // ValueNotifier lets body and footer share the same `front` value reactively.
+    final frontNotifier = ValueNotifier<bool>(existingDoc?.front ?? false);
+    bool back = existingDoc?.back ?? false;
 
-  void _openAdd() => setState(() {
-        _sheetDoc = null;
-        _sheetOpen = true;
-      });
-
-  void _openEdit(DriverDocument doc) => setState(() {
-        _sheetDoc = doc;
-        _sheetOpen = true;
-      });
-
-  void _closeSheet() => setState(() => _sheetOpen = false);
-
-  void _save(DriverDocument updated) {
-    final docs = List<DriverDocument>.from(widget.documents);
-    final idx = docs.indexWhere((d) => d.id == updated.id);
-    if (idx >= 0) {
-      docs[idx] = updated;
-      AppToast.show(context, 'Document updated');
-    } else {
-      docs.add(updated);
-      AppToast.show(context, 'Document added');
+    void doSave(BuildContext sheetCtx) {
+      final finalType = type == 'Other'
+          ? (customTitle.trim().isEmpty ? 'Other' : customTitle.trim())
+          : type;
+      final id = existingDoc?.id ??
+          'dc_${DateTime.now().millisecondsSinceEpoch}';
+      final updated = DriverDocument(
+        id: id,
+        type: finalType,
+        front: frontNotifier.value,
+        back: back,
+      );
+      final docs = List<DriverDocument>.from(widget.documents);
+      final idx = docs.indexWhere((d) => d.id == id);
+      if (idx >= 0) {
+        docs[idx] = updated;
+        AppToast.show(context, 'Document updated');
+      } else {
+        docs.add(updated);
+        AppToast.show(context, 'Document added');
+      }
+      widget.onChanged(docs);
+      Navigator.of(sheetCtx).pop();
     }
-    widget.onChanged(docs);
-    _closeSheet();
-  }
 
-  void _delete(String id) {
-    final docs = widget.documents.where((d) => d.id != id).toList();
-    widget.onChanged(docs);
-    _closeSheet();
-    AppToast.show(context, 'Document removed');
+    return showAppBottomSheet<void>(
+      context: context,
+      title: existingDoc != null ? 'Edit document' : 'Add document',
+      maxHeightFactor: 0.85,
+      footer: ValueListenableBuilder<bool>(
+        valueListenable: frontNotifier,
+        builder: (ctx, frontVal, _) => _DocSheetFooter(
+          canSave: frontVal,
+          hasDelete: existingDoc != null,
+          onSave: () => doSave(ctx),
+          onDeleteRequest: existingDoc != null
+              ? () async {
+                  final confirmed = await showConfirmDialog(
+                    context: context,
+                    title: 'Delete this document?',
+                    body:
+                        "The uploaded photos will be removed. This can't be undone.",
+                    confirmLabel: 'Delete',
+                    destructive: true,
+                  );
+                  if (confirmed) {
+                    final docs = widget.documents
+                        .where((d) => d.id != existingDoc.id)
+                        .toList();
+                    widget.onChanged(docs);
+                    Navigator.of(ctx).pop();
+                    AppToast.show(context, 'Document removed');
+                  }
+                }
+              : null,
+        ),
+      ),
+      builder: (ctx) => ValueListenableBuilder<bool>(
+        valueListenable: frontNotifier,
+        builder: (ctx2, frontVal, _) => StatefulBuilder(
+          builder: (ctx3, setSheet) => _DocSheetBody(
+            type: type,
+            customTitle: customTitle,
+            front: frontVal,
+            back: back,
+            onTypeChanged: (t) => setSheet(() => type = t),
+            onTitleChanged: (t) => setSheet(() => customTitle = t),
+            onFrontToggle: () {
+              frontNotifier.value = !frontNotifier.value;
+            },
+            onBackToggle: () => setSheet(() => back = !back),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -127,31 +176,32 @@ class _DocumentsSectionState extends State<DocumentsSection> {
                     doc: docs[i],
                     onView: () =>
                         AppToast.show(context, 'Viewing ${docs[i].type}'),
-                    onEdit: () => _openEdit(docs[i]),
+                    onEdit: () => _openSheet(context, docs[i]),
                   ),
                 ],
               ],
             ),
 
-          // Add button
+          // Add document button
           SizedBox(height: 12.h),
           GestureDetector(
-            onTap: _openAdd,
+            onTap: () => _openSheet(context, null),
             child: Container(
               width: double.infinity,
               height: 44.h,
               decoration: BoxDecoration(
                 color: AppColors.bgCard,
                 borderRadius: BorderRadius.circular(11.r),
-                border: Border.all(
-                  color: AppColors.borderDefault,
-                  style: BorderStyle.solid,
-                ),
+                border: Border.all(color: AppColors.borderDefault),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(AppIcons.plus, size: 16.sp, color: AppColors.fgSecondary),
+                  Icon(
+                    AppIcons.plus,
+                    size: 16.sp,
+                    color: AppColors.fgSecondary,
+                  ),
                   SizedBox(width: 7.w),
                   Text(
                     'Add document',
@@ -165,20 +215,13 @@ class _DocumentsSectionState extends State<DocumentsSection> {
               ),
             ),
           ),
-
-          // Doc sheet
-          if (_sheetOpen)
-            _DocSheet(
-              existingDoc: _sheetDoc,
-              onClose: _closeSheet,
-              onSave: _save,
-              onDelete: _sheetDoc != null ? () => _delete(_sheetDoc!.id) : null,
-            ),
         ],
       ),
     );
   }
 }
+
+// ── Doc row ───────────────────────────────────────────────────────────────────
 
 class _DocRow extends StatelessWidget {
   const _DocRow({
@@ -197,7 +240,6 @@ class _DocRow extends StatelessWidget {
       padding: EdgeInsets.symmetric(vertical: 11.h),
       child: Row(
         children: [
-          // Note icon tile
           Container(
             width: 38.r,
             height: 38.r,
@@ -212,8 +254,6 @@ class _DocRow extends StatelessWidget {
             ),
           ),
           SizedBox(width: 11.w),
-
-          // Type + side badges
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,12 +278,17 @@ class _DocRow extends StatelessWidget {
               ],
             ),
           ),
-
-          // View button
-          _IconAction(icon: AppIcons.search, onTap: onView, semanticLabel: 'View'),
+          _IconAction(
+            icon: AppIcons.search,
+            onTap: onView,
+            semanticLabel: 'View',
+          ),
           SizedBox(width: 6.w),
-          // Edit button
-          _IconAction(icon: AppIcons.edit, onTap: onEdit, semanticLabel: 'Edit'),
+          _IconAction(
+            icon: AppIcons.edit,
+            onTap: onEdit,
+            semanticLabel: 'Edit',
+          ),
         ],
       ),
     );
@@ -310,118 +355,10 @@ class _IconAction extends StatelessWidget {
   }
 }
 
-// ── Doc Sheet (add / edit) ────────────────────────────────────────────────────
+// ── Doc Sheet body ────────────────────────────────────────────────────────────
 
-/// Bottom sheet for adding or editing a document.
+/// Body of the add/edit document bottom sheet.
 /// Mirrors `DocSheet` in `screen_drivers.jsx`.
-class _DocSheet extends StatefulWidget {
-  const _DocSheet({
-    required this.existingDoc,
-    required this.onClose,
-    required this.onSave,
-    required this.onDelete,
-  });
-
-  final DriverDocument? existingDoc;
-  final VoidCallback onClose;
-  final ValueChanged<DriverDocument> onSave;
-  final VoidCallback? onDelete;
-
-  @override
-  State<_DocSheet> createState() => _DocSheetState();
-}
-
-class _DocSheetState extends State<_DocSheet> {
-  late String _type;
-  late String _customTitle;
-  late bool _front;
-  late bool _back;
-
-  @override
-  void initState() {
-    super.initState();
-    final ex = widget.existingDoc;
-    _type = ex?.type ?? kDocTypes.first;
-    _customTitle = '';
-    _front = ex?.front ?? false;
-    _back = ex?.back ?? false;
-
-    // Show sheet immediately
-    WidgetsBinding.instance.addPostFrameCallback((_) => _show());
-  }
-
-  void _show() {
-    showAppBottomSheet<void>(
-      context: context,
-      title: widget.existingDoc != null ? 'Edit document' : 'Add document',
-      builder: (_) => _DocSheetBody(
-        type: _type,
-        customTitle: _customTitle,
-        front: _front,
-        back: _back,
-        onTypeChanged: (t) => setState(() => _type = t),
-        onTitleChanged: (t) => setState(() => _customTitle = t),
-        onFrontToggle: () => setState(() => _front = !_front),
-        onBackToggle: () => setState(() => _back = !_back),
-        onDeleteRequest: widget.onDelete != null
-            ? () async {
-                final confirmed = await showConfirmDialog(
-                  context: context,
-                  title: 'Delete this document?',
-                  body:
-                      "The uploaded photos will be removed. This can't be undone.",
-                  confirmLabel: 'Delete',
-                  destructive: true,
-                );
-                if (confirmed) {
-                  widget.onDelete!();
-                }
-              }
-            : null,
-      ),
-      footer: _DocSheetFooter(
-        canSave: _front,
-        hasDelete: widget.onDelete != null,
-        onSave: () {
-          final finalType =
-              _type == 'Other' ? (_customTitle.trim().isEmpty ? 'Other' : _customTitle.trim()) : _type;
-          final id = widget.existingDoc?.id ??
-              'dc_${DateTime.now().millisecondsSinceEpoch}';
-          widget.onSave(
-            DriverDocument(
-              id: id,
-              type: finalType,
-              front: _front,
-              back: _back,
-            ),
-          );
-          Navigator.of(context).pop();
-        },
-        onDeleteRequest: widget.onDelete != null
-            ? () async {
-                final confirmed = await showConfirmDialog(
-                  context: context,
-                  title: 'Delete this document?',
-                  body:
-                      "The uploaded photos will be removed. This can't be undone.",
-                  confirmLabel: 'Delete',
-                  destructive: true,
-                );
-                if (confirmed) {
-                  widget.onDelete!();
-                  Navigator.of(context).pop();
-                }
-              }
-            : null,
-      ),
-      maxHeightFactor: 0.85,
-    ).then((_) => widget.onClose());
-  }
-
-  @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
-}
-
 class _DocSheetBody extends StatelessWidget {
   const _DocSheetBody({
     required this.type,
@@ -432,7 +369,6 @@ class _DocSheetBody extends StatelessWidget {
     required this.onTitleChanged,
     required this.onFrontToggle,
     required this.onBackToggle,
-    this.onDeleteRequest,
   });
 
   final String type;
@@ -443,7 +379,6 @@ class _DocSheetBody extends StatelessWidget {
   final ValueChanged<String> onTitleChanged;
   final VoidCallback onFrontToggle;
   final VoidCallback onBackToggle;
-  final VoidCallback? onDeleteRequest;
 
   bool get _isOther => type == 'Other';
 
@@ -452,7 +387,6 @@ class _DocSheetBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Type section
         Text(
           'DOCUMENT TYPE',
           style: AppText.figtree(
@@ -475,11 +409,9 @@ class _DocSheetBody extends StatelessWidget {
               ),
           ],
         ),
-
-        // Custom name field for "Other"
         if (_isOther) ...[
           SizedBox(height: 12.h),
-          _TextField(
+          _SheetTextField(
             label: 'Document name',
             value: customTitle,
             placeholder: 'e.g. Bank passbook',
@@ -487,8 +419,6 @@ class _DocSheetBody extends StatelessWidget {
           ),
         ],
         SizedBox(height: _isOther ? 8.h : 20.h),
-
-        // Upload photos
         Text(
           'UPLOAD PHOTOS',
           style: AppText.figtree(
@@ -502,11 +432,19 @@ class _DocSheetBody extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: _UploadTile(label: 'Front', on: front, onTap: onFrontToggle),
+              child: _UploadTile(
+                label: 'Front',
+                on: front,
+                onTap: onFrontToggle,
+              ),
             ),
             SizedBox(width: 10.w),
             Expanded(
-              child: _UploadTile(label: 'Back', on: back, onTap: onBackToggle),
+              child: _UploadTile(
+                label: 'Back',
+                on: back,
+                onTap: onBackToggle,
+              ),
             ),
           ],
         ),
@@ -524,6 +462,8 @@ class _DocSheetBody extends StatelessWidget {
     );
   }
 }
+
+// ── Doc sheet footer ──────────────────────────────────────────────────────────
 
 class _DocSheetFooter extends StatelessWidget {
   const _DocSheetFooter({
@@ -567,6 +507,8 @@ class _DocSheetFooter extends StatelessWidget {
   }
 }
 
+// ── Upload tile ───────────────────────────────────────────────────────────────
+
 class _UploadTile extends StatelessWidget {
   const _UploadTile({
     required this.label,
@@ -585,14 +527,10 @@ class _UploadTile extends StatelessWidget {
       child: Container(
         height: 92.h,
         decoration: BoxDecoration(
-          color: on
-              ? const Color(0x24FAD93A) // rgba(250,217,58,0.14)
-              : AppColors.bgCard,
+          color: on ? const Color(0x24FAD93A) : AppColors.bgCard,
           borderRadius: BorderRadius.circular(12.r),
           border: Border.all(
-            color:
-                on ? AppColors.brandYellowDeep : AppColors.borderDefault,
-            style: on ? BorderStyle.solid : BorderStyle.solid,
+            color: on ? AppColors.brandYellowDeep : AppColors.borderDefault,
           ),
         ),
         child: Column(
@@ -619,8 +557,10 @@ class _UploadTile extends StatelessWidget {
   }
 }
 
-class _TextField extends StatefulWidget {
-  const _TextField({
+// ── Sheet text field ──────────────────────────────────────────────────────────
+
+class _SheetTextField extends StatefulWidget {
+  const _SheetTextField({
     required this.label,
     required this.value,
     required this.placeholder,
@@ -633,10 +573,10 @@ class _TextField extends StatefulWidget {
   final ValueChanged<String> onChanged;
 
   @override
-  State<_TextField> createState() => _TextFieldState();
+  State<_SheetTextField> createState() => _SheetTextFieldState();
 }
 
-class _TextFieldState extends State<_TextField> {
+class _SheetTextFieldState extends State<_SheetTextField> {
   late final TextEditingController _ctrl =
       TextEditingController(text: widget.value);
 

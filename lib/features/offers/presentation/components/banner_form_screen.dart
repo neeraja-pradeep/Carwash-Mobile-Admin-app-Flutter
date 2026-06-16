@@ -8,7 +8,7 @@ import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/top_bar.dart';
 import '../../domain/entities/offer_banner.dart';
-import 'coupon_form_screen.dart' show _FCard, _FInput, _SegControl, _Toggle;
+import 'form_helpers.dart';
 
 /// Add / Edit banner form — pushed intra-module via Navigator.
 class BannerFormScreen extends StatefulWidget {
@@ -73,7 +73,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                 padding:
                     EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
                 children: [
-                  _FCard(
+                  OfferFCard(
                     label: 'Image',
                     children: [
                       GestureDetector(
@@ -83,11 +83,11 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                           width: double.infinity,
                           height: 130.h,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12.r),
+                            borderRadius:
+                                BorderRadius.circular(12.r),
                             border: b == null
                                 ? Border.all(
                                     color: AppColors.borderDefault,
-                                    style: BorderStyle.solid,
                                   )
                                 : null,
                             color: b == null
@@ -98,6 +98,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                                 ? DecorationImage(
                                     image: AssetImage(b.image),
                                     fit: BoxFit.cover,
+                                    onError: (_, __) {},
                                   )
                                 : null,
                           ),
@@ -109,7 +110,8 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                                   decoration: BoxDecoration(
                                     borderRadius:
                                         BorderRadius.circular(12.r),
-                                    color: const Color(0x4D000000),
+                                    color:
+                                        const Color(0x4D000000),
                                   ),
                                 ),
                               Column(
@@ -144,17 +146,17 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                     ],
                   ),
                   SizedBox(height: 14.h),
-                  _FCard(
+                  OfferFCard(
                     label: 'Content',
                     children: [
-                      _FInput(
+                      OfferFInput(
                         label: 'Title',
                         controller: _titleCtrl,
                         placeholder: 'e.g. Up to 40% Off',
                         onChanged: (_) => setState(() {}),
                       ),
                       SizedBox(height: 14.h),
-                      _FInput(
+                      OfferFInput(
                         label: 'Subtitle',
                         controller: _subtitleCtrl,
                         placeholder: 'Short supporting line',
@@ -163,7 +165,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                     ],
                   ),
                   SizedBox(height: 14.h),
-                  _FCard(
+                  OfferFCard(
                     label: 'Placement & Link',
                     children: [
                       Text(
@@ -175,7 +177,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                         ),
                       ),
                       SizedBox(height: 9.h),
-                      _SegControl(
+                      OfferSegControl(
                         value: _placement,
                         options: const [
                           ('hero', 'Home — Hero'),
@@ -185,14 +187,15 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                             setState(() => _placement = v),
                       ),
                       SizedBox(height: 14.h),
-                      _FInput(
+                      OfferFInput(
                         label: 'Links to',
                         controller: _linkCtrl,
-                        placeholder: 'Coupon, service, or screen',
+                        placeholder:
+                            'Coupon, service, or screen',
                         optional: true,
                       ),
                       SizedBox(height: 14.h),
-                      _FInput(
+                      OfferFInput(
                         label: 'Display order',
                         controller: _orderCtrl,
                         keyboardType: TextInputType.number,
@@ -225,10 +228,10 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                               ),
                             ],
                           ),
-                          _Toggle(
+                          OfferToggle(
                             on: _active,
-                            onTap: () =>
-                                setState(() => _active = !_active),
+                            onTap: () => setState(
+                                () => _active = !_active),
                           ),
                         ],
                       ),
@@ -243,10 +246,12 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
       ),
       bottomNavigationBar: SafeArea(
         child: Container(
-          padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
+          padding:
+              EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
           decoration: const BoxDecoration(
             color: AppColors.bgCard,
-            border: Border(top: BorderSide(color: AppColors.borderSoft)),
+            border:
+                Border(top: BorderSide(color: AppColors.borderSoft)),
           ),
           child: AppButton(
             label: isEdit ? 'Save Changes' : 'Create Banner',
