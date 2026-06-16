@@ -21,6 +21,8 @@ import 'package:new_flutter_project/core/widgets/status_badge.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
 import 'package:new_flutter_project/features/drivers/application/providers/drivers_providers.dart';
+import 'package:new_flutter_project/features/refunds/presentation/screens/new_refund_screen.dart'
+    show RefundPrefill;
 
 import '../../application/providers/bookings_providers.dart';
 import '../../domain/entities/booking.dart';
@@ -777,7 +779,15 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                           label: 'Refund',
                           icon: AppIcons.receipt,
                           enabled: canRefund,
-                          onTap: () => context.push(Routes.refunds),
+                          onTap: () => context.push(
+                            Routes.refunds,
+                            extra: RefundPrefill(
+                              bookingId: booking.id,
+                              customerName: booking.customer.name,
+                              total: booking.total,
+                              status: (_status ?? booking.status).key,
+                            ),
+                          ),
                         ),
                         _FooterBtn(
                           label: 'Reassign',

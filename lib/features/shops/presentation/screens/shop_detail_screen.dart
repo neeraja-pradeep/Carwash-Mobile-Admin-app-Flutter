@@ -280,7 +280,8 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
       default:
         return SettlementSection(
           shop: live,
-          onCreatePayout: () => context.push(Routes.payouts),
+          onCreatePayout: () =>
+              context.push(Routes.payouts, extra: live.id),
         );
     }
   }

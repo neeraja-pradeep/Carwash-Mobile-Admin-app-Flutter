@@ -20,6 +20,8 @@ import '../../features/notifications/presentation/screens/notifications_screen.d
 import '../../features/notifications/presentation/screens/push_notifications_screen.dart';
 import '../../features/offers/presentation/screens/offers_screen.dart';
 import '../../features/payouts/presentation/screens/payouts_screen.dart';
+import '../../features/refunds/presentation/screens/new_refund_screen.dart'
+    show RefundPrefill;
 import '../../features/refunds/presentation/screens/refunds_screen.dart';
 import '../../features/reports/presentation/screens/reports_screen.dart';
 import '../../features/reviews/presentation/screens/reviews_screen.dart';
@@ -226,12 +228,14 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: Routes.refunds,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const RefundsScreen(),
+      builder: (context, state) =>
+          RefundsScreen(prefillBooking: state.extra as RefundPrefill?),
     ),
     GoRoute(
       path: Routes.payouts,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const PayoutsScreen(),
+      builder: (context, state) =>
+          PayoutsScreen(prefillShopId: state.extra as String?),
     ),
     GoRoute(
       path: Routes.offers,
