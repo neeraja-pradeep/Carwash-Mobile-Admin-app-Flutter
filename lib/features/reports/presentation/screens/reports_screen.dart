@@ -442,11 +442,38 @@ class _ExportModal extends StatelessWidget {
 
 // ─── Date input ───────────────────────────────────────────────────────────────
 
-class _DateInput extends StatelessWidget {
+class _DateInput extends StatefulWidget {
   const _DateInput({required this.value, required this.onChanged});
 
   final String value;
   final ValueChanged<String> onChanged;
+
+  @override
+  State<_DateInput> createState() => _DateInputState();
+}
+
+class _DateInputState extends State<_DateInput> {
+  late TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.value);
+  }
+
+  @override
+  void didUpdateWidget(_DateInput old) {
+    super.didUpdateWidget(old);
+    if (old.value != widget.value && _ctrl.text != widget.value) {
+      _ctrl.text = widget.value;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -459,10 +486,9 @@ class _DateInput extends StatelessWidget {
       ),
       padding: EdgeInsets.symmetric(horizontal: 12.w),
       child: TextField(
-        controller: TextEditingController(text: value)
-          ..selection = TextSelection.collapsed(offset: value.length),
+        controller: _ctrl,
         keyboardType: TextInputType.datetime,
-        onChanged: onChanged,
+        onChanged: widget.onChanged,
         style: AppText.figtree(
           size: 13,
           weight: FontWeight.w500,
