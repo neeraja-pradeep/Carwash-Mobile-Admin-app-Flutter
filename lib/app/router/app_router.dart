@@ -20,6 +20,7 @@ import '../../features/notifications/presentation/screens/notifications_screen.d
 import '../../features/notifications/presentation/screens/push_notifications_screen.dart';
 import '../../features/offers/presentation/screens/offers_screen.dart';
 import '../../features/payouts/presentation/screens/payouts_screen.dart';
+import '../../features/refunds/presentation/screens/refunds_screen.dart';
 import '../../features/reports/presentation/screens/reports_screen.dart';
 import '../../features/reviews/presentation/screens/reviews_screen.dart';
 import '../../features/service_requests/domain/entities/service_request.dart';
