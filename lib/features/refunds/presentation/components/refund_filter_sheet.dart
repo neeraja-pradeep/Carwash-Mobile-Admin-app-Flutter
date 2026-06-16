@@ -8,7 +8,6 @@ import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_chip.dart';
 import '../../application/providers/refunds_providers.dart';
-import '../../application/states/refunds_filter_state.dart';
 
 const List<String> kRefundReasons = [
   'Cancellation by customer',

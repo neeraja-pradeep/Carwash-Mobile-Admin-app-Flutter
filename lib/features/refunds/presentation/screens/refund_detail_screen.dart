@@ -17,6 +17,7 @@ import 'package:new_flutter_project/core/widgets/status_badge.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/app/router/app_router.dart';
+import 'package:new_flutter_project/features/bookings/application/providers/bookings_providers.dart';
 import '../../application/providers/refunds_providers.dart';
 import '../../domain/entities/refund.dart';
 
@@ -185,8 +186,8 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                                     ],
                                   ),
                                   GestureDetector(
-                                    onTap: () => AppToast.show(
-                                        context, 'Calling…'),
+                                    onTap: () =>
+                                        AppToast.show(context, 'Calling…'),
                                     child: Container(
                                       width: 34.r,
                                       height: 34.r,
@@ -207,46 +208,9 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                               ),
                             ),
                             Divider(height: 1.h, color: AppColors.borderSoft),
-                            // Booking row (tappable if booking exists in sample)
-                            GestureDetector(
-                              onTap: () => context
-                                  .push(Routes.bookingDetail(refund.bookingId)),
-                              child: Padding(
-                                padding:
-                                    EdgeInsets.fromLTRB(0, 12.h, 0, 4.h),
-                                child: Row(
-                                  children: [
-                                    Icon(AppIcons.cal,
-                                        size: 17.sp,
-                                        color: AppColors.fgTertiary),
-                                    SizedBox(width: 10.w),
-                                    SizedBox(
-                                      width: 64.w,
-                                      child: Text(
-                                        'Booking',
-                                        style: AppText.figtree(
-                                          size: 12,
-                                          weight: FontWeight.w500,
-                                          color: AppColors.fgTertiary,
-                                        ),
-                                      ),
-                                    ),
-                                    Expanded(
-                                      child: Text(
-                                        refund.bookingId,
-                                        style: AppText.figtree(
-                                          size: 12.5,
-                                          weight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                    Icon(AppIcons.chevRight,
-                                        size: 17.sp,
-                                        color: AppColors.fgTertiary),
-                                  ],
-                                ),
-                              ),
-                            ),
+                            // Booking row — tappable (with chevron) only when
+                            // the booking exists in the sample set.
+                            _BookingRef(bookingId: refund.bookingId),
                           ],
                         ),
                       ),
@@ -318,8 +282,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                               Row(
                                 children: [
                                   Icon(AppIcons.checkCircle,
-                                      size: 14.sp,
-                                      color: AppColors.greenFg),
+                                      size: 14.sp, color: AppColors.greenFg),
                                   SizedBox(width: 5.w),
                                   Text(
                                     'Screenshot on file',
@@ -447,8 +410,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                       : AppButton(
                           label: 'Mark Paid',
                           full: true,
-                          onPressed: () =>
-                              _showMarkPaidModal(context, refund),
+                          onPressed: () => _showMarkPaidModal(context, refund),
                         ),
                 ),
               ],
@@ -467,7 +429,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
       confirmLabel: 'Decline',
       destructive: true,
     );
-    if (ok && mounted) {
+    if (ok && context.mounted) {
       setState(() => _localStatus = 'declined');
       AppToast.show(context, 'Refund declined');
     }
@@ -550,9 +512,7 @@ class _WorkflowStepper extends StatelessWidget {
                     child: Container(
                       height: 2.h,
                       margin: EdgeInsets.only(bottom: 18.h),
-                      color: i < ci
-                          ? AppColors.greenFg
-                          : AppColors.borderSoft,
+                      color: i < ci ? AppColors.greenFg : AppColors.borderSoft,
                     ),
                   ),
               ],
@@ -604,6 +564,57 @@ class _StepDot extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Booking reference row. Tappable (with a chevron) only when the referenced
+/// booking exists in the sample set — mirrors the existence check in
+/// `screen_refunds.jsx` so refunds for archived bookings don't dead-link.
+class _BookingRef extends ConsumerWidget {
+  const _BookingRef({required this.bookingId});
+
+  final String bookingId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final exists =
+        ref.watch(bookingByIdProvider(bookingId)).valueOrNull != null;
+
+    final row = Padding(
+      padding: EdgeInsets.fromLTRB(0, 12.h, 0, 4.h),
+      child: Row(
+        children: [
+          Icon(AppIcons.cal, size: 17.sp, color: AppColors.fgTertiary),
+          SizedBox(width: 10.w),
+          SizedBox(
+            width: 64.w,
+            child: Text(
+              'Booking',
+              style: AppText.figtree(
+                size: 12,
+                weight: FontWeight.w500,
+                color: AppColors.fgTertiary,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              bookingId,
+              style: AppText.figtree(size: 12.5, weight: FontWeight.w600),
+            ),
+          ),
+          if (exists)
+            Icon(AppIcons.chevRight, size: 17.sp, color: AppColors.fgTertiary),
+        ],
+      ),
+    );
+
+    if (!exists) return row;
+    return GestureDetector(
+      onTap: () => context.push(Routes.bookingDetail(bookingId)),
+      behavior: HitTestBehavior.opaque,
+      child: row,
     );
   }
 }
@@ -683,7 +694,9 @@ class _MarkPaidModalState extends State<_MarkPaidModal> {
                 ),
                 SizedBox(width: 10.w),
                 Text(
-                  _proof ? 'Screenshot attached' : 'Attach screenshot (optional)',
+                  _proof
+                      ? 'Screenshot attached'
+                      : 'Attach screenshot (optional)',
                   style: AppText.figtree(
                     size: 13,
                     weight: FontWeight.w600,
@@ -774,7 +787,8 @@ class _LabeledInput extends StatelessWidget {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10.r),
-              borderSide: const BorderSide(color: AppColors.fgPrimary, width: 1.5),
+              borderSide:
+                  const BorderSide(color: AppColors.fgPrimary, width: 1.5),
             ),
           ),
           style: AppText.figtree(size: 13.5, weight: FontWeight.w500),

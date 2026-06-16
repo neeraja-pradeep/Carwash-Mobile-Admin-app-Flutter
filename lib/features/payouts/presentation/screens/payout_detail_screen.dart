@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
+import 'package:new_flutter_project/core/status/badge_tone.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
 import 'package:new_flutter_project/core/widgets/app_dialog.dart';
@@ -25,8 +26,7 @@ class PayoutDetailScreen extends ConsumerStatefulWidget {
   final String payoutId;
 
   @override
-  ConsumerState<PayoutDetailScreen> createState() =>
-      _PayoutDetailScreenState();
+  ConsumerState<PayoutDetailScreen> createState() => _PayoutDetailScreenState();
 }
 
 class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
@@ -100,8 +100,7 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
             final netFinal = _overrideNet ?? c.net;
             final editable = status != 'paid';
             final shopAsync = ref.watch(shopByIdProvider(payout.shopId));
-            final shopName =
-                shopAsync.valueOrNull?.name ?? payout.shopId;
+            final shopName = shopAsync.valueOrNull?.name ?? payout.shopId;
 
             return Column(
               children: [
@@ -113,15 +112,14 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
                       icon: AppIcons.more,
                       iconSize: 22,
                       semanticLabel: 'More',
-                      onTap: () => AppToast.show(
-                          context, 'Copy ID · Export breakdown'),
+                      onTap: () =>
+                          AppToast.show(context, 'Copy ID · Export breakdown'),
                     ),
                   ],
                 ),
                 Expanded(
                   child: ListView(
-                    padding:
-                        EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
+                    padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
                     children: [
                       // Header net amount card
                       AppCard(
@@ -130,12 +128,13 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 StatusBadge(
-                                  label: payout.statusLabel,
-                                  tone: payout.tone,
+                                  label: status == 'paid' ? 'Paid' : 'Pending',
+                                  tone: status == 'paid'
+                                      ? BadgeTone.green
+                                      : BadgeTone.amber,
                                 ),
                                 Text(
                                   payout.id,
@@ -196,8 +195,7 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
                                     alignment: Alignment.center,
                                     decoration: BoxDecoration(
                                       color: AppColors.bgPage,
-                                      borderRadius:
-                                          BorderRadius.circular(10.r),
+                                      borderRadius: BorderRadius.circular(10.r),
                                     ),
                                     child: Icon(AppIcons.store,
                                         size: 18.sp,
@@ -216,8 +214,7 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
                                 ],
                               ),
                             ),
-                            Divider(
-                                height: 1.h, color: AppColors.borderSoft),
+                            Divider(height: 1.h, color: AppColors.borderSoft),
                             Padding(
                               padding: EdgeInsets.only(top: 11.h),
                               child: Row(
@@ -273,7 +270,9 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
                                 editable: editable,
                                 onToggleExclude: editable
                                     ? (i) {
-                                        _localBookings ??= List<PayoutBooking>.from(payout.bookings);
+                                        _localBookings ??=
+                                            List<PayoutBooking>.from(
+                                                payout.bookings);
                                         _toggleExclude(i);
                                       }
                                     : null,
@@ -300,8 +299,7 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
                                 onToggle: () => _toggleSection('r'),
                                 child: _RefundsDetail(
                                   bookings: _bookingsFor(payout)
-                                      .where((b) =>
-                                          !b.excluded && b.refund > 0)
+                                      .where((b) => !b.excluded && b.refund > 0)
                                       .toList(),
                                 ),
                               ),
@@ -320,7 +318,9 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
                                 editable: editable,
                                 onAdd: editable
                                     ? () {
-                                        _localAdjustments ??= List<PayoutAdjustment>.from(payout.adjustments);
+                                        _localAdjustments ??=
+                                            List<PayoutAdjustment>.from(
+                                                payout.adjustments);
                                         setState(() {
                                           _localAdjustments!.add(
                                             const PayoutAdjustment(
@@ -330,7 +330,8 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
                                             ),
                                           );
                                         });
-                                        AppToast.show(context, 'Adjustment added');
+                                        AppToast.show(
+                                            context, 'Adjustment added');
                                       }
                                     : null,
                               ),
@@ -372,8 +373,8 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
                                               borderRadius:
                                                   BorderRadius.circular(8.r),
                                               border: Border.all(
-                                                  color: AppColors
-                                                      .borderDefault),
+                                                  color:
+                                                      AppColors.borderDefault),
                                             ),
                                             child: Icon(AppIcons.edit,
                                                 size: 15.sp,
@@ -418,8 +419,7 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
                               Row(
                                 children: [
                                   Icon(AppIcons.checkCircle,
-                                      size: 14.sp,
-                                      color: AppColors.greenFg),
+                                      size: 14.sp, color: AppColors.greenFg),
                                   SizedBox(width: 5.w),
                                   Text(
                                     'Screenshot on file',
@@ -565,7 +565,6 @@ class _CalcLine extends StatelessWidget {
     required this.isOpen,
     required this.onToggle,
     this.child,
-    this.bold = false,
   });
 
   final String label;
@@ -574,15 +573,13 @@ class _CalcLine extends StatelessWidget {
   final bool isOpen;
   final VoidCallback onToggle;
   final Widget? child;
-  final bool bold;
 
   @override
   Widget build(BuildContext context) {
     final hasChild = child != null;
     return Container(
       decoration: const BoxDecoration(
-        border:
-            Border(bottom: BorderSide(color: AppColors.borderSoft)),
+        border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -611,22 +608,19 @@ class _CalcLine extends StatelessWidget {
                     child: Text(
                       label,
                       style: AppText.figtree(
-                        size: bold ? 14 : 13.5,
-                        weight: bold ? FontWeight.w700 : FontWeight.w500,
-                        color: bold
-                            ? AppColors.fgPrimary
-                            : AppColors.fgSecondary,
+                        size: 13.5,
+                        weight: FontWeight.w500,
+                        color: AppColors.fgSecondary,
                       ),
                     ),
                   ),
                   Text(
                     '${sign == '-' ? '− ' : sign == '+' ? '+ ' : ''}${Formatters.money(amount.abs())}',
                     style: AppText.figtree(
-                      size: bold ? 16 : 14,
-                      weight: bold ? FontWeight.w800 : FontWeight.w700,
-                      color: sign == '-'
-                          ? AppColors.redFg
-                          : AppColors.fgPrimary,
+                      size: 14,
+                      weight: FontWeight.w700,
+                      color:
+                          sign == '-' ? AppColors.redFg : AppColors.fgPrimary,
                     ),
                   ),
                 ],
@@ -720,8 +714,8 @@ class _GrossDetail extends StatelessWidget {
                   GestureDetector(
                     onTap: () => onToggleExclude?.call(i),
                     child: Container(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 8.w, vertical: 5.h),
+                      padding:
+                          EdgeInsets.symmetric(horizontal: 8.w, vertical: 5.h),
                       decoration: BoxDecoration(
                         color: AppColors.bgCard,
                         borderRadius: BorderRadius.circular(7.r),
@@ -882,8 +876,7 @@ class _AdjDetail extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(AppIcons.plus,
-                    size: 15.sp, color: AppColors.fgSecondary),
+                Icon(AppIcons.plus, size: 15.sp, color: AppColors.fgSecondary),
                 SizedBox(width: 6.w),
                 Text(
                   'Add adjustment',
@@ -974,7 +967,9 @@ class _MarkPaidModalState extends State<_MarkPaidModal> {
                 ),
                 SizedBox(width: 10.w),
                 Text(
-                  _proof ? 'Screenshot attached' : 'Attach screenshot (optional)',
+                  _proof
+                      ? 'Screenshot attached'
+                      : 'Attach screenshot (optional)',
                   style: AppText.figtree(
                     size: 13,
                     weight: FontWeight.w600,
@@ -1099,7 +1094,8 @@ class _OverrideNetModalState extends State<_OverrideNetModal> {
                 full: true,
                 disabled: !canSave,
                 onPressed: canSave
-                    ? () => widget.onConfirm(int.tryParse(_val.text) ?? widget.calcNet)
+                    ? () => widget
+                        .onConfirm(int.tryParse(_val.text) ?? widget.calcNet)
                     : null,
               ),
             ),

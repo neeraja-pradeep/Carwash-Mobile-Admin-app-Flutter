@@ -12,18 +12,29 @@ import 'package:new_flutter_project/core/widgets/list_controls.dart';
 import 'package:new_flutter_project/core/widgets/search_field.dart';
 import 'package:new_flutter_project/core/widgets/skeleton_card.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
+import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
 import '../../application/providers/payouts_providers.dart';
 import '../../application/states/payouts_filter_state.dart';
-import '../../domain/entities/payout.dart';
 import '../components/payout_card.dart';
 import '../components/payout_filter_sheet.dart';
 import 'payout_detail_screen.dart';
 import 'new_payout_screen.dart';
 
 /// Payout Log list screen — module entry-point.
-class PayoutsScreen extends ConsumerWidget {
-  const PayoutsScreen({super.key});
+///
+/// When [prefillShopId] is supplied (e.g. opened from a shop's Settlement tab),
+/// the New Payout form is shown immediately, pre-filled for that shop —
+/// mirrors `prefill.newPayoutFor` in `screen_payouts.jsx`.
+class PayoutsScreen extends ConsumerStatefulWidget {
+  const PayoutsScreen({this.prefillShopId, super.key});
 
+  final String? prefillShopId;
+
+  @override
+  ConsumerState<PayoutsScreen> createState() => _PayoutsScreenState();
+}
+
+class _PayoutsScreenState extends ConsumerState<PayoutsScreen> {
   static const List<SortOption> _sortOptions = [
     ('recent', 'Most recent'),
     ('net_hi', 'Net: high → low'),
@@ -32,10 +43,31 @@ class PayoutsScreen extends ConsumerWidget {
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    final shopId = widget.prefillShopId;
+    if (shopId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => NewPayoutScreen(prefillShopId: shopId),
+          ),
+        );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final filter = ref.watch(payoutsFilterProvider);
     final controller = ref.read(payoutsFilterProvider.notifier);
     final payoutsAsync = ref.watch(payoutsProvider);
+    // Real shop id → name map (drives search-by-shop and the Shop A–Z sort).
+    final shopNames = {
+      for (final s in ref.watch(shopsProvider).valueOrNull ?? const [])
+        s.id: s.name,
+    };
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -54,8 +86,8 @@ class PayoutsScreen extends ConsumerWidget {
                   padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 10.h),
                   decoration: const BoxDecoration(
                     color: AppColors.bgCard,
-                    border: Border(
-                        bottom: BorderSide(color: AppColors.borderSoft)),
+                    border:
+                        Border(bottom: BorderSide(color: AppColors.borderSoft)),
                   ),
                   child: SearchField(
                     value: filter.query,
@@ -80,20 +112,22 @@ class PayoutsScreen extends ConsumerWidget {
                       onAction: () => ref.invalidate(payoutsProvider),
                     ),
                     data: (allPayouts) {
-                      final payouts = _applyFilter(allPayouts, filter);
+                      final payouts = applyPayoutFilter(
+                        allPayouts,
+                        filter,
+                        shopName: (id) => shopNames[id] ?? id,
+                      );
                       if (payouts.isEmpty) {
                         return EmptyState(
                           icon: AppIcons.wallet,
                           title: 'No payouts match',
-                          body:
-                              'Try clearing your search or filters.',
+                          body: 'Try clearing your search or filters.',
                           actionLabel: 'Reset filters',
                           onAction: controller.reset,
                         );
                       }
                       return ListView.separated(
-                        padding: EdgeInsets.fromLTRB(
-                            16.w, 16.h, 16.w, 100.h),
+                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
                         itemCount: payouts.length + 1,
                         separatorBuilder: (_, __) => SizedBox(height: 12.h),
                         itemBuilder: (ctx, index) {
@@ -101,8 +135,7 @@ class PayoutsScreen extends ConsumerWidget {
                             return ListControls(
                               count: payouts.length,
                               noun: 'payout',
-                              onFilter: () =>
-                                  showPayoutFilterSheet(ctx, ref),
+                              onFilter: () => showPayoutFilterSheet(ctx, ref),
                               filterCount: filter.activeCount,
                               sort: filter.sort,
                               sortOptions: _sortOptions,
@@ -114,8 +147,8 @@ class PayoutsScreen extends ConsumerWidget {
                             payout: p,
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute<void>(
-                                builder: (_) => PayoutDetailScreen(
-                                    payoutId: p.id),
+                                builder: (_) =>
+                                    PayoutDetailScreen(payoutId: p.id),
                               ),
                             ),
                           );
@@ -143,11 +176,6 @@ class PayoutsScreen extends ConsumerWidget {
       ),
     );
   }
-
-  List<Payout> _applyFilter(List<Payout> all, PayoutsFilterState f) {
-    final shopNameFn = (String id) => kDemoShopNames[id] ?? id;
-    return applyPayoutFilter(all, f, shopName: shopNameFn);
-  }
 }
 
 class _ActiveChips extends ConsumerWidget {
@@ -155,6 +183,13 @@ class _ActiveChips extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(payoutsFilterProvider);
     final controller = ref.read(payoutsFilterProvider.notifier);
+    final shopNames = {
+      for (final s in ref.watch(shopsProvider).valueOrNull ?? const [])
+        s.id: s.name,
+    };
+    final shopFirstName = filter.shopId == null
+        ? ''
+        : (shopNames[filter.shopId] ?? filter.shopId!).split(' ').first;
 
     return Container(
       width: double.infinity,
@@ -175,9 +210,7 @@ class _ActiveChips extends ConsumerWidget {
             ],
             if (filter.shopId != null) ...[
               AppChip(
-                label: (kDemoShopNames[filter.shopId!] ?? filter.shopId!)
-                    .split(' ')
-                    .first,
+                label: shopFirstName,
                 active: true,
                 removable: true,
                 onRemove: controller.removeShop,

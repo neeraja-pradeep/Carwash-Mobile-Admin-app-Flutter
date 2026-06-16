@@ -10,20 +10,76 @@ import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import '../components/refund_filter_sheet.dart';
 
-/// Form to create a new refund request. Standalone (no booking pre-fill in this context).
+/// Lightweight booking context used to pre-fill the New Refund form when it is
+/// opened from a booking's "Refund" action (mirrors `prefill.newRefundFor` in
+/// `screen_refunds.jsx`). Kept feature-local so the form stays decoupled from
+/// the bookings entity; the orchestrator builds one from a Booking when wiring.
+class RefundPrefill {
+  const RefundPrefill({
+    required this.bookingId,
+    required this.customerName,
+    required this.total,
+    required this.status,
+  });
+
+  final String bookingId;
+  final String customerName;
+  final int total;
+
+  /// Booking status string (e.g. `new`, `assigned`, `washing`, `completed`).
+  final String status;
+}
+
+/// Suggested refund tier + amount for a booking, by its stage.
+/// Mirrors `tierFor` in `screen_refunds.jsx`: post-pickup → 0%, assigned/going
+/// → 70%, otherwise → 100%.
+({String tier, int amount}) _suggestedTier(RefundPrefill? b) {
+  if (b == null) return (tier: '100%', amount: 0);
+  const post = [
+    'picked',
+    'atshop',
+    'washing',
+    'done',
+    'returning',
+    'completed'
+  ];
+  const assigned = ['assigned', 'going'];
+  if (post.contains(b.status)) return (tier: '0%', amount: 0);
+  if (assigned.contains(b.status)) {
+    return (tier: '70%', amount: (b.total * 0.7).round());
+  }
+  return (tier: '100%', amount: b.total);
+}
+
+/// Form to create a new refund request. Standalone, or pre-filled from a
+/// booking's Refund button when [booking] is supplied.
 class NewRefundScreen extends StatefulWidget {
-  const NewRefundScreen({super.key});
+  const NewRefundScreen({this.booking, super.key});
+
+  /// When non-null, the form is pre-filled from this booking.
+  final RefundPrefill? booking;
 
   @override
   State<NewRefundScreen> createState() => _NewRefundScreenState();
 }
 
 class _NewRefundScreenState extends State<NewRefundScreen> {
-  final _refController = TextEditingController();
-  final _amountController = TextEditingController();
+  late final TextEditingController _refController;
+  late final TextEditingController _amountController;
   final _notesController = TextEditingController();
-  String _tier = '100%';
+  late String _tier;
   String _reason = kRefundReasons.first;
+
+  @override
+  void initState() {
+    super.initState();
+    final init = _suggestedTier(widget.booking);
+    _refController =
+        TextEditingController(text: widget.booking?.bookingId ?? '');
+    _amountController =
+        TextEditingController(text: init.amount == 0 ? '' : '${init.amount}');
+    _tier = init.tier;
+  }
 
   @override
   void dispose() {
@@ -39,6 +95,7 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final booking = widget.booking;
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       body: SafeArea(
@@ -47,13 +104,20 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
           children: [
             TopBar(
               title: 'New Refund',
-              subtitle: 'Standalone',
+              subtitle: booking != null ? 'From booking' : 'Standalone',
               onBack: () => Navigator.of(context).pop(),
             ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
                 children: [
+                  if (booking != null) ...[
+                    _PrefillBanner(
+                      customerName: booking.customerName,
+                      tier: _suggestedTier(booking).tier,
+                    ),
+                    SizedBox(height: 14.h),
+                  ],
                   // Booking ref card
                   _FormCard(
                     label: 'BOOKING',
@@ -88,8 +152,7 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
                             children: ['100%', '70%', '0%', 'Override']
                                 .map((t) => Expanded(
                                       child: GestureDetector(
-                                        onTap: () =>
-                                            setState(() => _tier = t),
+                                        onTap: () => setState(() => _tier = t),
                                         child: Container(
                                           margin: EdgeInsets.only(
                                               right: t != 'Override' ? 8.w : 0),
@@ -160,8 +223,7 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
                                     color: sel
                                         ? AppColors.brandYellow
                                         : AppColors.bgCard,
-                                    borderRadius:
-                                        BorderRadius.circular(999.r),
+                                    borderRadius: BorderRadius.circular(999.r),
                                     border: Border.all(
                                       color: sel
                                           ? AppColors.brandYellowDeep
@@ -220,6 +282,59 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Blue "pre-filled from booking" banner shown when the form is opened from a
+/// booking's Refund action.
+class _PrefillBanner extends StatelessWidget {
+  const _PrefillBanner({required this.customerName, required this.tier});
+
+  final String customerName;
+  final String tier;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+      decoration: BoxDecoration(
+        color: AppColors.blueBg,
+        borderRadius: BorderRadius.circular(12.r),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(AppIcons.checkCircle, size: 18.sp, color: AppColors.blueFg),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: AppText.figtree(
+                  size: 12.5,
+                  weight: FontWeight.w500,
+                  color: AppColors.blueFg,
+                  height: 1.4,
+                ),
+                children: [
+                  TextSpan(
+                      text: "Pre-filled from $customerName's booking. "
+                          'Suggested tier '),
+                  TextSpan(
+                    text: tier,
+                    style: AppText.figtree(
+                      size: 12.5,
+                      weight: FontWeight.w700,
+                      color: AppColors.blueFg,
+                    ),
+                  ),
+                  const TextSpan(text: '.'),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

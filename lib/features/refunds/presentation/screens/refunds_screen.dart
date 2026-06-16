@@ -20,8 +20,35 @@ import 'refund_detail_screen.dart';
 import 'new_refund_screen.dart';
 
 /// Refund Log list screen — module entry-point.
-class RefundsScreen extends ConsumerWidget {
-  const RefundsScreen({super.key});
+///
+/// When [prefillBooking] is supplied (e.g. opened from a booking's "Refund"
+/// action), the New Refund form is shown immediately, pre-filled from that
+/// booking — mirrors `prefill.newRefundFor` in `screen_refunds.jsx`.
+class RefundsScreen extends ConsumerStatefulWidget {
+  const RefundsScreen({this.prefillBooking, super.key});
+
+  final RefundPrefill? prefillBooking;
+
+  @override
+  ConsumerState<RefundsScreen> createState() => _RefundsScreenState();
+}
+
+class _RefundsScreenState extends ConsumerState<RefundsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    final prefill = widget.prefillBooking;
+    if (prefill != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => NewRefundScreen(booking: prefill),
+          ),
+        );
+      });
+    }
+  }
 
   static const List<SortOption> _sortOptions = [
     ('recent', 'Most recent'),
@@ -31,7 +58,7 @@ class RefundsScreen extends ConsumerWidget {
   ];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final filter = ref.watch(refundsFilterProvider);
     final controller = ref.read(refundsFilterProvider.notifier);
     final filtered = ref.watch(filteredRefundsProvider);
@@ -53,8 +80,8 @@ class RefundsScreen extends ConsumerWidget {
                   padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 10.h),
                   decoration: const BoxDecoration(
                     color: AppColors.bgCard,
-                    border: Border(
-                        bottom: BorderSide(color: AppColors.borderSoft)),
+                    border:
+                        Border(bottom: BorderSide(color: AppColors.borderSoft)),
                   ),
                   child: SearchField(
                     value: filter.query,
@@ -93,8 +120,7 @@ class RefundsScreen extends ConsumerWidget {
                             return ListControls(
                               count: refunds.length,
                               noun: 'refund',
-                              onFilter: () =>
-                                  showRefundFilterSheet(ctx, ref),
+                              onFilter: () => showRefundFilterSheet(ctx, ref),
                               filterCount: filter.activeCount,
                               sort: filter.sort,
                               sortOptions: _sortOptions,

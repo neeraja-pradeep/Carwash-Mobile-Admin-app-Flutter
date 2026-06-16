@@ -7,16 +7,8 @@ import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_chip.dart';
+import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
 import '../../application/providers/payouts_providers.dart';
-
-/// Mapping of known shop IDs to names (demo data mirror of data.jsx SHOPS).
-const Map<String, String> kDemoShopNames = {
-  's1': 'SparkleWash Mullackal',
-  's2': 'ShineHub Iron Bridge',
-  's3': 'GleamPro Vazhicherry',
-  's4': 'BlueWave Komala Rd',
-  's5': 'AquaShine Thathampally',
-};
 
 /// Opens the payouts filter bottom sheet.
 Future<void> showPayoutFilterSheet(BuildContext context, WidgetRef ref) async {
@@ -111,20 +103,24 @@ class _FilterBody extends ConsumerWidget {
           ),
         ),
         SizedBox(height: 12.h),
-        Wrap(
-          spacing: 9.w,
-          runSpacing: 9.h,
-          children: kDemoShopNames.entries.map((e) {
-            final active = filter.shopId == e.key;
-            return AppChip(
-              label: e.value.split(' ').first,
-              active: active,
-              onTap: () => controller.apply(
-                filter.copyWith(shopId: active ? null : e.key),
+        ref.watch(shopsProvider).when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+              data: (shops) => Wrap(
+                spacing: 9.w,
+                runSpacing: 9.h,
+                children: shops.map((s) {
+                  final active = filter.shopId == s.id;
+                  return AppChip(
+                    label: s.name.split(' ').first,
+                    active: active,
+                    onTap: () => controller.apply(
+                      filter.copyWith(shopId: active ? null : s.id),
+                    ),
+                  );
+                }).toList(),
               ),
-            );
-          }).toList(),
-        ),
+            ),
         SizedBox(height: 8.h),
       ],
     );
