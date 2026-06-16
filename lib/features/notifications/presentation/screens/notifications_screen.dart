@@ -48,8 +48,8 @@ class NotificationsScreen extends ConsumerWidget {
       readController.state = {...ref.read(notificationsReadStateProvider), n.id};
 
       // Deep-link
-      if (n.bookingId != null) {
-        context.push(Routes.bookingDetail(n.bookingId!));
+      if (n.bookingId case final bookingId?) {
+        context.push(Routes.bookingDetail(bookingId));
       } else if (n.refundId != null) {
         context.push(Routes.refunds);
       } else if (n.payoutId != null) {
