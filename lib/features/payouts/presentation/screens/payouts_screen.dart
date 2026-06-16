@@ -4,7 +4,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
-import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/widgets/app_chip.dart';
 import 'package:new_flutter_project/core/widgets/app_fab.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';

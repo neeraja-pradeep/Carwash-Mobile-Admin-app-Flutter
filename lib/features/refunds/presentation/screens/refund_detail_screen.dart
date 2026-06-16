@@ -474,8 +474,6 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
   }
 
   Future<void> _showMarkPaidModal(BuildContext context, Refund refund) async {
-    _utrController.text = '';
-    _proofAttached = false;
     await showAppModal<void>(
       context: context,
       builder: (modalCtx) => _MarkPaidModal(

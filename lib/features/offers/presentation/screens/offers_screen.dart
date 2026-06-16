@@ -17,6 +17,7 @@ import '../../../../core/widgets/top_bar.dart';
 import '../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../application/providers/offers_providers.dart';
+import '../../application/states/offers_filter_state.dart';
 import '../../domain/entities/coupon.dart';
 import '../../domain/entities/offer_banner.dart';
 import '../components/banner_card.dart';

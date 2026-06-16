@@ -67,7 +67,7 @@ class _PayoutDetailScreenState extends ConsumerState<PayoutDetailScreen> {
 
   void _toggleExclude(int index) {
     setState(() {
-      final current = _localBookings!;
+      final current = _localBookings ?? <PayoutBooking>[];
       _localBookings = [
         for (var i = 0; i < current.length; i++)
           i == index

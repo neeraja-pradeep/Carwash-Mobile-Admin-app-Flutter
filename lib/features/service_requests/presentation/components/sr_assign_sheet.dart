@@ -43,8 +43,8 @@ class SrAssignSheet extends ConsumerWidget {
 
     // Resolve the pool as List<dynamic> based on kind.
     final AsyncValue<List<dynamic>> poolAsync = kind == SrKind.driver
-        ? driversAsync.whenData((list) => list)
-        : inspectorsAsync.whenData((list) => list);
+        ? driversAsync.whenData((list) => list.cast<dynamic>())
+        : inspectorsAsync.whenData((list) => list.cast<dynamic>());
 
     return poolAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
