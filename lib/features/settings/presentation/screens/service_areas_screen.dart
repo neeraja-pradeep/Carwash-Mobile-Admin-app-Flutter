@@ -32,7 +32,8 @@ class _ServiceAreasScreenState extends ConsumerState<ServiceAreasScreen> {
   List<ServiceArea>? _carwash;
   List<ServiceArea>? _hire;
 
-  List<ServiceArea> get _currentList => _seg == 'carwash' ? (_carwash ?? []) : (_hire ?? []);
+  List<ServiceArea> get _currentList =>
+      _seg == 'carwash' ? (_carwash ?? []) : (_hire ?? []);
 
   void _init(AppSettings settings) {
     _carwash ??= List<ServiceArea>.from(settings.serviceAreas.carwash);
@@ -43,9 +44,8 @@ class _ServiceAreasScreenState extends ConsumerState<ServiceAreasScreen> {
   Widget build(BuildContext context) {
     final async = ref.watch(appSettingsProvider);
 
-    final subtitle = _seg == 'carwash'
-        ? 'Carwash coverage'
-        : 'Driver & Inspection coverage';
+    final subtitle =
+        _seg == 'carwash' ? 'Carwash coverage' : 'Driver & Inspection coverage';
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -98,7 +98,8 @@ class _ServiceAreasScreenState extends ConsumerState<ServiceAreasScreen> {
     );
   }
 
-  Future<void> _openSheet(BuildContext context, {required ServiceArea? area}) async {
+  Future<void> _openSheet(BuildContext context,
+      {required ServiceArea? area}) async {
     await _AreaSheet.show(
       context,
       area: area,
@@ -155,7 +156,11 @@ class _SegmentBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _SegBtn(label: 'Carwash', value: 'carwash', current: seg, onTap: onChanged),
+          _SegBtn(
+              label: 'Carwash',
+              value: 'carwash',
+              current: seg,
+              onTap: onChanged),
           SizedBox(width: 8.w),
           _SegBtn(label: 'Hire', value: 'hire', current: seg, onTap: onChanged),
         ],
@@ -274,7 +279,8 @@ class _AreaList extends StatelessWidget {
                     color: AppColors.bgPage,
                     borderRadius: BorderRadius.circular(11.r),
                   ),
-                  child: Icon(AppIcons.pin, size: 19.sp, color: AppColors.fgSecondary),
+                  child: Icon(AppIcons.pin,
+                      size: 19.sp, color: AppColors.fgSecondary),
                 ),
                 SizedBox(width: 12.w),
                 Expanded(
@@ -284,7 +290,8 @@ class _AreaList extends StatelessWidget {
                     children: [
                       Text(
                         area.name,
-                        style: AppText.figtree(size: 14.5, weight: FontWeight.w700),
+                        style: AppText.figtree(
+                            size: 14.5, weight: FontWeight.w700),
                       ),
                       SizedBox(height: 2.h),
                       Text(
@@ -309,7 +316,8 @@ class _AreaList extends StatelessWidget {
                       borderRadius: BorderRadius.circular(9.r),
                       border: Border.all(color: AppColors.borderDefault),
                     ),
-                    child: Icon(AppIcons.edit, size: 16.sp, color: AppColors.fgSecondary),
+                    child: Icon(AppIcons.edit,
+                        size: 16.sp, color: AppColors.fgSecondary),
                   ),
                 ),
               ],
@@ -445,7 +453,8 @@ class _AreaSheetState extends State<_AreaSheet> {
     final confirmed = await showConfirmDialog(
       context: context,
       title: 'Remove this service area?',
-      body: "Customers won't be able to book in this area. This can't be undone.",
+      body:
+          "Customers won't be able to book in this area. This can't be undone.",
       confirmLabel: 'Remove',
       destructive: true,
     );
@@ -505,7 +514,8 @@ class _AreaSheetState extends State<_AreaSheet> {
                       color: AppColors.bgPage,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(AppIcons.close, size: 18.sp, color: AppColors.fgSecondary),
+                    child: Icon(AppIcons.close,
+                        size: 18.sp, color: AppColors.fgSecondary),
                   ),
                 ),
               ],
@@ -604,7 +614,7 @@ class _AreaSheetState extends State<_AreaSheet> {
                     height: 40.h,
                     padding: EdgeInsets.symmetric(horizontal: 12.w),
                     decoration: BoxDecoration(
-                      color: AppColors.bgCard.withValues(alpha: 0.85),
+                      color: AppColors.bgCard.withOpacity(0.85),
                       borderRadius: BorderRadius.circular(10.r),
                       boxShadow: [
                         BoxShadow(
@@ -616,7 +626,8 @@ class _AreaSheetState extends State<_AreaSheet> {
                     ),
                     child: Row(
                       children: [
-                        Icon(AppIcons.search, size: 16.sp, color: AppColors.fgSecondary),
+                        Icon(AppIcons.search,
+                            size: 16.sp, color: AppColors.fgSecondary),
                         SizedBox(width: 8.w),
                         Text(
                           'Search location on map…',
@@ -634,7 +645,8 @@ class _AreaSheetState extends State<_AreaSheet> {
                 Center(
                   child: Padding(
                     padding: EdgeInsets.only(top: 20.h),
-                    child: Icon(AppIcons.pin, size: 30.sp, color: AppColors.danger),
+                    child: Icon(AppIcons.pin,
+                        size: 30.sp, color: AppColors.danger),
                   ),
                 ),
               ],

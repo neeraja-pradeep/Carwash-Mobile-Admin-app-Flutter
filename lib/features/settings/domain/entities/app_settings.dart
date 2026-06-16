@@ -2,6 +2,7 @@
 ///
 /// Mirrors the `SETTINGS` object in `data.jsx` (lines 671–691).
 /// All fields are final; no JSON serialisation yet (static local data only).
+library;
 
 class BusinessInfo {
   const BusinessInfo({

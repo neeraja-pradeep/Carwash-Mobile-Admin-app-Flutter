@@ -130,7 +130,8 @@ class _Body extends StatelessWidget {
                   color: AppColors.brandYellow,
                   borderRadius: BorderRadius.circular(15.r),
                 ),
-                child: Icon(AppIcons.droplet, size: 28.sp, color: AppColors.fgPrimary),
+                child:
+                    Icon(AppIcons.car, size: 28.sp, color: AppColors.fgPrimary),
               ),
               SizedBox(width: 13.w),
               Expanded(
@@ -235,7 +236,7 @@ class _Body extends StatelessWidget {
             SettingsItem(
               icon: AppIcons.rupee,
               title: 'Default commission',
-              sub: '${s.defaultCommission.pct}% of booking',
+              sub: _commissionLabel(s.defaultCommission),
               onTap: () => showEditFieldSheet(
                 context,
                 title: 'Default commission %',
@@ -243,13 +244,15 @@ class _Body extends StatelessWidget {
                 initialValue: '${s.defaultCommission.pct}',
                 numeric: true,
                 suffix: '%',
-                onSaved: () => AppToast.show(context, 'Default commission % saved'),
+                onSaved: () =>
+                    AppToast.show(context, 'Default commission % saved'),
               ),
             ),
             SettingsItem(
               icon: AppIcons.car,
               title: 'Hiring rates',
-              sub: 'Driver ₹${s.rates.driver.firstHour} first hr · Inspection ₹${s.rates.inspector.baseFee}',
+              sub:
+                  'Driver ₹${s.rates.driver.firstHour} first hr · Inspection ₹${s.rates.inspector.baseFee}',
               onTap: () => showHiringRatesSheet(
                 context,
                 rates: s.rates,
@@ -259,7 +262,8 @@ class _Body extends StatelessWidget {
             SettingsItem(
               icon: AppIcons.pin,
               title: 'Service areas',
-              sub: '${s.serviceAreas.carwash.length + s.serviceAreas.hire.length} areas · Carwash & Hire',
+              sub:
+                  '${s.serviceAreas.carwash.length + s.serviceAreas.hire.length} areas · Carwash & Hire',
               onTap: () => context.push(Routes.serviceAreas),
             ),
             SettingsItem(
@@ -360,10 +364,25 @@ class _Body extends StatelessWidget {
   }
 }
 
+/// Mirrors `commissionLabel` in `data.jsx`. The default-commission entity only
+/// carries `mode` + `pct` (no flat/floor amounts), so the percentage form
+/// (`15%`) is the live path; flat/floor are defensive fallbacks.
+String _commissionLabel(DefaultCommission c) {
+  switch (c.mode) {
+    case 'flat':
+      return '₹${c.pct}/booking';
+    case 'floor':
+      return '${c.pct}% · min';
+    case 'percentage':
+    default:
+      return '${c.pct}%';
+  }
+}
+
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 class _Skeleton extends StatelessWidget {
-  const _Skeleton({super.key});
+  const _Skeleton();
 
   @override
   Widget build(BuildContext context) {
