@@ -2,8 +2,8 @@ import '../../../../../app/config/constants.dart';
 import '../../../../drivers/domain/entities/driver_earnings.dart';
 import '../../../../drivers/domain/entities/driver_job.dart';
 
-/// Static sample driver-app data (Alappuzha demo set, from `data.jsx`
-/// DRIVER_JOBS + DRIVER_EARNINGS).
+/// Static sample driver-app data (Alappuzha demo set, verbatim from `data.jsx`
+/// DRIVER_JOBS + DRIVER_EARNINGS — the signed-in driver is Manoj Kumar, fd1).
 ///
 /// This is the ONLY place this data lives today. In the API phase a remote
 /// data source + Hive cache plug in behind the same repository contract — the
@@ -11,8 +11,8 @@ import '../../../../drivers/domain/entities/driver_job.dart';
 class DriverAppLocalDs {
   const DriverAppLocalDs();
 
-  /// Returns all four driver jobs (DJ-1 active, DJ-2 upcoming, DJ-3 upcoming
-  /// driver-hire, DJ-4 completed).
+  /// Returns all four driver jobs (DJ-1 active carwash, DJ-2 upcoming carwash,
+  /// DJ-3 upcoming driver-hire for Sandra Pius, DJ-4 completed carwash).
   Future<List<DriverJob>> fetchDriverJobs() async {
     await Future<void>.delayed(AppConstants.sampleLoadDelay);
     return _driverJobs;
@@ -27,102 +27,106 @@ class DriverAppLocalDs {
   // ── Static sample data (verbatim from data.jsx DRIVER_JOBS / DRIVER_EARNINGS)
 
   static const List<DriverJob> _driverJobs = [
-    // DJ-1 — ACTIVE: Carwash, currently Washing
+    // DJ-1 — ACTIVE: Carwash, currently Washing (fixed fare, nothing to collect)
     DriverJob(
       id: 'DJ-1',
       type: 'Carwash',
       state: DriverJobState.active,
-      customer: 'Faisal Rahman',
-      phone: '+91 95550 12345',
-      vehicle: 'KL-04-AB-1234 · Swift Dzire (White)',
-      pickup: 'Mullackal, Alappuzha',
-      drop: 'SparkleWash Mullackal',
+      customer: 'Ramesh Kurup',
+      phone: '+91 94470 56789',
+      vehicle: 'Maruti Swift Dzire · KL-04-K-7788',
+      pickup: 'Mullackal Junction, Temple Rd',
+      drop: 'Same as pickup',
       shop: 'SparkleWash Mullackal',
       time: '9:00 AM',
       payout: 180,
       stage: 'Washing',
-      otp: '5821',
+      otp: '1234',
       fare: DriverFare(
         base: 180,
-        items: const [],
+        items: [],
         extra: 0,
         total: 180,
         collect: 0,
       ),
     ),
 
-    // DJ-2 — UPCOMING: Carwash
+    // DJ-2 — UPCOMING: Carwash (fixed fare)
     DriverJob(
       id: 'DJ-2',
       type: 'Carwash',
       state: DriverJobState.upcoming,
-      customer: 'Priya Nair',
-      phone: '+91 98470 67890',
-      vehicle: 'KL-04-CD-5678 · Baleno (Silver)',
-      pickup: 'Thathampally, Alappuzha',
-      drop: 'AquaShine Thathampally',
-      shop: 'AquaShine Thathampally',
-      time: '11:30 AM',
-      payout: 200,
+      customer: 'Faisal Rahman',
+      phone: '+91 97460 18822',
+      vehicle: 'Honda City · KL-04-N-5512',
+      pickup: 'Sea View Ward, Beach Rd',
+      drop: 'Same as pickup',
+      shop: 'SparkleWash Mullackal',
+      time: '2:00 PM',
+      payout: 180,
       stage: 'Assigned',
-      otp: '3047',
+      otp: '1234',
       fare: DriverFare(
-        base: 200,
-        items: const [],
+        base: 180,
+        items: [],
         extra: 0,
-        total: 200,
+        total: 180,
         collect: 0,
       ),
     ),
 
-    // DJ-3 — UPCOMING: Driver hire, Sandra Pius, extra charge ₹200 to collect
+    // DJ-3 — UPCOMING: Driver hire, Sandra Pius, Hospital Assistance.
+    // 4h planned / 5h actual → extra hour +₹120 + night allowance +₹80 =
+    // collect ₹200 extra from customer.
     DriverJob(
       id: 'DJ-3',
       type: 'Driver hire',
       state: DriverJobState.upcoming,
       customer: 'Sandra Pius',
-      phone: '+91 94470 11223',
-      vehicle: 'KL-07-EF-9012 · Innova Crysta (Grey)',
-      pickup: 'Hospital Jn, Alappuzha',
-      drop: 'Ernakulam Medical Centre',
-      shop: 'Driver Hire Service',
-      time: '2:00 PM',
-      payout: 620,
+      phone: '+91 90370 18820',
+      vehicle: 'Maruti Ertiga · KL-04-Q-7781',
+      pickup: 'Komala Rd, near Boat Jetty',
+      drop: 'City drive · 4 hrs',
+      shop: '—',
+      time: '5:00 PM',
+      payout: 600,
       stage: 'Assigned',
-      otp: '7391',
+      otp: '1234',
+      reason: 'Hospital Assistance',
       fare: DriverFare(
-        base: 420,
-        items: const [
-          FareItem(label: 'Night allowance', amount: 150),
-          FareItem(label: 'Toll charges', amount: 50),
+        base: 600,
+        plannedHours: 4,
+        actualHours: 5,
+        items: [
+          FareItem(label: 'Extra 1 hr over 4 hr plan', amount: 120),
+          FareItem(label: 'Night allowance (after 9pm)', amount: 80),
         ],
         extra: 200,
-        total: 820,
+        total: 800,
         collect: 200,
-        plannedHours: 4,
       ),
     ),
 
-    // DJ-4 — COMPLETED: Carwash
+    // DJ-4 — COMPLETED: Carwash (fixed fare, nothing to collect)
     DriverJob(
       id: 'DJ-4',
       type: 'Carwash',
       state: DriverJobState.completed,
       customer: 'Deepak Nair',
       phone: '+91 94950 27718',
-      vehicle: 'KL-04-GH-3456 · Creta (Blue)',
-      pickup: 'Iron Bridge, Alappuzha',
-      drop: 'ShineHub Iron Bridge',
+      vehicle: 'Tata Nexon · KL-04-R-6677',
+      pickup: 'Iron Bridge North',
+      drop: 'Same as pickup',
       shop: 'ShineHub Iron Bridge',
-      time: '7:30 AM',
-      payout: 160,
+      time: '8:00 AM',
+      payout: 180,
       stage: 'Completed',
-      otp: '2214',
+      otp: '1234',
       fare: DriverFare(
-        base: 160,
-        items: const [],
+        base: 180,
+        items: [],
         extra: 0,
-        total: 160,
+        total: 180,
         collect: 0,
       ),
     ),
@@ -134,22 +138,22 @@ class DriverAppLocalDs {
     pending: 720,
     lastPayout: const DriverPayout(
       amount: 2890,
-      date: '22 May 2026',
-      utr: 'UTR4982017736',
+      date: '22-May-2026',
+      utr: 'UPI/HDFC/55120098',
     ),
     byDay: const [
-      ('Mon', 320),
-      ('Tue', 480),
-      ('Wed', 540),
+      ('Mon', 480),
+      ('Tue', 540),
+      ('Wed', 360),
       ('Thu', 620),
-      ('Fri', 400),
-      ('Sat', 760),
+      ('Fri', 540),
+      ('Sat', 0),
       ('Sun', 0),
     ],
     breakdown: const [
       EarningsBreakdownRow(label: 'Carwash jobs', count: 14, amount: 2520),
-      EarningsBreakdownRow(label: 'Driver hire', count: 4, amount: 480),
-      EarningsBreakdownRow(label: 'Incentives', count: 1, amount: 120),
+      EarningsBreakdownRow(label: 'Driver hire', count: 3, amount: 540),
+      EarningsBreakdownRow(label: 'Incentives', count: 1, amount: 60),
     ],
   );
 }

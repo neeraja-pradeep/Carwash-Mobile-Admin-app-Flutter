@@ -52,28 +52,9 @@ final signedInDriverProvider = FutureProvider<FieldDriver?>(
 
 // ── UI state providers (autoDispose — reset on navigation) ───────────────────
 
-/// Online / offline toggle. `true` = online (accepting jobs).
+/// Online / offline toggle. `true` = online (accepting jobs). The Start/End
+/// job OTP flow is held in local widget state on the job-detail screen (it
+/// transitions the visible status), so no provider is needed for it.
 final driverOnlineProvider = StateProvider.autoDispose<bool>(
   (ref) => true,
-);
-
-/// Per-job OTP flow state for the Start/End job modal.
-/// Stores the current OTP input string for the active OTP modal.
-final jobOtpInputProvider = StateProvider.autoDispose<String>(
-  (ref) => '',
-);
-
-/// Whether the Start/End OTP modal is open.
-final otpModalOpenProvider = StateProvider.autoDispose<bool>(
-  (ref) => false,
-);
-
-/// Which OTP flow is active: `'start'` or `'end'` (null = none open).
-final otpFlowKindProvider = StateProvider.autoDispose<String?>(
-  (ref) => null,
-);
-
-/// OTP error message to show in the modal.
-final otpErrorProvider = StateProvider.autoDispose<String?>(
-  (ref) => null,
 );
