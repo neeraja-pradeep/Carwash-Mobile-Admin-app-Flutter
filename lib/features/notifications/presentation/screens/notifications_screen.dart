@@ -127,19 +127,16 @@ class NotificationsScreen extends ConsumerWidget {
                         ),
                         filterCount: filter == 'unread' ? 1 : 0,
                       ),
-                      // Notif rows — offset -4px horizontally like prototype
-                      Padding(
-                        padding: EdgeInsets.symmetric(horizontal: -4.w),
-                        child: Column(
-                          children: [
-                            for (final n in items)
-                              NotifRow(
-                                key: ValueKey(n.id),
-                                notification: n,
-                                onTap: () => openNotification(n),
-                              ),
-                          ],
-                        ),
+                      // Notif rows
+                      Column(
+                        children: [
+                          for (final n in items)
+                            NotifRow(
+                              key: ValueKey(n.id),
+                              notification: n,
+                              onTap: () => openNotification(n),
+                            ),
+                        ],
                       ),
                     ],
                   );

@@ -5,7 +5,6 @@ import '../../../../../app/theme/colors.dart';
 import '../../../../../app/theme/typography.dart';
 import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../../core/widgets/app_button.dart';
-import '../../../../../core/widgets/app_icons.dart';
 import '../../domain/entities/app_settings.dart';
 
 /// Shows the Hiring Rates bottom sheet with Driver / Inspector segments.
@@ -326,6 +325,3 @@ class _RateField extends StatelessWidget {
   }
 }
 
-// ── Icon (referenced but only AppIcons used above) ────────────────────────────
-// ignore: unused_element
-const _kUnused = AppIcons.gear;
