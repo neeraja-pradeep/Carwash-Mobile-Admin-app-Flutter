@@ -378,7 +378,9 @@ class _InspectorCard extends StatelessWidget {
             ),
           ),
           StatusBadge(
-            label: 'Active',
+            label: inspector.active
+                ? DriverStatus.active.label
+                : DriverStatus.suspended.label,
             tone: inspector.active
                 ? DriverStatus.active.tone
                 : DriverStatus.suspended.tone,
