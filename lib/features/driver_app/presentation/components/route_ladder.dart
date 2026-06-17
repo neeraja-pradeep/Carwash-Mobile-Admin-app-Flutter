@@ -31,11 +31,16 @@ class RouteLadder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // Marker column
-        Padding(
+    // `IntrinsicHeight` gives the Row a bounded height (driven by the taller
+    // stops column) so `crossAxisAlignment.stretch` and the `Expanded`
+    // connector can resolve. Without it the Row inherits the unbounded height
+    // of the surrounding scroll view and `stretch` forces an infinite height.
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Marker column
+          Padding(
           padding: EdgeInsets.only(top: 3.h),
           child: Column(
             children: [
@@ -76,7 +81,8 @@ class RouteLadder extends StatelessWidget {
             ],
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -153,9 +159,13 @@ class _DottedConnector extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: 2.w,
+      // The connector fills the height the parent `Expanded` allots at layout
+      // time. It must NOT claim an infinite intrinsic height, or the enclosing
+      // `IntrinsicHeight` measurement blows up — so the child is zero-sized and
+      // CustomPaint simply paints into the tight constraints it is handed.
       child: CustomPaint(
         painter: _DottedLinePainter(),
-        child: const SizedBox(width: 2, height: double.infinity),
+        child: const SizedBox(width: 2),
       ),
     );
   }

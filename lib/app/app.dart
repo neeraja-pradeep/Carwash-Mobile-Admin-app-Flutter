@@ -16,6 +16,13 @@ class DriveDeckApp extends StatelessWidget {
       designSize: const Size(Dimens.designWidth, Dimens.designHeight),
       minTextAdapt: true,
       splitScreenMode: true,
+      // On some startup paths (notably the Android emulator with Impeller) the
+      // render surface briefly reports a 0×0 size. ScreenUtil would then scale
+      // every `.sp`/`.w`/`.h`/`.r` value to 0, tripping Flutter asserts
+      // (`fontSize > 0`, infinite-height, unsized RenderBox …) so the UI fails
+      // to lay out. `ensureScreenSize` defers the first frame until the view
+      // reports a real size, so scaling is always computed against valid metrics.
+      ensureScreenSize: true,
       builder: (context, child) {
         return MaterialApp.router(
           title: 'DriveDeck Admin',

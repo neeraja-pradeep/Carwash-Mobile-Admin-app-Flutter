@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '\"[\\(now | strftime(\"%Y-%m-%d %H:%M:%S\"))] \\(.prompt)\"' >> \"$CLAUDE_PROJECT_DIR/prompts.log\" 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
