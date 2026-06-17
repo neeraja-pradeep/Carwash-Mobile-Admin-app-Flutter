@@ -46,4 +46,7 @@ app.*.map.json
 /android/app/release
 
 # Claude Code prompt log (local)
-.claude/prompts.log
+prompts.log
+
+# env file
+.env

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,56 +10,51 @@ import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_icons.dart';
+import '../../../auth/application/providers/auth_provider.dart';
+import '../../../auth/application/states/auth_state.dart';
 
 /// Login screen — Admin / Driver toggle (default = Driver).
 ///
 /// DRIVER mode: phone → Send OTP → 4-digit OTP → Verify → driverToday.
-/// ADMIN mode: phone + password → Sign In → dashboard.
-/// Purely local state (StatefulWidget) — no Riverpod needed here.
-class LoginScreen extends StatefulWidget {
+/// ADMIN mode: username + password → Sign In → dashboard.
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   // ── Mode ─────────────────────────────────────────────────────────────────
   /// `'driver'` or `'admin'`. Default = driver.
   String _mode = 'driver';
 
   // ── Driver OTP flow ──────────────────────────────────────────────────────
-  final _phoneController = TextEditingController(text: '+91 97447 30021');
+  final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
   bool _otpSent = false;
   String? _driverError;
 
+  // ── Driver username/password flow ─────────────────────────────────────────
+  bool _driverUsePassword = false;
+  final _driverUsernameController = TextEditingController();
+  final _driverPasswordController = TextEditingController();
+  bool _driverShowPassword = false;
+  String? _driverPasswordError;
+
   // ── Admin flow ───────────────────────────────────────────────────────────
-  final _adminPhoneController = TextEditingController(text: '+91 98470 22119');
-  final _adminPasswordController =
-      TextEditingController(text: AppConstants.demoAdminPassword);
+  final _adminPhoneController = TextEditingController();
+  final _adminPasswordController = TextEditingController();
   bool _showPassword = false;
   bool _showForgotMessage = false;
   String? _adminError;
-
-  /// Failed sign-in attempts. At [_lockThreshold] the account is "locked" for
-  /// the demo (mirrors the lockout state in screen_login.jsx).
-  int _adminAttempts = 0;
-  static const int _lockThreshold = 5;
-
-  bool get _adminLocked => _adminAttempts >= _lockThreshold;
-
-  // ── Registered driver phone numbers (non-suspended) ──────────────────────
-  static const _registeredDrivers = {
-    '+91 97447 30021', // Manoj Kumar
-    '+91 90745 11882', // Sreejith P
-    '+91 98951 67200', // Rahim Basheer (invited — allow login)
-  };
 
   @override
   void dispose() {
     _phoneController.dispose();
     _otpController.dispose();
+    _driverUsernameController.dispose();
+    _driverPasswordController.dispose();
     _adminPhoneController.dispose();
     _adminPasswordController.dispose();
     super.dispose();
@@ -66,67 +62,120 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleSendOtp() {
     final phone = _phoneController.text.trim();
-    if (!_registeredDrivers.contains(phone)) {
-      setState(() => _driverError =
-          "This number isn't registered. Ask your admin to add you.");
+    if (phone.isEmpty) {
+      setState(() => _driverError = 'Enter your phone number to continue.');
       return;
     }
-    setState(() {
-      _driverError = null;
-      _otpSent = true;
-    });
+
+    setState(() => _driverError = null);
+
+    try {
+      ref.read(authStateProvider.notifier).sendOtp(
+            phone: phone,
+            role: 'driver',
+          );
+      // Don't set _otpSent here — wait for state listener to handle OtpSent state
+    } catch (e) {
+      setState(() => _driverError = 'Error: ${e.toString()}');
+    }
   }
 
   void _handleVerifyOtp() {
+    final phone = _phoneController.text.trim();
     final otp = _otpController.text.trim();
-    if (otp == AppConstants.demoOtp) {
-      context.go(Routes.driverToday);
-    } else {
-      setState(() => _driverError = 'Incorrect OTP. Demo OTP is 1234.');
+
+    if (otp.length != 4) {
+      setState(() => _driverError = 'OTP must be 4 digits.');
+      return;
+    }
+
+    try {
+      ref.read(authStateProvider.notifier).verifyOtp(
+            phone: phone,
+            otpCode: otp,
+            role: 'driver',
+          );
+    } catch (e) {
+      setState(() => _driverError = 'Error: ${e.toString()}');
     }
   }
 
-  /// Editing the password clears any demo lock so a reviewer is never trapped
-  /// (matches the `onPwd` behaviour in screen_login.jsx).
+  void _handleDriverPasswordSignIn() {
+    final username = _driverUsernameController.text.trim();
+    final password = _driverPasswordController.text.trim();
+
+    if (username.isEmpty) {
+      setState(() => _driverPasswordError = 'Enter your username to continue.');
+      return;
+    }
+    if (password.isEmpty) {
+      setState(() => _driverPasswordError = 'Enter your password to continue.');
+      return;
+    }
+
+    try {
+      ref.read(authStateProvider.notifier).login(
+            username: username,
+            password: password,
+          );
+    } catch (e) {
+      setState(() => _driverPasswordError = 'Error: ${e.toString()}');
+    }
+  }
+
   void _handlePasswordChanged(String _) {
-    if (_adminError != null || _adminAttempts != 0) {
-      setState(() {
-        _adminError = null;
-        _adminAttempts = 0;
-      });
+    if (_adminError != null) {
+      setState(() => _adminError = null);
     }
   }
 
   void _handleAdminSignIn() {
-    if (_adminLocked) return;
-    final password = _adminPasswordController.text;
+    final phone = _adminPhoneController.text.trim();
+    final password = _adminPasswordController.text.trim();
+
+    if (phone.isEmpty) {
+      setState(() => _adminError = 'Enter your phone number to continue.');
+      return;
+    }
     if (password.isEmpty) {
       setState(() => _adminError = 'Enter your password to continue.');
       return;
     }
-    if (password == AppConstants.demoAdminPassword) {
-      setState(() => _adminError = null);
-      context.go(Routes.dashboard);
-      return;
-    }
-    setState(() {
-      _adminAttempts++;
-      final left = _lockThreshold - _adminAttempts;
-      _adminError = _adminLocked
-          ? 'Too many attempts. Locked for 15 minutes.'
-          : 'Incorrect password. $left attempt${left == 1 ? '' : 's'} left.';
-    });
-  }
 
-  void _resetLock() {
-    setState(() {
-      _adminAttempts = 0;
-      _adminError = null;
-    });
+    try {
+      ref.read(authStateProvider.notifier).login(
+            username: phone,
+            password: password,
+          );
+    } catch (e) {
+      setState(() => _adminError = 'Error: ${e.toString()}');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(authStateProvider, (previous, state) {
+      if (state is AuthSuccess) {
+        if (state.user.role == 'driver') {
+          context.go(Routes.driverToday);
+        } else {
+          context.go(Routes.dashboard);
+        }
+      } else if (state is AuthError) {
+        if (_mode == 'driver') {
+          if (_driverUsePassword) {
+            setState(() => _driverPasswordError = state.message);
+          } else {
+            setState(() => _driverError = state.message);
+          }
+        } else {
+          setState(() => _adminError = state.message);
+        }
+      } else if (state is OtpSent) {
+        setState(() => _otpSent = true);
+      }
+    });
+
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       body: SafeArea(
@@ -196,10 +245,15 @@ class _LoginScreenState extends State<LoginScreen> {
                 onSelect: (m) => setState(() {
                   _mode = m;
                   _driverError = null;
+                  _driverPasswordError = null;
+                  _driverUsePassword = false;
                   _adminError = null;
-                  _adminAttempts = 0;
                   _otpSent = false;
                   _otpController.clear();
+                  _driverUsernameController.clear();
+                  _driverPasswordController.clear();
+                  _adminPhoneController.clear();
+                  _adminPasswordController.clear();
                   _showForgotMessage = false;
                 }),
               ),
@@ -249,6 +303,13 @@ class _LoginScreenState extends State<LoginScreen> {
   // ── Driver form ───────────────────────────────────────────────────────────
 
   Widget _buildDriverForm() {
+    if (_driverUsePassword) {
+      return _buildDriverPasswordForm();
+    }
+    return _buildDriverOtpForm();
+  }
+
+  Widget _buildDriverOtpForm() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -282,6 +343,23 @@ class _LoginScreenState extends State<LoginScreen> {
             icon: AppIcons.phone,
             keyboardType: TextInputType.phone,
             onSubmitted: (_) => _handleSendOtp(),
+          ),
+          SizedBox(height: 12.h),
+          Center(
+            child: GestureDetector(
+              onTap: () => setState(() {
+                _driverUsePassword = true;
+                _driverError = null;
+              }),
+              child: Text(
+                'Or login via username and password',
+                style: AppText.figtree(
+                  size: 13,
+                  weight: FontWeight.w600,
+                  color: AppColors.fgSecondary,
+                ),
+              ),
+            ),
           ),
         ] else ...[
           // OTP field
@@ -340,14 +418,11 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ],
 
-        // Error / demo hint
-        SizedBox(height: 8.h),
-        _HintLine(
-          error: _driverError,
-          hint: _otpSent
-              ? 'Demo OTP is 1234'
-              : "Demo · Manoj's number is pre-filled",
-        ),
+        // Error hint
+        if (_driverError != null) ...[
+          SizedBox(height: 8.h),
+          _HintLine(error: _driverError, hint: ''),
+        ],
 
         SizedBox(height: 20.h),
 
@@ -387,6 +462,91 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildDriverPasswordForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Sign in to continue',
+          style: AppText.figtree(
+              size: 26, weight: FontWeight.w700, letterSpacing: -0.6),
+        ),
+        SizedBox(height: 6.h),
+        Text(
+          'Use your username and password to sign in.',
+          style: AppText.figtree(
+            size: 14.5,
+            weight: FontWeight.w400,
+            color: AppColors.fgTertiary,
+            height: 1.45,
+          ),
+        ),
+        SizedBox(height: 28.h),
+
+        // Username field
+        _InputLabel(label: 'Username'),
+        SizedBox(height: 7.h),
+        _TextField(
+          controller: _driverUsernameController,
+          hint: 'Enter your username',
+          icon: Icons.person_outline,
+          onSubmitted: (_) => _handleDriverPasswordSignIn(),
+        ),
+
+        SizedBox(height: 18.h),
+
+        // Password field
+        _InputLabel(label: 'Password'),
+        SizedBox(height: 7.h),
+        _PasswordField(
+          controller: _driverPasswordController,
+          visible: _driverShowPassword,
+          onToggleVisibility: () =>
+              setState(() => _driverShowPassword = !_driverShowPassword),
+          onChanged: (_) => setState(() => _driverPasswordError = null),
+          onSubmitted: (_) => _handleDriverPasswordSignIn(),
+          hasError: _driverPasswordError != null,
+        ),
+
+        // Error hint
+        if (_driverPasswordError != null) ...[
+          SizedBox(height: 6.h),
+          _HintLine(error: _driverPasswordError, hint: ''),
+        ],
+
+        SizedBox(height: 20.h),
+
+        AppButton(
+          label: 'Sign In',
+          full: true,
+          onPressed: _handleDriverPasswordSignIn,
+        ),
+
+        SizedBox(height: 12.h),
+
+        Center(
+          child: GestureDetector(
+            onTap: () => setState(() {
+              _driverUsePassword = false;
+              _driverPasswordError = null;
+              _driverUsernameController.clear();
+              _driverPasswordController.clear();
+              _driverShowPassword = false;
+            }),
+            child: Text(
+              'Or login via OTP',
+              style: AppText.figtree(
+                size: 13,
+                weight: FontWeight.w600,
+                color: AppColors.fgSecondary,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   // ── Admin form ────────────────────────────────────────────────────────────
 
   Widget _buildAdminForm() {
@@ -410,14 +570,13 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         SizedBox(height: 28.h),
 
-        // Phone
-        _InputLabel(label: 'Phone number'),
+        // Phone or Username
+        _InputLabel(label: 'Phone number / Username'),
         SizedBox(height: 7.h),
         _TextField(
           controller: _adminPhoneController,
-          hint: '+91 00000 00000',
+          hint: '+91 00000 00000 or username',
           icon: AppIcons.phone,
-          keyboardType: TextInputType.phone,
         ),
 
         SizedBox(height: 18.h),
@@ -432,46 +591,32 @@ class _LoginScreenState extends State<LoginScreen> {
               setState(() => _showPassword = !_showPassword),
           onChanged: _handlePasswordChanged,
           onSubmitted: (_) => _handleAdminSignIn(),
-          hasError: _adminError != null && !_adminLocked,
+          hasError: _adminError != null,
         ),
 
-        // Error / demo hint  +  forgot / reset-lock
+        // Error hint + forgot password
         SizedBox(height: 6.h),
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
-              child: _HintLine(
-                error: _adminError,
-                hint: 'Demo · password pre-filled, just tap Sign In',
-              ),
+              child: _adminError != null
+                  ? _HintLine(error: _adminError, hint: '')
+                  : const SizedBox.shrink(),
             ),
             SizedBox(width: 8.w),
-            if (_adminLocked)
-              GestureDetector(
-                onTap: _resetLock,
-                child: Text(
-                  'Reset lock',
-                  style: AppText.figtree(
-                    size: 12.5,
-                    weight: FontWeight.w700,
-                    color: AppColors.danger,
-                  ),
-                ),
-              )
-            else
-              GestureDetector(
-                onTap: () =>
-                    setState(() => _showForgotMessage = !_showForgotMessage),
-                child: Text(
-                  'Forgot password?',
-                  style: AppText.figtree(
-                    size: 12.5,
-                    weight: FontWeight.w600,
-                    color: AppColors.fgSecondary,
-                  ),
+            GestureDetector(
+              onTap: () =>
+                  setState(() => _showForgotMessage = !_showForgotMessage),
+              child: Text(
+                'Forgot password?',
+                style: AppText.figtree(
+                  size: 12.5,
+                  weight: FontWeight.w600,
+                  color: AppColors.fgSecondary,
                 ),
               ),
+            ),
           ],
         ),
 
@@ -500,9 +645,8 @@ class _LoginScreenState extends State<LoginScreen> {
         SizedBox(height: 14.h),
 
         AppButton(
-          label: _adminLocked ? 'Locked — try later' : 'Sign In',
+          label: 'Sign In',
           full: true,
-          disabled: _adminLocked,
           onPressed: _handleAdminSignIn,
         ),
       ],
@@ -731,9 +875,8 @@ class _PasswordField extends StatelessWidget {
         suffixIcon: GestureDetector(
           onTap: onToggleVisibility,
           behavior: HitTestBehavior.opaque,
-          child: Container(
-            alignment: Alignment.center,
-            padding: EdgeInsets.symmetric(horizontal: 14.w),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 16.h),
             child: Text(
               visible ? 'Hide' : 'Show',
               style: AppText.figtree(
@@ -744,7 +887,6 @@ class _PasswordField extends StatelessWidget {
             ),
           ),
         ),
-        suffixIconConstraints: BoxConstraints(minWidth: 0, minHeight: 0),
         filled: true,
         fillColor: AppColors.bgInput,
         contentPadding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 14.w),
