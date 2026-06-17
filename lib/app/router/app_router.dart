@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/auth/presentation/screens/auth_check_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/bookings/presentation/screens/booking_detail_screen.dart';
 import '../../features/bookings/presentation/screens/bookings_screen.dart';
@@ -93,8 +94,14 @@ final GlobalKey<NavigatorState> _rootNavigatorKey =
 /// The application's GoRouter configuration.
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: Routes.login,
+  initialLocation: '/auth-check',
   routes: [
+    // Auth check screen — checks for existing session on startup
+    GoRoute(
+      path: '/auth-check',
+      builder: (context, state) => const AuthCheckScreen(),
+    ),
+
     GoRoute(
       path: Routes.login,
       builder: (context, state) => const LoginScreen(),

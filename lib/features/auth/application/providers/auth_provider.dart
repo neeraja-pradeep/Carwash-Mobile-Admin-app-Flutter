@@ -13,6 +13,25 @@ final authStateProvider =
   return AuthStateNotifier(repository);
 });
 
+/// Check if user is already authenticated on app startup
+final checkAuthStatusProvider = FutureProvider<bool>((ref) async {
+  try {
+    final repository = ref.watch(authRepositoryProvider);
+    final isValid = await repository.isSessionValid();
+    if (isValid) {
+      final user = await repository.getCurrentUser();
+      if (user != null) {
+        // Restore the session
+        ref.read(authStateProvider.notifier).checkCurrentSession();
+        return true;
+      }
+    }
+    return false;
+  } catch (e) {
+    return false;
+  }
+});
+
 class AuthStateNotifier extends StateNotifier<AuthState> {
   final AuthRepository _repository;
 
@@ -70,14 +89,18 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     state = const AuthInitial();
   }
 
+  /// Check if user has valid session on app startup
   Future<void> checkCurrentSession() async {
     try {
-      final user = await _repository.getCurrentUser();
-      if (user != null) {
-        state = AuthSuccess(user: user);
-      } else {
-        state = const AuthInitial();
+      final isValid = await _repository.isSessionValid();
+      if (isValid) {
+        final user = await _repository.getCurrentUser();
+        if (user != null) {
+          state = AuthSuccess(user: user);
+          return;
+        }
       }
+      state = const AuthInitial();
     } catch (e) {
       state = const AuthInitial();
     }
