@@ -6,7 +6,10 @@ import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/avatar.dart';
-import '../../application/providers/driver_app_providers.dart';
+import '../../../auth/application/providers/auth_provider.dart';
+import '../../../auth/application/states/auth_state.dart';
+import '../../application/providers/driver_home_provider.dart';
+import '../../application/states/driver_home_state.dart';
 
 /// Persistent driver-app header: the signed-in driver's avatar + first
 /// name/role and the Online/Offline toggle pill. Rendered once in
@@ -18,8 +21,23 @@ class DriverHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final driverAsync = ref.watch(signedInDriverProvider);
-    final isOnline = ref.watch(driverOnlineProvider);
+    final authState = ref.watch(authStateProvider);
+    final homeState = ref.watch(driverHomeStateProvider);
+
+    // Get user from auth state
+    String role = 'Driver';
+    String fullName = 'Driver';
+
+    if (authState is AuthSuccess) {
+      role = authState.user.role;
+      fullName = authState.user.fullName;
+    }
+
+    // Get online status from home state
+    bool isOnline = false;
+    if (homeState is DriverHomeSuccess) {
+      isOnline = homeState.availability.online;
+    }
 
     return Container(
       padding: EdgeInsets.fromLTRB(16.w, 6.h, 16.w, 12.h),
@@ -29,18 +47,7 @@ class DriverHeader extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          driverAsync.when(
-            loading: () => Container(
-              width: 40.r,
-              height: 40.r,
-              decoration: const BoxDecoration(
-                color: AppColors.avatarBg,
-                shape: BoxShape.circle,
-              ),
-            ),
-            error: (_, __) => const Avatar(name: 'Manoj Kumar'),
-            data: (driver) => Avatar(name: driver?.name ?? 'Driver', size: 40),
-          ),
+          Avatar(name: fullName, size: 40),
           SizedBox(width: 11.w),
           Expanded(
             child: Column(
@@ -48,10 +55,7 @@ class DriverHeader extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  driverAsync.maybeWhen(
-                    data: (d) => d?.name.split(' ').first ?? 'Driver',
-                    orElse: () => 'Manoj',
-                  ),
+                  fullName,
                   style: AppText.figtree(
                     size: 15,
                     weight: FontWeight.w700,
@@ -60,10 +64,7 @@ class DriverHeader extends ConsumerWidget {
                 ),
                 SizedBox(height: 2.h),
                 Text(
-                  driverAsync.maybeWhen(
-                    data: (d) => d?.role ?? 'Driver',
-                    orElse: () => 'Wash driver',
-                  ),
+                  role,
                   style: AppText.figtree(
                     size: 11.5,
                     weight: FontWeight.w500,
@@ -73,15 +74,24 @@ class DriverHeader extends ConsumerWidget {
               ],
             ),
           ),
-          // Online / Offline toggle — writes the shared provider and fires the
-          // same toasts as the JSX ("You're online" / "You're now offline").
+          // Online / Offline toggle — updates availability via API
           GestureDetector(
-            onTap: () {
-              ref.read(driverOnlineProvider.notifier).state = !isOnline;
-              AppToast.show(
-                context,
-                isOnline ? "You're now offline" : "You're online",
-              );
+            onTap: () async {
+              final ctx = context;
+              try {
+                await ref
+                    .read(driverHomeStateProvider.notifier)
+                    .toggleAvailability(online: !isOnline);
+                // Only show success toast if API call succeeds
+                AppToast.show(
+                  ctx,
+                  isOnline ? "You're now offline" : "You're online",
+                );
+              } catch (e) {
+                // Show error toast with message from API
+                final errorMsg = e.toString().replaceFirst('Exception: ', '');
+                AppToast.show(ctx, errorMsg);
+              }
             },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
