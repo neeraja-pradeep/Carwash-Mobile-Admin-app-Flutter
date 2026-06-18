@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../domain/entities/carwash_booking.dart';
 import '../../domain/repositories/carwash_repository.dart';
 import '../../infrastructure/repositories/carwash_repository_impl.dart';
 import '../states/carwash_state.dart';
@@ -44,6 +46,60 @@ class CarwashNotifier extends StateNotifier<CarwashState> {
       state = CarwashSuccess(booking: updatedBooking);
     } catch (e) {
       state = CarwashSuccess(booking: success.booking);
+      rethrow;
+    }
+  }
+
+  /// Load carwash summary for completed bookings
+  Future<Map<String, dynamic>> loadSummary() async {
+    try {
+      return await _repository.getCarwashSummary(_bookingId);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Load summary first for completed jobs, fallback to booking for in-progress
+  Future<void> loadBookingWithSummaryFallback() async {
+    state = const CarwashLoading();
+    try {
+      // Try summary endpoint first (for completed jobs)
+      try {
+        final summary = await _repository.getCarwashSummary(_bookingId);
+        // Summary loaded - also load booking to get customer details
+        try {
+          final booking = await _repository.getBooking(_bookingId);
+          // Merge: use booking data for customer info, keep summary for price data
+          state = CarwashSuccess(booking: booking);
+          return;
+        } catch (e) {
+          debugPrint('Could not load booking details for completed job: $e');
+          // Create minimal booking from summary if booking fails
+          final booking = CarwashBooking(
+            id: _bookingId,
+            reference: 'BK-$_bookingId',
+            washingStatus: summary['washing_status'] ?? 'completed',
+            status: summary['status'] ?? 'completed',
+            amount: (summary['base_fare'] ?? '0').toString(),
+            customerName: 'Customer',
+            customerPhone: '',
+            vehicleText: 'Vehicle',
+            address: '',
+            appointmentDate: '',
+            startTime: '',
+          );
+          state = CarwashSuccess(booking: booking);
+          return;
+        }
+      } catch (e) {
+        debugPrint('Summary endpoint failed, trying booking endpoint: $e');
+      }
+
+      // Fallback to booking endpoint (for in-progress jobs)
+      final booking = await _repository.getBooking(_bookingId);
+      state = CarwashSuccess(booking: booking);
+    } catch (e) {
+      state = CarwashError(message: e.toString());
       rethrow;
     }
   }

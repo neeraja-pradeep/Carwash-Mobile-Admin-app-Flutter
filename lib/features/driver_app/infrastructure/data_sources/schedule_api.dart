@@ -2,16 +2,20 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import '../models/carwash_booking_model.dart';
+import '../models/schedule_day_model.dart';
 
-class CarwashApi {
+class ScheduleApi {
   late Dio _dio;
 
   String get _baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
 
-  static const String _basePath = '/api/booking/v1/bookings';
+  static const String _scheduleBasePath = '/api/booking/v1/worker/schedule';
+  static const String _availableJobsPath = '/api/booking/v1/worker/available-jobs';
+  static const String _claimCarwashPath = '/api/booking/v1/worker/claim/carwash';
+  static const String _claimDriverHirePath = '/api/booking/v1/worker/claim/driver-inspection';
+  static const String _carwashSummaryPath = '/api/booking/v1/worker/carwash';
 
-  CarwashApi() {
+  ScheduleApi() {
     _dio = Dio(BaseOptions(
       baseUrl: _baseUrl,
       contentType: 'application/json',
@@ -20,52 +24,87 @@ class CarwashApi {
       receiveTimeout: const Duration(seconds: 30),
     ));
 
-    // Add session interceptor
     _dio.interceptors.add(_SessionInterceptor());
 
-    // Enable detailed logging in debug mode only
     if (kDebugMode) {
       _dio.interceptors.add(_DebugLoggingInterceptor());
     }
   }
 
-  /// Get carwash booking by ID (for in-progress jobs)
-  Future<CarwashBookingModel> getBooking(String bookingId) async {
+  /// Get worker schedule with upcoming and completed jobs
+  Future<ScheduleResponseModel> getSchedule({
+    String? from,
+    String? to,
+    int page = 1,
+    int pageSize = 10,
+  }) async {
     try {
-      final response = await _dio.get('$_basePath/$bookingId/');
-      return CarwashBookingModel.fromJson(response.data);
+      final queryParams = <String, dynamic>{
+        'page': page,
+        'page_size': pageSize,
+      };
+      if (from != null) queryParams['from'] = from;
+      if (to != null) queryParams['to'] = to;
+
+      final response = await _dio.get(
+        _scheduleBasePath,
+        queryParameters: queryParams,
+      );
+      return ScheduleResponseModel.fromJson(response.data);
     } on DioException catch (e) {
       throw _handleError(e);
     }
   }
 
-  /// Get carwash booking summary (for completed jobs)
-  Future<Map<String, dynamic>> getBookingSummary(String bookingId) async {
+  /// Get available/claimable jobs
+  Future<Map<String, dynamic>> getAvailableJobs({
+    int page = 1,
+    int pageSize = 10,
+  }) async {
     try {
-      final response = await _dio.get('/api/booking/v1/worker/carwash/$bookingId/summary/');
+      final response = await _dio.get(
+        _availableJobsPath,
+        queryParameters: {
+          'page': page,
+          'page_size': pageSize,
+        },
+      );
       return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handleError(e);
     }
   }
 
-  /// Advance washing status
-  Future<CarwashBookingModel> advanceWashingStatus(
-    String bookingId,
-    String washingStatus,
-  ) async {
+  /// Claim a carwash job
+  Future<Map<String, dynamic>> claimCarwashJob(String bookingId) async {
     try {
-      final response = await _dio.patch(
-        '$_basePath/$bookingId/',
-        data: {'washing_status': washingStatus},
-      );
-      return CarwashBookingModel.fromJson(response.data);
+      final response = await _dio.post('$_claimCarwashPath/$bookingId/');
+      return response.data as Map<String, dynamic>;
     } on DioException catch (e) {
       throw _handleError(e);
     }
   }
 
-  /// Handle DioException and throw appropriate error
+  /// Claim a driver-hire/inspection job
+  Future<Map<String, dynamic>> claimDriverHireJob(String bookingId) async {
+    try {
+      final response = await _dio.post('$_claimDriverHirePath/$bookingId/');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Get carwash job summary
+  Future<Map<String, dynamic>> getCarwashSummary(String bookingId) async {
+    try {
+      final response = await _dio.get('$_carwashSummaryPath/$bookingId/summary/');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   Exception _handleError(DioException e) {
     if (e.response != null) {
       final errorData = e.response?.data;
@@ -99,7 +138,6 @@ class CarwashApi {
   }
 }
 
-/// Session interceptor - adds sessionid and CSRF token to requests
 class _SessionInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) async {
@@ -133,7 +171,6 @@ class _SessionInterceptor extends Interceptor {
   }
 }
 
-/// Debug logging interceptor
 class _DebugLoggingInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
@@ -155,7 +192,6 @@ class _DebugLoggingInterceptor extends Interceptor {
       print('═════════════════════════════════════════════════');
       print('🟢 API SUCCESS: ${response.statusCode}');
       print('Endpoint: ${response.requestOptions.path}');
-      print('Response: ${response.data}');
       print('═════════════════════════════════════════════════');
     }
     super.onResponse(response, handler);
@@ -167,7 +203,6 @@ class _DebugLoggingInterceptor extends Interceptor {
       print('═════════════════════════════════════════════════');
       print('🔴 API ERROR: ${err.response?.statusCode}');
       print('Endpoint: ${err.requestOptions.path}');
-      print('Method: ${err.requestOptions.method}');
       print('Error: ${err.response?.data}');
       print('═════════════════════════════════════════════════');
     }

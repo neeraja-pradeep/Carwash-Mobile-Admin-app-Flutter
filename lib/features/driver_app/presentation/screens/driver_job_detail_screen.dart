@@ -13,6 +13,7 @@ import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/skeleton_card.dart';
 import '../../../../core/widgets/top_bar.dart';
 import '../../application/providers/job_detail_provider.dart';
+import '../../application/providers/schedule_provider.dart';
 import '../../application/states/job_detail_state.dart';
 import '../components/otp_modal.dart';
 import '../components/route_ladder.dart';
@@ -46,6 +47,12 @@ class _DriverJobDetailScreenState extends ConsumerState<DriverJobDetailScreen> {
     } catch (e) {
       debugPrint('Error loading job detail: $e');
     }
+  }
+
+  void _handleBack() {
+    // Refresh schedule when returning from detail screen
+    ref.invalidate(scheduleStateProvider);
+    Navigator.of(context).pop();
   }
 
   Future<void> _handleArrive() async {
@@ -130,7 +137,7 @@ class _DriverJobDetailScreenState extends ConsumerState<DriverJobDetailScreen> {
     } else if (state is JobDetailError) {
       return Column(
         children: [
-          TopBar(title: 'Job', onBack: () => Navigator.of(context).pop()),
+          TopBar(title: 'Job', onBack: _handleBack),
           Expanded(
             child: Center(
               child: Column(
@@ -427,8 +434,8 @@ class _StatusCard extends StatelessWidget {
         ),
     };
 
-    // Use estimatedFee if quotedFee is not available
-    final payout = double.tryParse(job.quoted_fee) ?? double.tryParse(job.estimated_fee) ?? 0;
+
+    final payout = double.tryParse(job.quotedFee) ?? double.tryParse(job.estimatedFee) ?? 0;
 
     return AppCard(
       child: Row(

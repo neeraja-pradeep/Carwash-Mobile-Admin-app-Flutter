@@ -2,6 +2,20 @@ import '../../domain/entities/carwash_booking.dart';
 
 sealed class CarwashState {
   const CarwashState();
+
+  T when<T>({
+    required T Function() initial,
+    required T Function() loading,
+    required T Function(CarwashSuccess) success,
+    required T Function(CarwashError) error,
+  }) {
+    return switch (this) {
+      CarwashInitial() => initial(),
+      CarwashLoading() => loading(),
+      CarwashSuccess s => success(s),
+      CarwashError e => error(e),
+    };
+  }
 }
 
 class CarwashInitial extends CarwashState {

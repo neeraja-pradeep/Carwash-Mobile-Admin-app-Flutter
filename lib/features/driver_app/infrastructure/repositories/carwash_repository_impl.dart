@@ -19,4 +19,9 @@ class CarwashRepositoryImpl implements CarwashRepository {
     final model = await _api.advanceWashingStatus(bookingId, washingStatus);
     return model.toEntity();
   }
+
+  @override
+  Future<Map<String, dynamic>> getCarwashSummary(String bookingId) async {
+    return await _api.getBookingSummary(bookingId);
+  }
 }

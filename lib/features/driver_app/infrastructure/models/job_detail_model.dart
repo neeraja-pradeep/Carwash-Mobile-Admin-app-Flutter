@@ -28,6 +28,9 @@ class JobDetailModel extends JobDetail {
   });
 
   factory JobDetailModel.fromJson(Map<String, dynamic> json) {
+    // Use car_label as fallback if vehicle_text is null
+    final vehicleText = json['vehicle_text'] ?? json['car_label'] ?? 'Unknown Vehicle';
+
     return JobDetailModel(
       id: json['id'].toString(),
       reference: json['reference'],
@@ -35,7 +38,7 @@ class JobDetailModel extends JobDetail {
       customerName: json['customer_name'],
       customerPhone: json['customer_phone'],
       carLabel: json['car_label'],
-      vehicleText: json['vehicle_text'],
+      vehicleText: vehicleText,
       appointmentDate: json['appointment_date'],
       startTime: json['start_time'],
       durationLabel: json['duration_label'] ?? '~1 hr',

@@ -9,6 +9,7 @@ import '../../features/bookings/presentation/screens/new_booking_screen.dart';
 import '../../features/customers/presentation/screens/customer_detail_screen.dart';
 import '../../features/customers/presentation/screens/customers_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
+import '../../features/driver_app/presentation/screens/driver_carwash_detail_screen.dart';
 import '../../features/driver_app/presentation/screens/driver_earnings_screen.dart';
 import '../../features/driver_app/presentation/screens/driver_job_detail_screen.dart';
 import '../../features/driver_app/presentation/screens/driver_profile_screen.dart';
@@ -86,6 +87,7 @@ class Routes {
   static const String driverEarnings = '/driver/earnings';
   static const String driverProfile = '/driver/profile';
   static String driverJob(String id) => '/driver/job/$id';
+  static String driverCarwash(String id) => '/driver/carwash/$id';
 }
 
 final GlobalKey<NavigatorState> _rootNavigatorKey =
@@ -319,6 +321,12 @@ final GoRouter appRouter = GoRouter(
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) =>
           DriverJobDetailScreen(jobId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/driver/carwash/:id',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) =>
+          DriverCarwashDetailScreen(bookingId: state.pathParameters['id']!),
     ),
   ],
 );
