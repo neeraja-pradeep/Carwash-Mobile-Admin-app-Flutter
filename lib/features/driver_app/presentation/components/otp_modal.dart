@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
-import '../../../../app/config/constants.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -12,14 +11,13 @@ import '../../../../core/widgets/app_icons.dart';
 /// `screen_driver_app.jsx`.
 ///
 /// A centred card with a brand-yellow icon chip, title, instruction, a 4-digit
-/// OTP field, the demo-OTP hint (or an inline error), and Cancel / Start|End
-/// actions. The confirm button is disabled until 4 digits are entered and
-/// [onConfirmed] fires only on a correct code. [kind] is `'start'` or `'end'`.
+/// OTP field, and Cancel / Start|End actions. The confirm button is disabled until
+/// 4 digits are entered. [onVerifyOtp] is called to validate the OTP with the API.
+/// [kind] is `'start'` or `'end'`.
 class OtpModal extends StatefulWidget {
   const OtpModal({
     required this.kind,
-    required this.expectedOtp,
-    required this.onConfirmed,
+    required this.onVerifyOtp,
     required this.onDismiss,
     super.key,
   });
@@ -27,10 +25,9 @@ class OtpModal extends StatefulWidget {
   /// `'start'` or `'end'`.
   final String kind;
 
-  /// The correct OTP for this job (from [DriverJob.otp]).
-  final String expectedOtp;
+  /// Callback to verify OTP with the API. Should throw an exception if OTP is invalid.
+  final Future<void> Function(String otp) onVerifyOtp;
 
-  final VoidCallback onConfirmed;
   final VoidCallback onDismiss;
 
   @override
@@ -40,6 +37,8 @@ class OtpModal extends StatefulWidget {
 class _OtpModalState extends State<OtpModal> {
   final _controller = TextEditingController();
   bool _error = false;
+  bool _isLoading = false;
+  String _errorMessage = '';
 
   @override
   void dispose() {
@@ -47,15 +46,31 @@ class _OtpModalState extends State<OtpModal> {
     super.dispose();
   }
 
-  bool get _canConfirm => _controller.text.trim().length == 4;
+  bool get _canConfirm => _controller.text.trim().length == 4 && !_isLoading;
 
-  void _verify() {
+  Future<void> _verify() async {
     final input = _controller.text.trim();
-    if (input == widget.expectedOtp || input == AppConstants.demoOtp) {
-      widget.onConfirmed();
-    } else {
-      setState(() => _error = true);
-      HapticFeedback.mediumImpact();
+    setState(() {
+      _isLoading = true;
+      _error = false;
+      _errorMessage = '';
+    });
+
+    try {
+      await widget.onVerifyOtp(input);
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMsg = e.toString().replaceFirst('Exception: ', '');
+        setState(() {
+          _error = true;
+          _errorMessage = errorMsg;
+          _isLoading = false;
+        });
+        HapticFeedback.mediumImpact();
+      }
     }
   }
 
@@ -171,17 +186,26 @@ class _OtpModalState extends State<OtpModal> {
                   ),
                 ),
                 SizedBox(height: 8.h),
-                Text(
-                  _error
-                      ? 'Incorrect OTP — try again'
-                      : 'Demo OTP is ${widget.expectedOtp}',
-                  textAlign: TextAlign.center,
-                  style: AppText.figtree(
-                    size: 12,
-                    weight: FontWeight.w500,
-                    color: _error ? AppColors.danger : AppColors.fgMuted,
+                if (_error)
+                  Text(
+                    _errorMessage,
+                    textAlign: TextAlign.center,
+                    style: AppText.figtree(
+                      size: 12,
+                      weight: FontWeight.w500,
+                      color: AppColors.danger,
+                    ),
+                  )
+                else
+                  Text(
+                    'Enter the 4-digit OTP provided by the customer',
+                    textAlign: TextAlign.center,
+                    style: AppText.figtree(
+                      size: 12,
+                      weight: FontWeight.w500,
+                      color: AppColors.fgMuted,
+                    ),
                   ),
-                ),
                 SizedBox(height: 16.h),
 
                 Row(
@@ -190,6 +214,7 @@ class _OtpModalState extends State<OtpModal> {
                       child: AppButton(
                         label: 'Cancel',
                         kind: AppButtonKind.secondary,
+                        disabled: _isLoading,
                         onPressed: widget.onDismiss,
                       ),
                     ),

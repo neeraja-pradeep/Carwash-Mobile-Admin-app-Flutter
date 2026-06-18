@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
@@ -11,144 +12,231 @@ import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/skeleton_card.dart';
 import '../../../../core/widgets/top_bar.dart';
-import '../../../drivers/domain/entities/driver_job.dart';
-import '../../application/providers/driver_app_providers.dart';
+import '../../application/providers/job_detail_provider.dart';
+import '../../application/states/job_detail_state.dart';
 import '../components/otp_modal.dart';
 import '../components/route_ladder.dart';
 
-/// Full driver-facing job detail, pushed via Routes.driverJob(id).
-///
-/// Mirrors `DJobDetail` in `screen_driver_app.jsx`: a combined customer +
-/// route card (Call + Navigate), a status / payout card, the trip/job summary
-/// on completion, and a sticky Start → OTP → Active → End → OTP → Completed
-/// flow. Status is tracked locally so the demo flow runs end to end.
-class DriverJobDetailScreen extends ConsumerWidget {
+/// Full driver-facing job detail with real API integration.
+/// Handles driver-inspection-requests with OTP flow for start/end job.
+class DriverJobDetailScreen extends ConsumerStatefulWidget {
   const DriverJobDetailScreen({required this.jobId, super.key});
 
   final String jobId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final jobAsync = ref.watch(driverJobByIdProvider(jobId));
-
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(
-        bottom: false,
-        child: jobAsync.when(
-          loading: () => Column(
-            children: [
-              TopBar(title: 'Job', onBack: () => Navigator.of(context).pop()),
-              Expanded(
-                child: ListView.separated(
-                  padding: EdgeInsets.all(16.r),
-                  itemCount: 3,
-                  separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                  itemBuilder: (_, __) => const SkeletonCard(),
-                ),
-              ),
-            ],
-          ),
-          error: (_, __) => Column(
-            children: [
-              TopBar(title: 'Job', onBack: () => Navigator.of(context).pop()),
-              const Expanded(child: Center(child: Text('Could not load job.'))),
-            ],
-          ),
-          data: (job) {
-            if (job == null) {
-              return Column(
-                children: [
-                  TopBar(
-                    title: 'Job',
-                    onBack: () => Navigator.of(context).pop(),
-                  ),
-                  const Expanded(child: Center(child: Text('Job not found.'))),
-                ],
-              );
-            }
-            return _JobDetailBody(
-              job: job,
-              onBack: () => Navigator.of(context).pop(),
-            );
-          },
-        ),
-      ),
-    );
-  }
+  ConsumerState<DriverJobDetailScreen> createState() =>
+      _DriverJobDetailScreenState();
 }
 
-// ── Body (stateful: local status transitions on OTP verify) ──────────────────
-
-class _JobDetailBody extends StatefulWidget {
-  const _JobDetailBody({required this.job, required this.onBack});
-
-  final DriverJob job;
-  final VoidCallback onBack;
-
-  @override
-  State<_JobDetailBody> createState() => _JobDetailBodyState();
-}
-
-class _JobDetailBodyState extends State<_JobDetailBody> {
-  late DriverJobState _status = widget.job.state;
+class _DriverJobDetailScreenState extends ConsumerState<DriverJobDetailScreen> {
+  bool _initialized = false;
   String? _otpKind; // 'start' | 'end' | null
 
-  DriverJob get job => widget.job;
-  bool get isHire => job.type == 'Driver hire';
+  @override
+  void initState() {
+    super.initState();
+    _initialized = false;
+  }
 
-  String get _stageMsg => switch (_status) {
-        DriverJobState.upcoming => 'Not started',
-        DriverJobState.active => job.stage.isEmpty ? 'In progress' : job.stage,
-        DriverJobState.completed => 'Completed',
-      };
+  Future<void> _loadJobDetail() async {
+    if (!mounted) return;
+    try {
+      await ref.read(jobDetailStateProvider(widget.jobId).notifier).loadJobDetail();
+    } catch (e) {
+      debugPrint('Error loading job detail: $e');
+    }
+  }
 
-  void _onVerified() {
-    final isStart = _otpKind == 'start';
-    setState(() {
-      _status = isStart ? DriverJobState.active : DriverJobState.completed;
-      _otpKind = null;
-    });
-    if (isStart) {
+  Future<void> _handleArrive() async {
+    try {
+      await ref.read(jobDetailStateProvider(widget.jobId).notifier).arrive();
+      if (mounted) {
+        AppToast.show(context, 'Marked as arrived');
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMsg = e.toString().replaceFirst('Exception: ', '');
+        AppToast.show(context, errorMsg);
+      }
+    }
+  }
+
+  Future<void> _handleStartOtp(String otp) async {
+    await ref
+        .read(jobDetailStateProvider(widget.jobId).notifier)
+        .verifyStartOtp(otp);
+    if (mounted) {
       AppToast.show(context, 'Job started · location shared');
-    } else {
-      AppToast.show(
-        context,
-        job.fare.collect > 0
-            ? 'Job done · collect ${Formatters.money(job.fare.collect)}'
-            : 'Job completed',
-      );
+    }
+  }
+
+  Future<void> _handleEndOtp(String otp) async {
+    await ref
+        .read(jobDetailStateProvider(widget.jobId).notifier)
+        .verifyEndOtp(otp);
+    if (mounted) {
+      final state = ref.read(jobDetailStateProvider(widget.jobId));
+      if (state is JobDetailSuccess) {
+        final balanceDue = double.tryParse(state.job.balanceDue) ?? 0;
+        AppToast.show(
+          context,
+          balanceDue > 0
+              ? 'Job done · collect ₹${state.job.balanceDue}'
+              : 'Job completed',
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isCompleted = _status == DriverJobState.completed;
-    final isActive = _status == DriverJobState.active;
+    // Initialize data only once on first build
+    if (!_initialized) {
+      _initialized = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _loadJobDetail();
+      });
+    }
 
+    final jobState = ref.watch(jobDetailStateProvider(widget.jobId));
+
+    return Scaffold(
+      backgroundColor: AppColors.bgPage,
+      body: SafeArea(
+        bottom: false,
+        child: _buildStateView(jobState),
+      ),
+    );
+  }
+
+  Widget _buildStateView(JobDetailState state) {
+    if (state is JobDetailLoading || state is JobDetailInitial) {
+      return _buildLoading();
+    } else if (state is JobDetailSuccess) {
+      return _JobDetailBody(
+        job: state.job,
+        bill: state.bill,
+        isLoading: state.isLoading,
+        otpKind: _otpKind,
+        onBack: () => Navigator.of(context).pop(),
+        onArrive: _handleArrive,
+        onStartOtp: _handleStartOtp,
+        onEndOtp: _handleEndOtp,
+        onDismissOtp: () => setState(() => _otpKind = null),
+        onTapStartJob: () => setState(() => _otpKind = 'start'),
+        onTapEndJob: () => setState(() => _otpKind = 'end'),
+      );
+    } else if (state is JobDetailError) {
+      return Column(
+        children: [
+          TopBar(title: 'Job', onBack: () => Navigator.of(context).pop()),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(AppIcons.alert, size: 48.sp, color: AppColors.danger),
+                  SizedBox(height: 16.h),
+                  Text(
+                    'Could not load job',
+                    style: AppText.figtree(size: 16, weight: FontWeight.w600),
+                  ),
+                  SizedBox(height: 8.h),
+                  Text(
+                    state.message,
+                    style:
+                        AppText.figtree(size: 14, color: AppColors.fgMuted),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 16.h),
+                  AppButton(
+                    label: 'Retry',
+                    onPressed: _loadJobDetail,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return _buildLoading();
+  }
+
+  Widget _buildLoading() {
+    return Column(
+      children: [
+        TopBar(title: 'Job', onBack: () => Navigator.of(context).pop()),
+        Expanded(
+          child: ListView.separated(
+            padding: EdgeInsets.all(16.r),
+            itemCount: 3,
+            separatorBuilder: (_, __) => SizedBox(height: 12.h),
+            itemBuilder: (_, __) => const SkeletonCard(),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Body widget ──────────────────────────────────────────────────────────────
+
+class _JobDetailBody extends StatelessWidget {
+  const _JobDetailBody({
+    required this.job,
+    this.bill,
+    this.isLoading = false,
+    this.otpKind,
+    required this.onBack,
+    required this.onArrive,
+    required this.onStartOtp,
+    required this.onEndOtp,
+    required this.onDismissOtp,
+    required this.onTapStartJob,
+    required this.onTapEndJob,
+  });
+
+  final dynamic job;
+  final dynamic bill;
+  final bool isLoading;
+  final String? otpKind;
+  final VoidCallback onBack;
+  final VoidCallback onArrive;
+  final Future<void> Function(String) onStartOtp;
+  final Future<void> Function(String) onEndOtp;
+  final VoidCallback onDismissOtp;
+  final VoidCallback onTapStartJob;
+  final VoidCallback onTapEndJob;
+
+  String get _stageMsg => job.status;
+  bool get _isCompleted => job.status == 'completed';
+  bool get _isInProgress => job.status == 'in_progress';
+  bool get _isArrived => job.status == 'arrived';
+  bool get _isAssigned => job.status == 'assigned';
+
+  @override
+  Widget build(BuildContext context) {
     return Stack(
       children: [
         Column(
           children: [
             TopBar(
-              title: '${isHire ? 'Driver Hire' : 'Carwash'} Job',
-              subtitle: '${job.time} · $_stageMsg',
-              onBack: widget.onBack,
+              title: 'Job',
+              subtitle: '${job.appointmentDate} · ${_stageMsg.toUpperCase()}',
+              onBack: onBack,
             ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
                 children: [
-                  _CustomerRouteCard(job: job, isHire: isHire),
+                  _CustomerRouteCard(job: job),
                   SizedBox(height: 14.h),
-                  _StatusCard(
-                    status: _status,
-                    stageMsg: _stageMsg,
-                    payout: job.payout,
-                  ),
-                  if (isCompleted) ...[
+                  _StatusCard(job: job),
+                  if (_isCompleted && bill != null) ...[
                     SizedBox(height: 14.h),
-                    _FareSummaryCard(job: job, isHire: isHire),
+                    _FareSummaryCard(job: job, bill: bill),
                   ],
                 ],
               ),
@@ -163,36 +251,52 @@ class _JobDetailBodyState extends State<_JobDetailBody> {
               ),
               child: SafeArea(
                 top: false,
-                child: isCompleted
+                child: _isCompleted
                     ? AppButton(
                         label: 'Job completed',
                         full: true,
                         kind: AppButtonKind.secondary,
                         disabled: true,
                       )
-                    : isActive
+                    : _isInProgress
                         ? AppButton(
                             label: 'End Job',
                             full: true,
                             icon: AppIcons.checkCircle,
-                            onPressed: () => setState(() => _otpKind = 'end'),
+                            disabled: isLoading,
+                            onPressed: onTapEndJob,
                           )
-                        : AppButton(
-                            label: 'Start Job',
-                            full: true,
-                            icon: AppIcons.play,
-                            onPressed: () => setState(() => _otpKind = 'start'),
-                          ),
+                        : _isArrived
+                            ? AppButton(
+                                label: 'Start Job',
+                                full: true,
+                                icon: AppIcons.play,
+                                disabled: isLoading,
+                                onPressed: onTapStartJob,
+                              )
+                            : _isAssigned
+                                ? AppButton(
+                                    label: 'Arrive at Location',
+                                    full: true,
+                                    disabled: isLoading,
+                                    onPressed: onArrive,
+                                  )
+                                : AppButton(
+                                    label: 'Unable to process',
+                                    full: true,
+                                    kind: AppButtonKind.secondary,
+                                    disabled: true,
+                                  ),
               ),
             ),
           ],
         ),
-        if (_otpKind != null)
+        if (otpKind != null)
           OtpModal(
-            kind: _otpKind!,
-            expectedOtp: job.otp,
-            onConfirmed: _onVerified,
-            onDismiss: () => setState(() => _otpKind = null),
+            kind: otpKind!,
+            onVerifyOtp:
+                otpKind == 'start' ? onStartOtp : onEndOtp,
+            onDismiss: onDismissOtp,
           ),
       ],
     );
@@ -202,10 +306,38 @@ class _JobDetailBodyState extends State<_JobDetailBody> {
 // ── Customer + route card ────────────────────────────────────────────────────
 
 class _CustomerRouteCard extends StatelessWidget {
-  const _CustomerRouteCard({required this.job, required this.isHire});
+  const _CustomerRouteCard({required this.job});
 
-  final DriverJob job;
-  final bool isHire;
+  final dynamic job;
+
+  Future<void> _launchPhone(String phoneNumber) async {
+    final uri = Uri(scheme: 'tel', path: phoneNumber);
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      }
+    } catch (e) {
+      debugPrint('Error launching phone: $e');
+    }
+  }
+
+  Future<void> _launchMaps(double? latitude, double? longitude) async {
+    if (latitude == null || longitude == null) {
+      return;
+    }
+
+    final googleMapsUrl = Uri.parse(
+      'https://www.google.com/maps?q=$latitude,$longitude',
+    );
+
+    try {
+      if (await canLaunchUrl(googleMapsUrl)) {
+        await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      debugPrint('Error launching maps: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -221,29 +353,18 @@ class _CustomerRouteCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      job.customer,
+                      job.customerName,
                       style: AppText.figtree(size: 16, weight: FontWeight.w700),
                     ),
                     SizedBox(height: 3.h),
                     Text(
-                      job.vehicle,
+                      job.vehicleText,
                       style: AppText.figtree(
                         size: 12.5,
                         weight: FontWeight.w500,
                         color: AppColors.fgTertiary,
                       ),
                     ),
-                    if (isHire && job.reason != null) ...[
-                      SizedBox(height: 5.h),
-                      Text(
-                        job.reason!,
-                        style: AppText.figtree(
-                          size: 11.5,
-                          weight: FontWeight.w600,
-                          color: AppColors.fgSecondary,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -251,16 +372,16 @@ class _CustomerRouteCard extends StatelessWidget {
               _ActionBtn(
                 icon: AppIcons.phone,
                 filled: false,
-                onTap: () => AppToast.show(
-                  context,
-                  'Calling ${job.customer}…',
-                ),
+                onTap: () => _launchPhone(job.customerPhone),
               ),
               SizedBox(width: 8.w),
               _ActionBtn(
                 icon: AppIcons.nav,
                 filled: true,
-                onTap: () => AppToast.show(context, 'Opening Maps…'),
+                onTap: () => _launchMaps(
+                  job.dropLatitude,
+                  job.dropLongitude,
+                ),
               ),
             ],
           ),
@@ -268,9 +389,9 @@ class _CustomerRouteCard extends StatelessWidget {
           const Divider(height: 1, color: AppColors.borderSoft),
           SizedBox(height: 13.h),
           RouteLadder(
-            pickup: job.pickup,
-            drop: job.drop,
-            dropLabel: isHire ? 'Trip' : 'Drop',
+            pickup: job.addressText,
+            drop: job.dropAddressText ?? job.addressText,
+            dropLabel: 'Address',
           ),
         ],
       ),
@@ -281,35 +402,33 @@ class _CustomerRouteCard extends StatelessWidget {
 // ── Status / payout card ─────────────────────────────────────────────────────
 
 class _StatusCard extends StatelessWidget {
-  const _StatusCard({
-    required this.status,
-    required this.stageMsg,
-    required this.payout,
-  });
+  const _StatusCard({required this.job});
 
-  final DriverJobState status;
-  final String stageMsg;
-  final int payout;
+  final dynamic job;
 
   @override
   Widget build(BuildContext context) {
+    final status = job.status;
     final (chipBg, chipFg, icon) = switch (status) {
-      DriverJobState.completed => (
+      'completed' => (
           AppColors.greenBg,
           AppColors.greenFg,
           AppIcons.checkCircle,
         ),
-      DriverJobState.active => (
+      'in_progress' => (
           AppColors.blueBg,
           AppColors.blueFg,
           AppIcons.nav,
         ),
-      DriverJobState.upcoming => (
+      _ => (
           AppColors.bgPage,
           AppColors.fgSecondary,
           AppIcons.clock,
         ),
     };
+
+    // Use estimatedFee if quotedFee is not available
+    final payout = double.tryParse(job.quoted_fee) ?? double.tryParse(job.estimated_fee) ?? 0;
 
     return AppCard(
       child: Row(
@@ -332,7 +451,7 @@ class _StatusCard extends StatelessWidget {
                 _Eyebrow('Status'),
                 SizedBox(height: 2.h),
                 Text(
-                  stageMsg,
+                  status.replaceAll('_', ' ').toUpperCase(),
                   style: AppText.figtree(size: 14, weight: FontWeight.w700),
                 ),
               ],
@@ -344,7 +463,7 @@ class _StatusCard extends StatelessWidget {
               _Eyebrow('Your payout'),
               SizedBox(height: 2.h),
               Text(
-                Formatters.money(payout),
+                Formatters.money(payout.toInt()),
                 style: AppText.figtree(size: 16, weight: FontWeight.w700),
               ),
             ],
@@ -355,17 +474,25 @@ class _StatusCard extends StatelessWidget {
   }
 }
 
-// ── Trip / job summary card (completed only) ─────────────────────────────────
+// ── Bill summary card (completed only) ───────────────────────────────────────
 
 class _FareSummaryCard extends StatelessWidget {
-  const _FareSummaryCard({required this.job, required this.isHire});
+  const _FareSummaryCard({required this.job, required this.bill});
 
-  final DriverJob job;
-  final bool isHire;
+  final dynamic job;
+  final dynamic bill;
 
   @override
   Widget build(BuildContext context) {
-    final f = job.fare;
+    if (bill == null) {
+      return const SizedBox.shrink();
+    }
+
+    final balanceDue = double.tryParse(bill.balanceDue) ?? 0;
+    final advancePaid = double.tryParse(bill.advancePaid) ?? 0;
+    final additionalCharges = double.tryParse(bill.additionalCharges) ?? 0;
+    final finalTotal = double.tryParse(bill.finalTotal) ?? 0;
+
     return AppCard(
       accent: AppColors.success,
       child: Column(
@@ -376,7 +503,7 @@ class _FareSummaryCard extends StatelessWidget {
               Icon(AppIcons.receipt, size: 16.sp, color: AppColors.fgSecondary),
               SizedBox(width: 8.w),
               Text(
-                (isHire ? 'Trip Summary' : 'Job Summary').toUpperCase(),
+                'Job Summary'.toUpperCase(),
                 style: AppText.figtree(
                   size: 11,
                   weight: FontWeight.w700,
@@ -387,20 +514,13 @@ class _FareSummaryCard extends StatelessWidget {
             ],
           ),
           SizedBox(height: 12.h),
-          if (isHire && f.plannedHours != null)
+          _SummaryRow(label: 'Base fare', valueText: Formatters.money(advancePaid.toInt())),
+          if (additionalCharges > 0)
             _SummaryRow(
-              label: 'Duration',
-              valueText:
-                  '${f.plannedHours}h planned · ${f.actualHours}h actual',
-            ),
-          _SummaryRow(label: 'Base fare', valueText: Formatters.money(f.base)),
-          ...f.items.map(
-            (it) => _SummaryRow(
-              label: it.label,
-              valueText: '+ ${Formatters.money(it.amount)}',
+              label: 'Additional charges',
+              valueText: '+ ${Formatters.money(additionalCharges.toInt())}',
               amber: true,
             ),
-          ),
           SizedBox(height: 8.h),
           Container(
             decoration: const BoxDecoration(
@@ -415,14 +535,14 @@ class _FareSummaryCard extends StatelessWidget {
                   style: AppText.figtree(size: 14, weight: FontWeight.w700),
                 ),
                 Text(
-                  Formatters.money(f.total),
+                  Formatters.money(finalTotal.toInt()),
                   style: AppText.figtree(size: 18, weight: FontWeight.w700),
                 ),
               ],
             ),
           ),
           SizedBox(height: 10.h),
-          if (f.collect > 0)
+          if (balanceDue > 0)
             Container(
               padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
               decoration: BoxDecoration(
@@ -435,7 +555,7 @@ class _FareSummaryCard extends StatelessWidget {
                   SizedBox(width: 8.w),
                   Expanded(
                     child: Text(
-                      'Collect extra ${Formatters.money(f.collect)} from customer',
+                      'Collect extra ${Formatters.money(balanceDue.toInt())} from customer',
                       style: AppText.figtree(
                         size: 12.5,
                         weight: FontWeight.w700,

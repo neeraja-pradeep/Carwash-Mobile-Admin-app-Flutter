@@ -14,6 +14,8 @@ class Job {
   final String vehicle;
   final String pickupAddress;
   final String dropAddress;
+  final double? pickupLat;
+  final double? pickupLng;
   final String payout;
   final bool isPaid;
   final String? balanceDue;
@@ -34,6 +36,8 @@ class Job {
     required this.vehicle,
     required this.pickupAddress,
     required this.dropAddress,
+    this.pickupLat,
+    this.pickupLng,
     required this.payout,
     required this.isPaid,
     this.balanceDue,
@@ -56,6 +60,8 @@ class Job {
       vehicle: json['vehicle'],
       pickupAddress: json['pickup_address'],
       dropAddress: json['drop_address'],
+      pickupLat: (json['pickup_lat'] as num?)?.toDouble(),
+      pickupLng: (json['pickup_lng'] as num?)?.toDouble(),
       payout: json['payout'],
       isPaid: json['is_paid'] ?? false,
       balanceDue: json['balance_due'],
@@ -78,6 +84,8 @@ class Job {
     'vehicle': vehicle,
     'pickup_address': pickupAddress,
     'drop_address': dropAddress,
+    'pickup_lat': pickupLat,
+    'pickup_lng': pickupLng,
     'payout': payout,
     'is_paid': isPaid,
     'balance_due': balanceDue,
