@@ -10,9 +10,11 @@ import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/avatar.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/widgets/skeleton_card.dart';
 import '../../../../core/widgets/status_badge.dart';
-import '../../../drivers/domain/entities/field_driver.dart';
+import '../../../auth/application/providers/auth_provider.dart';
+import '../../domain/entities/worker_profile.dart';
 import '../../application/providers/driver_app_providers.dart';
 
 /// Driver app "Profile" tab — profile header (name, status, rating), an info
@@ -24,9 +26,9 @@ class DriverProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final driverAsync = ref.watch(signedInDriverProvider);
+    final profileAsync = ref.watch(workerProfileProvider);
 
-    return driverAsync.when(
+    return profileAsync.when(
       loading: () => ListView.separated(
         padding: EdgeInsets.all(16.r),
         itemCount: 2,
@@ -34,33 +36,55 @@ class DriverProfileScreen extends ConsumerWidget {
         itemBuilder: (_, __) => const SkeletonCard(),
       ),
       error: (_, __) => const Center(child: Text('Could not load profile.')),
-      data: (driver) => _ProfileBody(
-        driver: driver,
-        onSignOut: () => context.go(Routes.login),
+      data: (profile) => _ProfileBody(
+        profile: profile,
+        onSignOut: () async {
+          final confirmed = await showConfirmDialog(
+            context: context,
+            title: 'Sign out?',
+            body: 'You will be logged out of your account. You can sign in again anytime.',
+            confirmLabel: 'Sign out',
+            destructive: true,
+          );
+
+          if (!confirmed) return;
+
+          final logout = ref.read(logoutProvider);
+          try {
+            await logout();
+            // Reset auth state
+            await ref.read(authStateProvider.notifier).logout();
+            if (context.mounted) {
+              context.go(Routes.login);
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Sign out failed: $e')),
+              );
+            }
+          }
+        },
       ),
     );
   }
 }
 
 class _ProfileBody extends StatelessWidget {
-  const _ProfileBody({required this.driver, required this.onSignOut});
+  const _ProfileBody({required this.profile, required this.onSignOut});
 
-  final FieldDriver? driver;
-  final VoidCallback onSignOut;
+  final WorkerProfile profile;
+  final Future<void> Function() onSignOut;
 
   @override
   Widget build(BuildContext context) {
-    final d = driver;
-    if (d == null) {
-      return const Center(child: Text('Driver not found.'));
-    }
-
     final rows = <(String, String)>[
-      ('Phone', d.phone),
-      ('Email', d.email.isEmpty ? '—' : d.email),
-      ('License', d.license.number),
-      ('Role', d.role),
-      ('Jobs done', '${d.jobsDone}'),
+      ('Phone', profile.phone),
+      ('Email', profile.email.isEmpty ? '—' : profile.email),
+      if (profile.licenseNumber != null)
+        ('License', profile.licenseNumber!),
+      ('Role', profile.roleLabel),
+      ('Jobs done', '${profile.jobsDone}'),
     ];
 
     return ListView(
@@ -71,27 +95,27 @@ class _ProfileBody extends StatelessWidget {
           padding: EdgeInsets.all(18.r),
           child: Row(
             children: [
-              Avatar(name: d.name, size: 56),
+              Avatar(name: profile.fullName, size: 56),
               SizedBox(width: 14.w),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      d.name,
+                      profile.fullName,
                       style: AppText.figtree(size: 18, weight: FontWeight.w700),
                     ),
                     SizedBox(height: 5.h),
                     Row(
                       children: [
-                        StatusBadge(label: d.status.label, tone: d.status.tone),
-                        if (d.rating != null) ...[
+                        StatusBadge(label: profile.status.label, tone: profile.status.tone),
+                        if (profile.rating != null) ...[
                           SizedBox(width: 8.w),
                           Icon(AppIcons.star,
                               size: 13.sp, color: AppColors.brandWarning),
                           SizedBox(width: 4.w),
                           Text(
-                            d.rating!.toStringAsFixed(1),
+                            profile.rating!.toStringAsFixed(1),
                             style: AppText.figtree(
                               size: 12.5,
                               weight: FontWeight.w700,
@@ -161,6 +185,7 @@ class _ProfileBody extends StatelessWidget {
               border: Border.all(color: AppColors.borderDefault),
             ),
             child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(AppIcons.logout, size: 18.sp, color: AppColors.redFg),

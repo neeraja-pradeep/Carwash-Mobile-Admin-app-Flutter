@@ -1,6 +1,7 @@
 import '../../../../../app/config/constants.dart';
 import '../../../../drivers/domain/entities/driver_earnings.dart';
 import '../../../../drivers/domain/entities/driver_job.dart';
+import '../../../domain/entities/worker_profile.dart';
 
 /// Static sample driver-app data (Alappuzha demo set, verbatim from `data.jsx`
 /// DRIVER_JOBS + DRIVER_EARNINGS — the signed-in driver is Manoj Kumar, fd1).
@@ -22,6 +23,12 @@ class DriverAppLocalDs {
   Future<DriverEarnings> fetchDriverEarnings() async {
     await Future<void>.delayed(AppConstants.sampleLoadDelay);
     return _driverEarnings;
+  }
+
+  /// Returns Manoj Kumar's worker profile.
+  Future<WorkerProfile> fetchWorkerProfile() async {
+    await Future<void>.delayed(AppConstants.sampleLoadDelay);
+    return _workerProfile;
   }
 
   // ── Static sample data (verbatim from data.jsx DRIVER_JOBS / DRIVER_EARNINGS)
@@ -155,5 +162,21 @@ class DriverAppLocalDs {
       EarningsBreakdownRow(label: 'Driver hire', count: 3, amount: 540),
       EarningsBreakdownRow(label: 'Incentives', count: 1, amount: 60),
     ],
+  );
+
+  static final WorkerProfile _workerProfile = WorkerProfile(
+    id: 24,
+    fullName: 'Manoj Kumar',
+    phone: '+919744730021',
+    email: 'manoj.k@gmail.com',
+    profilePicture: 'https://cdn.bunnycdn.com/d24.jpg',
+    role: 'driver',
+    roleLabel: 'Wash driver',
+    title: 'Detailer',
+    status: WorkerStatus.active,
+    online: true,
+    rating: 4.7,
+    licenseNumber: 'KL04 20190004821',
+    jobsDone: 142,
   );
 }

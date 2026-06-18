@@ -44,11 +44,24 @@ class AuthLocalDataSource {
       final box = await Hive.openBox<Map<dynamic, dynamic>>(_sessionBoxName);
       final sessionData = box.get(_currentSessionKey);
       if (sessionData != null) {
-        return Session(
-          sessionId: sessionData['sessionId'],
-          csrfToken: sessionData['csrfToken'],
-          expiresAt: DateTime.parse(sessionData['expiresAt']),
-        );
+        try {
+          final sessionId = sessionData['sessionId'] as String?;
+          final csrfToken = sessionData['csrfToken'] as String?;
+          final expiresAtStr = sessionData['expiresAt'] as String?;
+
+          if (sessionId == null || csrfToken == null || expiresAtStr == null) {
+            return null;
+          }
+
+          return Session(
+            sessionId: sessionId,
+            csrfToken: csrfToken,
+            expiresAt: DateTime.parse(expiresAtStr),
+          );
+        } catch (e) {
+          // Invalid session data, return null
+          return null;
+        }
       }
       return null;
     } catch (e) {

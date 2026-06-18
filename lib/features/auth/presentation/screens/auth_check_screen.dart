@@ -18,10 +18,19 @@ class AuthCheckScreen extends ConsumerStatefulWidget {
 }
 
 class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> {
+  bool _navigationCompleted = false;
+
   @override
   void initState() {
     super.initState();
     _checkAuth();
+    // Add a timeout to prevent infinite loading screen
+    Future.delayed(const Duration(seconds: 10), () {
+      if (mounted && !_navigationCompleted) {
+        debugPrint('Auth check timeout - navigating to login');
+        context.go(Routes.login);
+      }
+    });
   }
 
   Future<void> _checkAuth() async {
@@ -29,16 +38,26 @@ class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> {
 
     if (!mounted) return;
 
-    ref.read(authStateProvider.notifier).checkCurrentSession();
+    try {
+      await ref.read(authStateProvider.notifier).checkCurrentSession();
+    } catch (e) {
+      debugPrint('Error during auth check: $e');
+      if (mounted) {
+        context.go(Routes.login);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     ref.listen(authStateProvider, (previous, state) {
-      if (!mounted) return;
+      if (!mounted || _navigationCompleted) return;
+
+      debugPrint('Auth state changed: ${state.runtimeType}');
 
       if (state is AuthSuccess) {
         // User is authenticated — redirect to appropriate screen
+        _navigationCompleted = true;
         if (state.user.role == 'driver') {
           context.go(Routes.driverToday);
         } else {
@@ -46,6 +65,8 @@ class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> {
         }
       } else if (state is AuthInitial || state is AuthError) {
         // No valid session — show login
+        _navigationCompleted = true;
+        debugPrint('No valid session, navigating to login');
         context.go(Routes.login);
       }
     });
