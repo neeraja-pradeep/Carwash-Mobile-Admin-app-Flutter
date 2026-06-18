@@ -24,7 +24,7 @@ class EarningsBarChart extends StatelessWidget {
     final maxAmount = byDay.fold<int>(1, (m, e) => e.$2 > m ? e.$2 : m);
 
     return SizedBox(
-      height: 70.h,
+      height: 72.h,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: byDay.map((entry) {
@@ -36,6 +36,7 @@ class EarningsBarChart extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: 3.5.w),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   SizedBox(
@@ -54,7 +55,7 @@ class EarningsBarChart extends StatelessWidget {
                       ),
                     ),
                   ),
-                  SizedBox(height: 6.h),
+                  SizedBox(height: 4.h),
                   Text(
                     label.isEmpty ? '' : label[0],
                     style: AppText.figtree(
@@ -62,6 +63,8 @@ class EarningsBarChart extends StatelessWidget {
                       weight: FontWeight.w600,
                       color: AppColors.fgTertiary,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
                   ),
                 ],
               ),

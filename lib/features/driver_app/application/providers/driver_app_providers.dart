@@ -6,6 +6,7 @@ import '../../../../features/drivers/domain/entities/driver_job.dart';
 import '../../../../features/drivers/domain/entities/field_driver.dart';
 import '../../domain/repositories/driver_app_repository.dart';
 import '../../infrastructure/data_sources/local/driver_app_local_ds.dart';
+import '../../infrastructure/data_sources/earnings_api.dart';
 import '../../infrastructure/repositories/driver_app_repository_impl.dart';
 
 // ── Data layer providers ─────────────────────────────────────────────────────
@@ -15,9 +16,17 @@ final driverAppLocalDsProvider = Provider<DriverAppLocalDs>(
   (ref) => const DriverAppLocalDs(),
 );
 
+/// Earnings API data source.
+final earningsApiProvider = Provider<EarningsApi>(
+  (ref) => EarningsApi(),
+);
+
 /// The driver-app repository (domain contract → infrastructure impl).
 final driverAppRepositoryProvider = Provider<DriverAppRepository>(
-  (ref) => DriverAppRepositoryImpl(ref.watch(driverAppLocalDsProvider)),
+  (ref) => DriverAppRepositoryImpl(
+    ref.watch(driverAppLocalDsProvider),
+    earningsApi: ref.watch(earningsApiProvider),
+  ),
 );
 
 // ── Entity providers ─────────────────────────────────────────────────────────
