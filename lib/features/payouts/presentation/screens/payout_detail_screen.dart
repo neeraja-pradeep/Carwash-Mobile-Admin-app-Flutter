@@ -565,7 +565,6 @@ class _CalcLine extends StatelessWidget {
     required this.isOpen,
     required this.onToggle,
     this.child,
-    this.bold = false,
   });
 
   final String label;
@@ -574,7 +573,6 @@ class _CalcLine extends StatelessWidget {
   final bool isOpen;
   final VoidCallback onToggle;
   final Widget? child;
-  final bool bold;
 
   @override
   Widget build(BuildContext context) {
@@ -611,19 +609,17 @@ class _CalcLine extends StatelessWidget {
                     child: Text(
                       label,
                       style: AppText.figtree(
-                        size: bold ? 14 : 13.5,
-                        weight: bold ? FontWeight.w700 : FontWeight.w500,
-                        color: bold
-                            ? AppColors.fgPrimary
-                            : AppColors.fgSecondary,
+                        size: 13.5,
+                        weight: FontWeight.w500,
+                        color: AppColors.fgSecondary,
                       ),
                     ),
                   ),
                   Text(
                     '${sign == '-' ? '− ' : sign == '+' ? '+ ' : ''}${Formatters.money(amount.abs())}',
                     style: AppText.figtree(
-                      size: bold ? 16 : 14,
-                      weight: bold ? FontWeight.w800 : FontWeight.w700,
+                      size: 14,
+                      weight: FontWeight.w700,
                       color: sign == '-'
                           ? AppColors.redFg
                           : AppColors.fgPrimary,

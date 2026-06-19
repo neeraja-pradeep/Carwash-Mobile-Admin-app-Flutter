@@ -77,3 +77,17 @@ final otpFlowKindProvider = StateProvider.autoDispose<String?>(
 final otpErrorProvider = StateProvider.autoDispose<String?>(
   (ref) => null,
 );
+
+/// Active earnings period: `'week'` (default) or `'month'`.
+final earningsPeriodProvider = StateProvider.autoDispose<String>(
+  (ref) => 'week',
+);
+
+/// Earnings data for the currently selected period. Refreshes when the period
+/// changes.
+final driverEarningsByPeriodProvider = FutureProvider.autoDispose<DriverEarnings>(
+  (ref) {
+    final period = ref.watch(earningsPeriodProvider);
+    return ref.watch(driverAppLocalDsProvider).fetchDriverEarningsForPeriod(period);
+  },
+);

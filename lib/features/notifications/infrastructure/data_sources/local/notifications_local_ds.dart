@@ -20,6 +20,7 @@ class NotificationsLocalDs {
       body: 'Priya Menon · AquaShine Thathampally · 4:15 PM pickup',
       time: '3 min ago',
       unread: true,
+      dateGroup: 'Today',
       bookingId: 'DD-KL-20260529-0048',
     ),
     AppNotification(
@@ -29,6 +30,7 @@ class NotificationsLocalDs {
       body: "Priya Menon's booking has no driver 18 min after slot start",
       time: '12 min ago',
       unread: true,
+      dateGroup: 'Today',
       bookingId: 'DD-KL-20260529-0048',
     ),
     AppNotification(
@@ -38,6 +40,7 @@ class NotificationsLocalDs {
       body: 'Anitha Thomas · GleamPro Vazhicherry — ready for drop',
       time: '24 min ago',
       unread: true,
+      dateGroup: 'Today',
       bookingId: 'DD-KL-20260529-0046',
     ),
     AppNotification(
@@ -47,6 +50,7 @@ class NotificationsLocalDs {
       body: 'Mohammed Ashraf · ₹1,100 · awaiting your approval',
       time: '1 hr ago',
       unread: false,
+      dateGroup: 'Today',
       refundId: 'RF-20260529-014',
     ),
     AppNotification(
@@ -56,6 +60,7 @@ class NotificationsLocalDs {
       body: 'Deepak Nair rated ShineHub Iron Bridge',
       time: '2 hr ago',
       unread: false,
+      dateGroup: 'Today',
       reviewId: 'r1',
     ),
     AppNotification(
@@ -63,8 +68,9 @@ class NotificationsLocalDs {
       kind: NotificationKind.payout,
       title: 'Payout marked paid',
       body: 'AquaShine Thathampally · ₹3,920 · UTR logged',
-      time: 'Yesterday',
+      time: 'Yesterday, 6:14 PM',
       unread: false,
+      dateGroup: 'Yesterday',
       payoutId: 'PO-20260520-006',
     ),
     AppNotification(
@@ -72,8 +78,9 @@ class NotificationsLocalDs {
       kind: NotificationKind.holiday,
       title: 'Holiday reminder',
       body: 'Local festival on Sun 07 Jun affects 4 shops',
-      time: 'Yesterday',
+      time: 'Yesterday, 9:00 AM',
       unread: false,
+      dateGroup: 'Yesterday',
     ),
   ];
 }

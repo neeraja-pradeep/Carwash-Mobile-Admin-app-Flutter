@@ -41,8 +41,6 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
   List<String> _classes = ['Hatchback', 'Sedan'];
   List<DriverDocument> _docs = [];
 
-  bool _confirmExitOpen = false;
-
   bool get _valid =>
       _name.trim().isNotEmpty &&
       _phone.trim().length >= 10 &&
@@ -73,24 +71,37 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
       confirmLabel: 'Discard',
       destructive: true,
     );
-    if (confirmed && mounted) {
-      context.pop();
-    }
+    if (!confirmed || !mounted) return;
+    // ignore: use_build_context_synchronously
+    context.pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            TopBar(
-              title: 'Hire Driver',
-              subtitle: 'New team member',
-              onBack: _handleBack,
-            ),
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        final discard = await showConfirmDialog(
+          context: context,
+          title: 'Discard new driver?',
+          body: 'Your entered details will be lost.',
+          confirmLabel: 'Discard',
+          destructive: true,
+        );
+        if (discard && context.mounted) context.pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bgPage,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              TopBar(
+                title: 'Hire Driver',
+                subtitle: 'New team member',
+                onBack: _handleBack,
+              ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
@@ -263,6 +274,7 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

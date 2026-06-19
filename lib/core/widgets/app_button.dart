@@ -48,7 +48,6 @@ class AppButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final h = (size == AppButtonSize.lg ? 54.0 : 44.0).h;
     final fontSize = size == AppButtonSize.lg ? 16.0 : 14.0;
-    final isPrimary = kind == AppButtonKind.primary && !disabled;
 
     Color textColor;
     Color? solidColor;

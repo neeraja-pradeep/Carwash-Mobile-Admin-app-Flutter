@@ -52,7 +52,7 @@ class KpiTile extends StatelessWidget {
             border: Border.all(color: border),
             boxShadow: [
               BoxShadow(
-                color: const Color(0x080000000),
+                color: const Color(0x08000000),
                 offset: Offset(0, 1.h),
                 blurRadius: 2.r,
               ),

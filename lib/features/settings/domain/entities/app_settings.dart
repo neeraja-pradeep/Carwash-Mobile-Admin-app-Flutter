@@ -1,7 +1,6 @@
-/// Immutable domain entities for the Settings feature.
-///
-/// Mirrors the `SETTINGS` object in `data.jsx` (lines 671–691).
-/// All fields are final; no JSON serialisation yet (static local data only).
+// Immutable domain entities for the Settings feature.
+// Mirrors the `SETTINGS` object in `data.jsx` (lines 671–691).
+// All fields are final; no JSON serialisation yet (static local data only).
 
 class BusinessInfo {
   const BusinessInfo({

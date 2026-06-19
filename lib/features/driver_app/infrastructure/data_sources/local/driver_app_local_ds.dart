@@ -44,7 +44,7 @@ class DriverAppLocalDs {
       otp: '5821',
       fare: DriverFare(
         base: 180,
-        items: const [],
+        items: [],
         extra: 0,
         total: 180,
         collect: 0,
@@ -68,7 +68,7 @@ class DriverAppLocalDs {
       otp: '3047',
       fare: DriverFare(
         base: 200,
-        items: const [],
+        items: [],
         extra: 0,
         total: 200,
         collect: 0,
@@ -92,7 +92,7 @@ class DriverAppLocalDs {
       otp: '7391',
       fare: DriverFare(
         base: 420,
-        items: const [
+        items: [
           FareItem(label: 'Night allowance', amount: 150),
           FareItem(label: 'Toll charges', amount: 50),
         ],
@@ -120,7 +120,7 @@ class DriverAppLocalDs {
       otp: '2214',
       fare: DriverFare(
         base: 160,
-        items: const [],
+        items: [],
         extra: 0,
         total: 160,
         collect: 0,
@@ -152,4 +152,35 @@ class DriverAppLocalDs {
       EarningsBreakdownRow(label: 'Incentives', count: 1, amount: 120),
     ],
   );
+
+  /// Monthly (June 2026) earnings summary — used by the Month period view.
+  static final DriverEarnings _driverEarningsMonth = DriverEarnings(
+    todayTotal: 540,
+    weekTotal: 11480,
+    pending: 1240,
+    lastPayout: const DriverPayout(
+      amount: 2890,
+      date: '22 May 2026',
+      utr: 'UTR4982017736',
+    ),
+    byDay: const [
+      // Labelled by week for the bar chart in the Month view.
+      ('W1', 2640),
+      ('W2', 3180),
+      ('W3', 2860),
+      ('W4', 2800),
+    ],
+    breakdown: const [
+      EarningsBreakdownRow(label: 'Carwash jobs', count: 52, amount: 9360),
+      EarningsBreakdownRow(label: 'Driver hire', count: 14, amount: 1680),
+      EarningsBreakdownRow(label: 'Incentives', count: 3, amount: 440),
+    ],
+  );
+
+  /// Returns the earnings summary for the given [period]:
+  /// `'week'` (default) or `'month'`.
+  Future<DriverEarnings> fetchDriverEarningsForPeriod(String period) async {
+    await Future<void>.delayed(AppConstants.sampleLoadDelay);
+    return period == 'month' ? _driverEarningsMonth : _driverEarnings;
+  }
 }

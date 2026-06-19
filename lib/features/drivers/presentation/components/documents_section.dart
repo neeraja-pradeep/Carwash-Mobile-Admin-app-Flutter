@@ -79,6 +79,8 @@ class _DocumentsSectionState extends State<DocumentsSection> {
           onSave: () => doSave(ctx),
           onDeleteRequest: existingDoc != null
               ? () async {
+                  // Capture context-dependent objects before the await gap.
+                  final messenger = ScaffoldMessenger.of(context);
                   final confirmed = await showConfirmDialog(
                     context: context,
                     title: 'Delete this document?',
@@ -92,8 +94,10 @@ class _DocumentsSectionState extends State<DocumentsSection> {
                         .where((d) => d.id != existingDoc.id)
                         .toList();
                     widget.onChanged(docs);
-                    Navigator.of(ctx).pop();
-                    AppToast.show(context, 'Document removed');
+                    if (ctx.mounted) Navigator.of(ctx).pop();
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Document removed')),
+                    );
                   }
                 }
               : null,

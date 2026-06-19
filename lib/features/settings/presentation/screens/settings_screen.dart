@@ -363,7 +363,7 @@ class _Body extends StatelessWidget {
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 class _Skeleton extends StatelessWidget {
-  const _Skeleton({super.key});
+  const _Skeleton();
 
   @override
   Widget build(BuildContext context) {

@@ -189,6 +189,16 @@ class DashboardScreen extends ConsumerWidget {
                                 onTap: () => context.go(Routes.drivers),
                               ),
                               ModuleTile(
+                                icon: AppIcons.cal,
+                                label: 'Bookings',
+                                onTap: () => context.go(Routes.bookings),
+                              ),
+                              ModuleTile(
+                                icon: AppIcons.users,
+                                label: 'Customers',
+                                onTap: () => context.go(Routes.customers),
+                              ),
+                              ModuleTile(
                                 icon: AppIcons.gear,
                                 label: 'Settings',
                                 onTap: () => context.push(Routes.settings),
@@ -248,6 +258,13 @@ class _TopBar extends StatelessWidget {
 
   final VoidCallback onNotifications;
 
+  static String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -284,7 +301,7 @@ class _TopBar extends StatelessWidget {
                 ),
                 SizedBox(height: 3.h),
                 Text(
-                  'Good afternoon, Anand',
+                  '${_greeting()}, Anand',
                   style: AppText.figtree(
                     size: 12,
                     weight: FontWeight.w500,

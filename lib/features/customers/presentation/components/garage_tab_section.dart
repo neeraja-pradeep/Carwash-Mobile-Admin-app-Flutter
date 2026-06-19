@@ -5,6 +5,7 @@ import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_icons.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../../domain/entities/customer.dart';
 
 /// Garage tab content for the Customer Detail screen.
@@ -18,6 +19,13 @@ class GarageTabSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (vehicles.isEmpty) {
+      return const EmptyState(
+        icon: AppIcons.car,
+        title: 'No vehicles saved',
+        body: 'This customer hasn\'t added any vehicles yet.',
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

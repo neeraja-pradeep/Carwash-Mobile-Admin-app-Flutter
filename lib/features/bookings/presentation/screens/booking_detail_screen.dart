@@ -798,7 +798,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                                   ),
                                 ];
                               });
-                              if (mounted) {
+                              if (context.mounted) {
                                 AppToast.show(
                                     context, 'Booking cancelled');
                               }
@@ -1154,7 +1154,6 @@ class _DriverCard extends ConsumerWidget {
     required this.driverId,
     required this.onAssign,
     required this.onCall,
-    super.key,
   });
 
   final String? driverId;
@@ -1580,7 +1579,7 @@ class _ActionPill extends StatelessWidget {
 }
 
 class _PaymentPill extends StatelessWidget {
-  const _PaymentPill({required this.payment, super.key});
+  const _PaymentPill({required this.payment});
 
   final PaymentStatus payment;
 

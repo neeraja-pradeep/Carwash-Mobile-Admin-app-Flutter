@@ -61,8 +61,6 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
   // Step 8: Payment
   String _pay = 'pending';
 
-  bool _confirmExit = false;
-
   bool get _dirty =>
       _customer != null || _shopId != null || _picked.isNotEmpty;
 
@@ -166,7 +164,20 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
         final totalMin =
             chosen.fold(0, (s, sv) => s + (_svcPrice(sv)?.minutes ?? 0));
 
-        return Scaffold(
+        return PopScope(
+          canPop: !_dirty,
+          onPopInvokedWithResult: (bool didPop, dynamic result) async {
+            if (didPop) return;
+            final discard = await showConfirmDialog(
+              context: context,
+              title: 'Discard this booking?',
+              body: 'Your entered details will be lost.',
+              confirmLabel: 'Discard',
+              destructive: true,
+            );
+            if (discard && context.mounted) context.pop();
+          },
+          child: Scaffold(
           backgroundColor: AppColors.bgPage,
           body: SafeArea(
             bottom: false,
@@ -177,7 +188,6 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                   subtitle: 'Manual / phone-in',
                   onBack: () {
                     if (_dirty) {
-                      setState(() => _confirmExit = true);
                       _showExitDialog(context);
                     } else {
                       context.pop();
@@ -513,6 +523,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
               ],
             ),
           ),
+        ),
         );
       },
     );
@@ -526,7 +537,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
       confirmLabel: 'Discard',
       destructive: true,
     );
-    if (confirmed && mounted) {
+    if (confirmed && context.mounted) {
       context.pop();
     }
   }
@@ -576,13 +587,11 @@ class _SelectRow extends StatelessWidget {
     required this.title,
     required this.onTap,
     this.sub,
-    this.right,
   });
 
   final bool active;
   final String title;
   final String? sub;
-  final String? right;
   final VoidCallback onTap;
 
   @override
@@ -648,14 +657,6 @@ class _SelectRow extends StatelessWidget {
                 ],
               ),
             ),
-            if (right != null)
-              Text(
-                right!,
-                style: AppText.figtree(
-                  size: 13,
-                  weight: FontWeight.w700,
-                ),
-              ),
           ],
         ),
       ),
@@ -760,7 +761,6 @@ class _TextField extends StatelessWidget {
     required this.placeholder,
     this.optional = false,
     this.onChanged,
-    this.keyboardType,
   });
 
   final String label;
@@ -768,7 +768,6 @@ class _TextField extends StatelessWidget {
   final String placeholder;
   final bool optional;
   final void Function(String)? onChanged;
-  final TextInputType? keyboardType;
 
   @override
   Widget build(BuildContext context) {
@@ -799,7 +798,6 @@ class _TextField extends StatelessWidget {
         SizedBox(height: 6.h),
         TextField(
           controller: controller,
-          keyboardType: keyboardType,
           onChanged: onChanged,
           decoration: InputDecoration(
             hintText: placeholder,

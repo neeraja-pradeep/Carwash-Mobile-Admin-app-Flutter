@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/top_bar.dart';
 import '../../domain/entities/coupon.dart';
@@ -34,6 +35,7 @@ class _CouponFormScreenState extends State<CouponFormScreen> {
   late String _scope;
   late List<String> _scopeShops;
   late bool _active;
+  bool _dirty = false;
 
   @override
   void initState() {
@@ -77,16 +79,39 @@ class _CouponFormScreenState extends State<CouponFormScreen> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.coupon != null;
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            TopBar(
-              title: isEdit ? 'Edit Coupon' : 'Add Coupon',
-              onBack: () => Navigator.of(context).pop(),
-            ),
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final discard = await showConfirmDialog(
+          context: context,
+          title: 'Discard changes?',
+          body: 'Your changes will be lost.',
+          confirmLabel: 'Discard',
+          destructive: true,
+        );
+        if (discard && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bgPage,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              TopBar(
+                title: isEdit ? 'Edit Coupon' : 'Add Coupon',
+                onBack: () async {
+                  if (!_dirty) { Navigator.of(context).pop(); return; }
+                  final discard = await showConfirmDialog(
+                    context: context,
+                    title: 'Discard changes?',
+                    body: 'Your changes will be lost.',
+                    confirmLabel: 'Discard',
+                    destructive: true,
+                  );
+                  if (discard && context.mounted) Navigator.of(context).pop();
+                },
+              ),
             Expanded(
               child: ListView(
                 padding:
@@ -109,7 +134,7 @@ class _CouponFormScreenState extends State<CouponFormScreen> {
                                   offset: upper.length),
                             );
                           }
-                          setState(() {});
+                          setState(() { _dirty = true; });
                         },
                       ),
                       SizedBox(height: 14.h),
@@ -128,7 +153,7 @@ class _CouponFormScreenState extends State<CouponFormScreen> {
                           ('percentage', 'Percentage'),
                           ('flat', 'Flat ₹'),
                         ],
-                        onChanged: (v) => setState(() => _type = v),
+                        onChanged: (v) => setState(() { _type = v; _dirty = true; }),
                       ),
                       SizedBox(height: 14.h),
                       Row(
@@ -144,7 +169,7 @@ class _CouponFormScreenState extends State<CouponFormScreen> {
                               suffix:
                                   _type == 'percentage' ? '%' : '',
                               keyboardType: TextInputType.number,
-                              onChanged: (_) => setState(() {}),
+                              onChanged: (_) => setState(() { _dirty = true; }),
                             ),
                           ),
                           if (_type == 'percentage') ...[
@@ -190,7 +215,7 @@ class _CouponFormScreenState extends State<CouponFormScreen> {
                           ('shop', 'Specific shop'),
                         ],
                         onChanged: (v) =>
-                            setState(() => _scope = v),
+                            setState(() { _scope = v; _dirty = true; }),
                       ),
                       if (_scope == 'shop') ...[
                         SizedBox(height: 12.h),
@@ -202,6 +227,7 @@ class _CouponFormScreenState extends State<CouponFormScreen> {
                             } else {
                               _scopeShops.add(s);
                             }
+                            _dirty = true;
                           }),
                         ),
                       ],
@@ -281,7 +307,7 @@ class _CouponFormScreenState extends State<CouponFormScreen> {
                           OfferToggle(
                             on: _active,
                             onTap: () =>
-                                setState(() => _active = !_active),
+                                setState(() { _active = !_active; _dirty = true; }),
                           ),
                         ],
                       ),
@@ -318,6 +344,7 @@ class _CouponFormScreenState extends State<CouponFormScreen> {
                 : null,
           ),
         ),
+      ),
       ),
     );
   }

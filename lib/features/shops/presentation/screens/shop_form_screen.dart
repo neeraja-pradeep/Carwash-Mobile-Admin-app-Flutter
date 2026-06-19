@@ -62,7 +62,6 @@ class _ShopFormBody extends StatefulWidget {
 class _ShopFormBodyState extends State<_ShopFormBody> {
   late _FormState _f;
   bool _touched = false;
-  bool _showExitConfirm = false;
 
   bool get _isEdit => widget.shop != null;
 
@@ -86,30 +85,46 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
 
   void _toast(String msg) => AppToast.show(context, msg);
 
+  Future<void> _handleBack() async {
+    if (!_dirty) {
+      context.pop();
+      return;
+    }
+    final discard = await showConfirmDialog(
+      context: context,
+      title: _isEdit ? 'Discard changes?' : 'Discard this shop?',
+      body: 'Your changes will be lost.',
+      confirmLabel: 'Discard',
+      destructive: true,
+    );
+    // ignore: use_build_context_synchronously
+    if (discard && mounted) context.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return NotificationListener<ScrollNotification>(
-      onNotification: (_) {
-        if (_isEdit) setState(() => _touched = true);
-        return false;
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
+        if (didPop) return;
+        await _handleBack();
       },
-      child: Scaffold(
-        backgroundColor: AppColors.bgPage,
-        body: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              TopBar(
-                title: _isEdit ? 'Edit Shop' : 'Add Shop',
-                subtitle: _isEdit ? widget.shop!.name : null,
-                onBack: () {
-                  if (_dirty) {
-                    setState(() => _showExitConfirm = true);
-                  } else {
-                    context.pop();
-                  }
-                },
-              ),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (_) {
+          if (_isEdit) setState(() => _touched = true);
+          return false;
+        },
+        child: Scaffold(
+          backgroundColor: AppColors.bgPage,
+          body: SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                TopBar(
+                  title: _isEdit ? 'Edit Shop' : 'Add Shop',
+                  subtitle: _isEdit ? widget.shop!.name : null,
+                  onBack: _handleBack,
+                ),
               Expanded(
                 child: SingleChildScrollView(
                   padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
@@ -498,6 +513,7 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

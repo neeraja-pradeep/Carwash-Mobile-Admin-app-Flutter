@@ -5,6 +5,7 @@ import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
+import 'package:new_flutter_project/core/widgets/app_dialog.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
@@ -21,6 +22,7 @@ class NewPayoutScreen extends StatefulWidget {
 
 class _NewPayoutScreenState extends State<NewPayoutScreen> {
   String? _selectedShopId;
+  bool _dirty = false;
 
   int _fakeNet(String shopId) {
     // Demo: small fixed number per shop for illustration.
@@ -36,17 +38,40 @@ class _NewPayoutScreenState extends State<NewPayoutScreen> {
         ? kDemoShopNames[_selectedShopId!] ?? _selectedShopId!
         : null;
 
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            TopBar(
-              title: 'New Payout',
-              subtitle: 'Standalone',
-              onBack: () => Navigator.of(context).pop(),
-            ),
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final discard = await showConfirmDialog(
+          context: context,
+          title: 'Discard changes?',
+          body: 'Your changes will be lost.',
+          confirmLabel: 'Discard',
+          destructive: true,
+        );
+        if (discard && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bgPage,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              TopBar(
+                title: 'New Payout',
+                subtitle: 'Standalone',
+                onBack: () async {
+                  if (!_dirty) { Navigator.of(context).pop(); return; }
+                  final discard = await showConfirmDialog(
+                    context: context,
+                    title: 'Discard changes?',
+                    body: 'Your changes will be lost.',
+                    confirmLabel: 'Discard',
+                    destructive: true,
+                  );
+                  if (discard && context.mounted) Navigator.of(context).pop();
+                },
+              ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
@@ -70,7 +95,7 @@ class _NewPayoutScreenState extends State<NewPayoutScreen> {
                             final sel = _selectedShopId == e.key;
                             return GestureDetector(
                               onTap: () =>
-                                  setState(() => _selectedShopId = e.key),
+                                  setState(() { _selectedShopId = e.key; _dirty = true; }),
                               child: Container(
                                 width: double.infinity,
                                 margin: EdgeInsets.only(bottom: 8.h),
@@ -229,6 +254,7 @@ class _NewPayoutScreenState extends State<NewPayoutScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

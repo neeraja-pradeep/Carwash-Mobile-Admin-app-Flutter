@@ -12,14 +12,16 @@ import '../../../drivers/domain/entities/driver_earnings.dart';
 import '../../application/providers/driver_app_providers.dart';
 import '../components/earnings_bar_chart.dart';
 
-/// Driver app "Earnings" tab — today/week totals, 7-day bar chart,
-/// breakdown rows, and last payout info.
+/// Driver app "Earnings" tab — today/week/month totals, bar chart (7-day or
+/// 4-week), breakdown rows, and last payout info.
+/// Period toggle: Week | Month.
 class DriverEarningsScreen extends ConsumerWidget {
   const DriverEarningsScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final earningsAsync = ref.watch(driverEarningsProvider);
+    final period = ref.watch(earningsPeriodProvider);
+    final earningsAsync = ref.watch(driverEarningsByPeriodProvider);
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -27,7 +29,7 @@ class DriverEarningsScreen extends ConsumerWidget {
         bottom: false,
         child: Column(
           children: [
-            // Header
+            // Header with period toggle
             Container(
               padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 14.h),
               decoration: const BoxDecoration(
@@ -46,8 +48,12 @@ class DriverEarningsScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  Icon(AppIcons.wallet,
-                      size: 22.sp, color: AppColors.fgTertiary),
+                  // Period toggle: Week | Month
+                  _PeriodToggle(
+                    period: period,
+                    onChanged: (p) =>
+                        ref.read(earningsPeriodProvider.notifier).state = p,
+                  ),
                 ],
               ),
             ),
@@ -63,7 +69,10 @@ class DriverEarningsScreen extends ConsumerWidget {
                 error: (_, __) => const Center(
                   child: Text('Could not load earnings.'),
                 ),
-                data: (earnings) => _EarningsBody(earnings: earnings),
+                data: (earnings) => _EarningsBody(
+                  earnings: earnings,
+                  period: period,
+                ),
               ),
             ),
           ],
@@ -73,23 +82,105 @@ class DriverEarningsScreen extends ConsumerWidget {
   }
 }
 
-class _EarningsBody extends StatelessWidget {
-  const _EarningsBody({required this.earnings});
+// ── Period toggle ─────────────────────────────────────────────────────────────
 
-  final DriverEarnings earnings;
+class _PeriodToggle extends StatelessWidget {
+  const _PeriodToggle({required this.period, required this.onChanged});
+
+  final String period;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(3.r),
+      decoration: BoxDecoration(
+        color: AppColors.bgPage,
+        borderRadius: BorderRadius.circular(10.r),
+        border: Border.all(color: AppColors.borderDefault),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PeriodBtn(
+            label: 'Week',
+            active: period == 'week',
+            onTap: () => onChanged('week'),
+          ),
+          SizedBox(width: 2.w),
+          _PeriodBtn(
+            label: 'Month',
+            active: period == 'month',
+            onTap: () => onChanged('month'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PeriodBtn extends StatelessWidget {
+  const _PeriodBtn({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 6.h),
+        decoration: BoxDecoration(
+          color: active ? AppColors.bgCard : Colors.transparent,
+          borderRadius: BorderRadius.circular(7.r),
+          border: active
+              ? Border.all(color: AppColors.borderSoft)
+              : null,
+        ),
+        child: Text(
+          label,
+          style: AppText.figtree(
+            size: 12.5,
+            weight: active ? FontWeight.w700 : FontWeight.w500,
+            color: active ? AppColors.fgPrimary : AppColors.fgTertiary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EarningsBody extends StatelessWidget {
+  const _EarningsBody({required this.earnings, required this.period});
+
+  final DriverEarnings earnings;
+  final String period;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMonth = period == 'month';
+    final periodLabel = isMonth ? 'This Month' : 'This Week';
+    final periodTotal = earnings.weekTotal; // weekTotal field holds the period total
+    // For the bar chart, month view uses week labels; week view uses day labels.
+    final todayLabel = isMonth ? '' : 'Wed'; // no today-highlight in month view
+
     return ListView(
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 32.h),
       children: [
-        // Today / Week totals
+        // Period totals card
         AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'This Week',
+                periodLabel,
                 style: AppText.figtree(
                   size: 13,
                   weight: FontWeight.w600,
@@ -98,7 +189,7 @@ class _EarningsBody extends StatelessWidget {
               ),
               SizedBox(height: 4.h),
               Text(
-                Formatters.money(earnings.weekTotal),
+                Formatters.money(periodTotal),
                 style: AppText.figtree(
                   size: 28,
                   weight: FontWeight.w700,
@@ -108,11 +199,13 @@ class _EarningsBody extends StatelessWidget {
               SizedBox(height: 4.h),
               Row(
                 children: [
-                  _MiniBadge(
-                    label: 'Today ${Formatters.money(earnings.todayTotal)}',
-                    tone: _MiniBadgeTone.yellow,
-                  ),
-                  SizedBox(width: 8.w),
+                  if (!isMonth) ...[
+                    _MiniBadge(
+                      label: 'Today ${Formatters.money(earnings.todayTotal)}',
+                      tone: _MiniBadgeTone.yellow,
+                    ),
+                    SizedBox(width: 8.w),
+                  ],
                   _MiniBadge(
                     label: 'Pending ${Formatters.money(earnings.pending)}',
                     tone: _MiniBadgeTone.amber,
@@ -120,7 +213,7 @@ class _EarningsBody extends StatelessWidget {
                 ],
               ),
               SizedBox(height: 20.h),
-              EarningsBarChart(byDay: earnings.byDay, todayLabel: 'Wed'),
+              EarningsBarChart(byDay: earnings.byDay, todayLabel: todayLabel),
             ],
           ),
         ),

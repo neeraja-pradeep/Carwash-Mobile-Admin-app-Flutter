@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:new_flutter_project/app/router/app_router.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
+import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/widgets/widgets.dart';
 
 import '../../application/providers/shops_providers.dart';
@@ -169,16 +170,14 @@ class _ActiveChips extends ConsumerWidget {
           children: [
             for (final chip in chips) ...[chip, SizedBox(width: 8.w)],
             GestureDetector(
-              onTap: () {
-                controller.reset();
-              },
+              onTap: controller.reset,
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 6.w),
                 child: Text(
                   'Clear all',
-                  style: TextStyle(
-                    fontSize: 12.5.sp,
-                    fontWeight: FontWeight.w600,
+                  style: AppText.figtree(
+                    size: 12.5,
+                    weight: FontWeight.w600,
                     color: AppColors.fgSecondary,
                   ),
                 ),

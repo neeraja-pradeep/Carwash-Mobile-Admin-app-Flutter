@@ -145,8 +145,7 @@ class PayoutsScreen extends ConsumerWidget {
   }
 
   List<Payout> _applyFilter(List<Payout> all, PayoutsFilterState f) {
-    final shopNameFn = (String id) => kDemoShopNames[id] ?? id;
-    return applyPayoutFilter(all, f, shopName: shopNameFn);
+    return applyPayoutFilter(all, f, shopName: (String id) => kDemoShopNames[id] ?? id);
   }
 }
 

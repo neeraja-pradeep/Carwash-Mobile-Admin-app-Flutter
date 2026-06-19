@@ -467,10 +467,10 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
       confirmLabel: 'Decline',
       destructive: true,
     );
-    if (ok && mounted) {
-      setState(() => _localStatus = 'declined');
-      AppToast.show(context, 'Refund declined');
-    }
+    if (!ok || !mounted) return;
+    setState(() => _localStatus = 'declined');
+    if (!context.mounted) return;
+    AppToast.show(context, 'Refund declined');
   }
 
   Future<void> _showMarkPaidModal(BuildContext context, Refund refund) async {
@@ -480,6 +480,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
         amount: refund.amount,
         onConfirm: (utr) {
           Navigator.of(modalCtx).pop();
+          if (!context.mounted) return;
           setState(() => _localStatus = 'paid');
           AppToast.show(context, 'Refund marked Paid');
         },

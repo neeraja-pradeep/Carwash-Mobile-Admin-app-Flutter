@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
+import '../../../../core/error/error_view.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_chip.dart';
 import '../../../../core/widgets/app_icons.dart';
@@ -285,7 +286,9 @@ class _ReportDetailState extends ConsumerState<_ReportDetail> {
                   separatorBuilder: (_, __) => SizedBox(height: 12.h),
                   itemBuilder: (_, __) => const SkeletonCard(),
                 ),
-                error: (_, __) => const SizedBox.shrink(),
+                error: (_, __) => ErrorView(
+                  onRetry: () => ref.invalidate(dailySummaryProvider),
+                ),
                 data: (summary) => _buildBody(context, summary),
               ),
             ),

@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/top_bar.dart';
@@ -28,6 +29,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
   late final TextEditingController _orderCtrl;
   late String _placement;
   late bool _active;
+  bool _dirty = false;
 
   @override
   void initState() {
@@ -58,16 +60,39 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
   Widget build(BuildContext context) {
     final isEdit = widget.banner != null;
     final b = widget.banner;
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            TopBar(
-              title: isEdit ? 'Edit Banner' : 'Add Banner',
-              onBack: () => Navigator.of(context).pop(),
-            ),
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final discard = await showConfirmDialog(
+          context: context,
+          title: 'Discard changes?',
+          body: 'Your changes will be lost.',
+          confirmLabel: 'Discard',
+          destructive: true,
+        );
+        if (discard && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bgPage,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              TopBar(
+                title: isEdit ? 'Edit Banner' : 'Add Banner',
+                onBack: () async {
+                  if (!_dirty) { Navigator.of(context).pop(); return; }
+                  final discard = await showConfirmDialog(
+                    context: context,
+                    title: 'Discard changes?',
+                    body: 'Your changes will be lost.',
+                    confirmLabel: 'Discard',
+                    destructive: true,
+                  );
+                  if (discard && context.mounted) Navigator.of(context).pop();
+                },
+              ),
             Expanded(
               child: ListView(
                 padding:
@@ -153,7 +178,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                         label: 'Title',
                         controller: _titleCtrl,
                         placeholder: 'e.g. Up to 40% Off',
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (_) => setState(() { _dirty = true; }),
                       ),
                       SizedBox(height: 14.h),
                       OfferFInput(
@@ -184,7 +209,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                           ('strip', 'Home — Strip'),
                         ],
                         onChanged: (v) =>
-                            setState(() => _placement = v),
+                            setState(() { _placement = v; _dirty = true; }),
                       ),
                       SizedBox(height: 14.h),
                       OfferFInput(
@@ -231,7 +256,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                           OfferToggle(
                             on: _active,
                             onTap: () => setState(
-                                () => _active = !_active),
+                                () { _active = !_active; _dirty = true; }),
                           ),
                         ],
                       ),
@@ -268,6 +293,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                 : null,
           ),
         ),
+      ),
       ),
     );
   }

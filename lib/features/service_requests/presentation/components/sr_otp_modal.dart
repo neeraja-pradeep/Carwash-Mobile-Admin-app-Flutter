@@ -118,10 +118,10 @@ class _SrOtpModalState extends State<SrOtpModal> {
               }
               if (_hasError) setState(() => _hasError = false);
             },
-            style: TextStyle(
-              fontSize: 26.sp,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5.w * 10,
+            style: AppText.figtree(
+              size: 26,
+              weight: FontWeight.w700,
+              letterSpacing: 5.w,
               color: AppColors.fgPrimary,
             ),
             decoration: InputDecoration(

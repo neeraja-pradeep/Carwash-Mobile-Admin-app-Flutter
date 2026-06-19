@@ -10,6 +10,7 @@ import 'package:new_flutter_project/core/status/service_request_status.dart';
 import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
+import 'package:new_flutter_project/core/widgets/app_dialog.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
 import 'package:new_flutter_project/core/widgets/app_icon_button.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
@@ -483,41 +484,14 @@ class _DetailBody extends ConsumerWidget {
   }
 
   Future<void> _confirmCancel(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showConfirmDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgCard,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.r)),
-        title: Text('Cancel request?',
-            style:
-                AppText.figtree(size: 17, weight: FontWeight.w700)),
-        content: Text(
-          'This will mark the request as cancelled. This cannot be undone.',
-          style: AppText.figtree(
-              size: 14,
-              color: AppColors.fgSecondary,
-              height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Keep',
-                style: AppText.figtree(
-                    size: 14, weight: FontWeight.w600)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('Cancel request',
-                style: AppText.figtree(
-                    size: 14,
-                    weight: FontWeight.w700,
-                    color: AppColors.danger)),
-          ),
-        ],
-      ),
+      title: 'Cancel request?',
+      body: 'This will mark the request as cancelled. This cannot be undone.',
+      confirmLabel: 'Cancel request',
+      destructive: true,
     );
-    if (confirmed == true && context.mounted) {
+    if (confirmed && context.mounted) {
       onStatusChange(ServiceRequestStatus.cancelled);
       onTimelineAdd(SrTimelineEntry(
         status: ServiceRequestStatus.cancelled,

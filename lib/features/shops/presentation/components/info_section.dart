@@ -5,7 +5,6 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
-import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/core/widgets/widgets.dart';
 
 import '../../application/providers/shops_providers.dart';
@@ -66,7 +65,13 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
               ),
               _FieldRow(label: 'Owner phone', value: s.ownerPhone, mono: true),
               _FieldRow(label: 'Shop phone', value: s.shopPhone, mono: true),
-              _FieldRow(label: 'Address', value: s.address, isLast: true),
+              _FieldRow(
+                label: 'Address',
+                value: s.address,
+                action: _RowAction.navigate,
+                onAction: () => _toast('Opening Google Maps…'),
+                isLast: true,
+              ),
               // Map preview
               SizedBox(height: 12.h),
               GestureDetector(

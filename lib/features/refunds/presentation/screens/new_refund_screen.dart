@@ -5,7 +5,7 @@ import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
-import 'package:new_flutter_project/core/widgets/app_icons.dart';
+import 'package:new_flutter_project/core/widgets/app_dialog.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import '../components/refund_filter_sheet.dart';
@@ -24,6 +24,7 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
   final _notesController = TextEditingController();
   String _tier = '100%';
   String _reason = kRefundReasons.first;
+  bool _dirty = false;
 
   @override
   void dispose() {
@@ -35,21 +36,45 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
 
   bool get _valid =>
       _refController.text.trim().isNotEmpty &&
-      _amountController.text.trim().isNotEmpty;
+      _amountController.text.trim().isNotEmpty &&
+      (_tier != 'Override' || _notesController.text.trim().isNotEmpty);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            TopBar(
-              title: 'New Refund',
-              subtitle: 'Standalone',
-              onBack: () => Navigator.of(context).pop(),
-            ),
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final discard = await showConfirmDialog(
+          context: context,
+          title: 'Discard changes?',
+          body: 'Your changes will be lost.',
+          confirmLabel: 'Discard',
+          destructive: true,
+        );
+        if (discard && context.mounted) Navigator.of(context).pop();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bgPage,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              TopBar(
+                title: 'New Refund',
+                subtitle: 'Standalone',
+                onBack: () async {
+                  if (!_dirty) { Navigator.of(context).pop(); return; }
+                  final discard = await showConfirmDialog(
+                    context: context,
+                    title: 'Discard changes?',
+                    body: 'Your changes will be lost.',
+                    confirmLabel: 'Discard',
+                    destructive: true,
+                  );
+                  if (discard && context.mounted) Navigator.of(context).pop();
+                },
+              ),
             Expanded(
               child: ListView(
                 padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
@@ -62,7 +87,7 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
                         label: 'Booking reference',
                         controller: _refController,
                         placeholder: 'DD-KL-…',
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (_) => setState(() { _dirty = true; }),
                       ),
                     ],
                   ),
@@ -89,7 +114,7 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
                                 .map((t) => Expanded(
                                       child: GestureDetector(
                                         onTap: () =>
-                                            setState(() => _tier = t),
+                                            setState(() { _tier = t; _dirty = true; }),
                                         child: Container(
                                           margin: EdgeInsets.only(
                                               right: t != 'Override' ? 8.w : 0),
@@ -131,7 +156,7 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
                         placeholder: '0',
                         prefix: '₹',
                         keyboardType: TextInputType.number,
-                        onChanged: (_) => setState(() {}),
+                        onChanged: (_) => setState(() { _dirty = true; }),
                       ),
                       SizedBox(height: 14.h),
                       Column(
@@ -152,7 +177,7 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
                             children: kRefundReasons.map((r) {
                               final sel = _reason == r;
                               return GestureDetector(
-                                onTap: () => setState(() => _reason = r),
+                                onTap: () => setState(() { _reason = r; _dirty = true; }),
                                 child: Container(
                                   padding: EdgeInsets.symmetric(
                                       horizontal: 12.w, vertical: 8.h),
@@ -220,6 +245,7 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

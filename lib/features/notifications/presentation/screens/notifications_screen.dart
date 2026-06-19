@@ -114,6 +114,15 @@ class NotificationsScreen extends ConsumerWidget {
                     );
                   }
 
+                  // Build ordered list of unique groups preserving original order.
+                  final seenGroups = <String>{};
+                  final orderedGroups = <String>[];
+                  for (final n in items) {
+                    if (seenGroups.add(n.dateGroup)) {
+                      orderedGroups.add(n.dateGroup);
+                    }
+                  }
+
                   return ListView(
                     padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
                     children: [
@@ -127,17 +136,17 @@ class NotificationsScreen extends ConsumerWidget {
                         ),
                         filterCount: filter == 'unread' ? 1 : 0,
                       ),
-                      // Notif rows
-                      Column(
-                        children: [
-                          for (final n in items)
-                            NotifRow(
-                              key: ValueKey(n.id),
-                              notification: n,
-                              onTap: () => openNotification(n),
-                            ),
-                        ],
-                      ),
+                      // Grouped notif rows
+                      for (final group in orderedGroups) ...[
+                        _GroupHeader(label: group),
+                        for (final n in items.where((n) => n.dateGroup == group))
+                          NotifRow(
+                            key: ValueKey(n.id),
+                            notification: n,
+                            onTap: () => openNotification(n),
+                          ),
+                        SizedBox(height: 8.h),
+                      ],
                     ],
                   );
                 },
@@ -201,10 +210,34 @@ class NotificationsScreen extends ConsumerWidget {
   }
 }
 
+// ── Group header ─────────────────────────────────────────────────────────────
+
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: 4.h, bottom: 6.h, left: 2.w),
+      child: Text(
+        label.toUpperCase(),
+        style: AppText.figtree(
+          size: 11,
+          weight: FontWeight.w700,
+          color: AppColors.fgSecondary,
+          letterSpacing: 1.0,
+        ),
+      ),
+    );
+  }
+}
+
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
 class _SkeletonList extends StatelessWidget {
-  const _SkeletonList({super.key});
+  const _SkeletonList();
 
   @override
   Widget build(BuildContext context) {

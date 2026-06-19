@@ -55,16 +55,17 @@ class BannerCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Background image or colour placeholder
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.fgSecondary.withOpacity(0.25),
-                      image: DecorationImage(
-                        image: AssetImage(banner.image),
-                        fit: BoxFit.cover,
-                        onError: (_, __) {},
-                      ),
-                    ),
+                  // Background colour always visible; image layered on top.
+                  ColoredBox(
+                    color: AppColors.fgSecondary.withOpacity(0.25),
+                    child: const SizedBox.expand(),
+                  ),
+                  Image.asset(
+                    banner.image,
+                    fit: BoxFit.cover,
+                    width: double.infinity,
+                    height: double.infinity,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                   ),
                   // Dark gradient at bottom for text legibility
                   Container(

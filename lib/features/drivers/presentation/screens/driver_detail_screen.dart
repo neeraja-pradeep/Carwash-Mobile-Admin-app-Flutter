@@ -246,7 +246,8 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
                         confirmLabel: isSuspended ? 'Reactivate' : 'Suspend',
                         destructive: !isSuspended,
                       );
-                      if (confirmed && mounted) {
+                      if (confirmed) {
+                        if (!context.mounted) return;
                         setState(() {
                           _localStatus = isSuspended
                               ? DriverStatus.active

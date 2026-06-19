@@ -6,6 +6,8 @@ import '../../../../app/theme/typography.dart';
 import '../../../../core/status/booking_status.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_icons.dart';
+import '../../../../core/widgets/empty_state.dart';
 import '../../../../core/widgets/status_badge.dart';
 import '../../domain/entities/customer.dart';
 
@@ -30,6 +32,13 @@ class HistoryTabSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (history.isEmpty) {
+      return const EmptyState(
+        icon: AppIcons.cal,
+        title: 'No bookings yet',
+        body: 'This customer has no booking history to display.',
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

@@ -104,7 +104,6 @@ class _ServiceFormBodyState extends State<_ServiceFormBody> {
   late String _flatMin;
   late bool _active;
   late List<_PricingRow> _rows;
-  bool _confirmExit = false;
 
   bool get _isEdit => widget.existing != null;
 
@@ -167,25 +166,41 @@ class _ServiceFormBodyState extends State<_ServiceFormBody> {
 
   void _toast(String msg) => AppToast.show(context, msg);
 
+  Future<void> _handleBack() async {
+    if (!_dirty) {
+      context.pop();
+      return;
+    }
+    final discard = await showConfirmDialog(
+      context: context,
+      title: 'Discard this service?',
+      body: 'Your changes will be lost.',
+      confirmLabel: 'Discard',
+      destructive: true,
+    );
+    // ignore: use_build_context_synchronously
+    if (discard && mounted) context.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.bgPage,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            TopBar(
-              title: _isEdit ? 'Edit Service' : 'Add Service',
-              subtitle: widget.shop.name,
-              onBack: () {
-                if (_dirty) {
-                  setState(() => _confirmExit = true);
-                } else {
-                  context.pop();
-                }
-              },
-            ),
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (bool didPop, Object? result) async {
+        if (didPop) return;
+        await _handleBack();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.bgPage,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              TopBar(
+                title: _isEdit ? 'Edit Service' : 'Add Service',
+                subtitle: widget.shop.name,
+                onBack: _handleBack,
+              ),
             Expanded(
               child: SingleChildScrollView(
                 padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
@@ -474,6 +489,7 @@ class _ServiceFormBodyState extends State<_ServiceFormBody> {
             ),
           ],
         ),
+        ),
       ),
     );
   }
@@ -489,7 +505,6 @@ class _FInput extends StatelessWidget {
     this.placeholder,
     this.prefix,
     this.suffix,
-    this.optional = false,
     this.keyboardType,
   });
 
@@ -499,7 +514,6 @@ class _FInput extends StatelessWidget {
   final String? placeholder;
   final String? prefix;
   final String? suffix;
-  final bool optional;
   final TextInputType? keyboardType;
 
   @override
@@ -517,17 +531,6 @@ class _FInput extends StatelessWidget {
                 color: AppColors.fgSecondary,
               ),
             ),
-            if (optional) ...[
-              SizedBox(width: 6.w),
-              Text(
-                '· optional',
-                style: AppText.figtree(
-                  size: 12.5,
-                  weight: FontWeight.w500,
-                  color: AppColors.fgMuted,
-                ),
-              ),
-            ],
           ],
         ),
         SizedBox(height: 7.h),

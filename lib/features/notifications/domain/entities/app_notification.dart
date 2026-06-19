@@ -84,6 +84,7 @@ class AppNotification {
     required this.body,
     required this.time,
     required this.unread,
+    this.dateGroup = 'Today',
     this.bookingId,
     this.refundId,
     this.reviewId,
@@ -96,6 +97,10 @@ class AppNotification {
   final String body;
   final String time;
   final bool unread;
+
+  /// Human-readable date-bucket label, e.g. 'Today' or 'Yesterday'.
+  /// Used to render section headers in the notifications list.
+  final String dateGroup;
 
   /// Deep-link targets (at most one will be set).
   final String? bookingId;
@@ -111,6 +116,7 @@ class AppNotification {
       body: body,
       time: time,
       unread: unread ?? this.unread,
+      dateGroup: dateGroup,
       bookingId: bookingId,
       refundId: refundId,
       reviewId: reviewId,

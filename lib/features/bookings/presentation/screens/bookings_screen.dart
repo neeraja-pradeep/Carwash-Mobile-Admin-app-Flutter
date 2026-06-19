@@ -7,6 +7,7 @@ import 'package:new_flutter_project/app/router/app_router.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/error/error_view.dart';
+import 'package:new_flutter_project/core/status/booking_status.dart';
 import 'package:new_flutter_project/core/widgets/app_chip.dart';
 import 'package:new_flutter_project/core/widgets/app_fab.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
@@ -325,8 +326,9 @@ class _ActiveChips extends StatelessWidget {
     }
 
     for (final s in filter.statuses) {
+      final statusLabel = bookingStatusFromKey(s).label;
       chips.add(AppChip(
-        label: s,
+        label: statusLabel,
         active: true,
         removable: true,
         onRemove: () => controller.removeStatus(s),

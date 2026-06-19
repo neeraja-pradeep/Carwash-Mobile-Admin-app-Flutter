@@ -8,6 +8,7 @@ import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_chip.dart';
+import 'package:new_flutter_project/core/widgets/app_dialog.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
@@ -48,6 +49,14 @@ class _NewServiceRequestScreenState
 
   bool get _isDriver => widget.kind == SrKind.driver;
 
+  bool get _dirty =>
+      _customer != null ||
+      _reason != null ||
+      _makeCtrl.text.isNotEmpty ||
+      _modelCtrl.text.isNotEmpty ||
+      _whenCtrl.text.isNotEmpty ||
+      _locationCtrl.text.isNotEmpty;
+
   bool get _isValid {
     return _customer != null &&
         _makeCtrl.text.trim().isNotEmpty &&
@@ -80,9 +89,37 @@ class _NewServiceRequestScreenState
     context.pop();
   }
 
+  Future<void> _onBack(BuildContext context) async {
+    if (!_dirty) {
+      context.pop();
+      return;
+    }
+    final discard = await showConfirmDialog(
+      context: context,
+      title: 'Discard this request?',
+      body: 'Your entered details will be lost.',
+      confirmLabel: 'Discard',
+      destructive: true,
+    );
+    if (discard && context.mounted) context.pop();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: !_dirty,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        final discard = await showConfirmDialog(
+          context: context,
+          title: 'Discard this request?',
+          body: 'Your entered details will be lost.',
+          confirmLabel: 'Discard',
+          destructive: true,
+        );
+        if (discard && context.mounted) context.pop();
+      },
+      child: Scaffold(
       backgroundColor: AppColors.bgPage,
       body: SafeArea(
         bottom: false,
@@ -91,7 +128,7 @@ class _NewServiceRequestScreenState
             TopBar(
               title: _isDriver ? 'New Driver Hire' : 'New Inspection',
               subtitle: 'Phone-in request',
-              onBack: () => context.pop(),
+              onBack: () => _onBack(context),
             ),
             Expanded(
               child: ListView(
@@ -281,6 +318,7 @@ class _NewServiceRequestScreenState
           ],
         ),
       ),
+    ),
     );
   }
 }

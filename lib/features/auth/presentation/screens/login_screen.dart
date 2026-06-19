@@ -9,6 +9,7 @@ import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_icons.dart';
+import '../../../../core/widgets/app_toast.dart';
 
 /// Login screen — Admin / Driver toggle (default = Driver).
 ///
@@ -69,7 +70,17 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() {
       _driverError = null;
       _otpSent = true;
+      _otpController.clear();
     });
+  }
+
+  void _handleResendOtp() {
+    setState(() {
+      _driverError = null;
+      _otpController.clear();
+    });
+    // In the demo: just show acknowledgement; OTP is always 1234.
+    AppToast.show(context, 'OTP resent (demo: use 1234)');
   }
 
   void _handleVerifyOtp() {
@@ -324,22 +335,44 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: _handleVerifyOtp,
           ),
           SizedBox(height: 12.h),
-          Center(
-            child: GestureDetector(
-              onTap: () => setState(() {
-                _otpSent = false;
-                _otpController.clear();
-                _driverError = null;
-              }),
-              child: Text(
-                'Change number',
-                style: AppText.figtree(
-                  size: 13,
-                  weight: FontWeight.w600,
-                  color: AppColors.fgTertiary,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: _handleResendOtp,
+                child: Text(
+                  'Resend OTP',
+                  style: AppText.figtree(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: AppColors.fgSecondary,
+                  ),
                 ),
               ),
-            ),
+              Text(
+                ' · ',
+                style: AppText.figtree(
+                  size: 13,
+                  weight: FontWeight.w400,
+                  color: AppColors.fgMuted,
+                ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() {
+                  _otpSent = false;
+                  _otpController.clear();
+                  _driverError = null;
+                }),
+                child: Text(
+                  'Change number',
+                  style: AppText.figtree(
+                    size: 13,
+                    weight: FontWeight.w600,
+                    color: AppColors.fgTertiary,
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ],
