@@ -226,7 +226,7 @@ class _ServiceToggle extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.25),
+                  color: Colors.black.withOpacity(0.25),
                   blurRadius: 2.r,
                   offset: Offset(0, 1.h),
                 ),

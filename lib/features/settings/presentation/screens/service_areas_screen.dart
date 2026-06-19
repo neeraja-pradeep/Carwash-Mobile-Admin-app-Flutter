@@ -604,7 +604,7 @@ class _AreaSheetState extends State<_AreaSheet> {
                     height: 40.h,
                     padding: EdgeInsets.symmetric(horizontal: 12.w),
                     decoration: BoxDecoration(
-                      color: AppColors.bgCard.withValues(alpha: 0.85),
+                      color: AppColors.bgCard.withOpacity(0.85),
                       borderRadius: BorderRadius.circular(10.r),
                       boxShadow: [
                         BoxShadow(
