@@ -8,7 +8,7 @@ final scheduleRepositoryProvider = Provider<ScheduleRepository>((ref) {
 });
 
 final scheduleStateProvider =
-    StateNotifierProvider<ScheduleNotifier, ScheduleState>((ref) {
+    StateNotifierProvider.autoDispose<ScheduleNotifier, ScheduleState>((ref) {
   final repository = ref.watch(scheduleRepositoryProvider);
   return ScheduleNotifier(repository);
 });
@@ -36,6 +36,7 @@ class ScheduleNotifier extends StateNotifier<ScheduleState> {
       state = ScheduleSuccess(schedule: schedule, currentPage: page);
     } catch (e) {
       state = ScheduleError(message: e.toString());
+      rethrow;
     }
   }
 

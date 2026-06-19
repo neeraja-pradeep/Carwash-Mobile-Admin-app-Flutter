@@ -17,6 +17,7 @@ import '../../../../core/widgets/skeleton_card.dart';
 import '../../application/providers/schedule_provider.dart';
 import '../../application/providers/available_jobs_provider.dart';
 import '../../application/providers/claim_job_provider.dart';
+import '../../application/states/schedule_state.dart';
 import '../../domain/entities/job.dart';
 import '../components/route_ladder.dart';
 
@@ -30,23 +31,58 @@ class DriverScheduleScreen extends ConsumerStatefulWidget {
       _DriverScheduleScreenState();
 }
 
-class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen> {
+class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
+    with WidgetsBindingObserver {
   bool _initialized = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initialized = false;
+    debugPrint('DriverScheduleScreen initState - resetting _initialized to false');
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      debugPrint('DriverScheduleScreen - app resumed, forcing data reload');
+      _initialized = false;
+    }
   }
 
   Future<void> _loadSchedule() async {
-    if (!mounted) return;
-    await ref.read(scheduleStateProvider.notifier).loadSchedule();
+    if (!mounted) {
+      debugPrint('DriverScheduleScreen._loadSchedule - widget not mounted, skipping');
+      return;
+    }
+    try {
+      debugPrint('DriverScheduleScreen._loadSchedule - loading schedule...');
+      await ref.read(scheduleStateProvider.notifier).loadSchedule();
+      debugPrint('DriverScheduleScreen._loadSchedule - schedule loaded successfully');
+    } catch (e) {
+      debugPrint('DriverScheduleScreen._loadSchedule - error: $e');
+    }
   }
 
   Future<void> _loadAvailableJobs() async {
-    if (!mounted) return;
-    await ref.read(availableJobsStateProvider.notifier).loadAvailableJobs();
+    if (!mounted) {
+      debugPrint('DriverScheduleScreen._loadAvailableJobs - widget not mounted, skipping');
+      return;
+    }
+    try {
+      debugPrint('DriverScheduleScreen._loadAvailableJobs - loading available jobs...');
+      await ref.read(availableJobsStateProvider.notifier).loadAvailableJobs();
+      debugPrint('DriverScheduleScreen._loadAvailableJobs - available jobs loaded successfully');
+    } catch (e) {
+      debugPrint('DriverScheduleScreen._loadAvailableJobs - error: $e');
+    }
   }
 
   void _navigateToJobDetail(BuildContext context, Job job) {
@@ -121,17 +157,28 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Initialize data only once on first build
-    if (!_initialized) {
-      _initialized = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _loadSchedule();
-        _loadAvailableJobs();
-      });
-    }
-
     final scheduleState = ref.watch(scheduleStateProvider);
     final availableJobsState = ref.watch(availableJobsStateProvider);
+
+    debugPrint('DriverScheduleScreen.build - scheduleState: ${scheduleState.runtimeType}, availableJobsState: ${availableJobsState.runtimeType}');
+
+    // Load data if not initialized yet or if state is initial (after navigation back)
+    if (!_initialized || scheduleState is ScheduleInitial) {
+      if (!_initialized) {
+        _initialized = true;
+        debugPrint('DriverScheduleScreen.build - first initialization');
+      } else {
+        debugPrint('DriverScheduleScreen.build - scheduleState is ScheduleInitial, reloading data');
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        debugPrint('DriverScheduleScreen.build - postFrameCallback executing');
+        if (mounted) {
+          await _loadSchedule();
+          await _loadAvailableJobs();
+        }
+      });
+    }
 
     return scheduleState.when(
       initial: () => _buildLoading(),
@@ -203,7 +250,8 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen> {
                                   .read(availableJobsStateProvider.notifier)
                                   .loadNextPage();
                             } catch (e) {
-                              if (mounted) {
+                              if (mounted && context.mounted) {
+                                // ignore: use_build_context_synchronously
                                 AppToast.show(context, 'Failed to load more jobs');
                               }
                             }
@@ -248,7 +296,8 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen> {
                         .read(scheduleStateProvider.notifier)
                         .loadNextPage();
                   } catch (e) {
-                    if (mounted) {
+                    if (mounted && context.mounted) {
+                      // ignore: use_build_context_synchronously
                       AppToast.show(context, 'Failed to load more jobs');
                     }
                   }

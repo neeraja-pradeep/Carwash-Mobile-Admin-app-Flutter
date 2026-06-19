@@ -8,7 +8,7 @@ final availableJobsRepositoryProvider = Provider<ScheduleRepository>((ref) {
 });
 
 final availableJobsStateProvider =
-    StateNotifierProvider<AvailableJobsNotifier, AvailableJobsState>((ref) {
+    StateNotifierProvider.autoDispose<AvailableJobsNotifier, AvailableJobsState>((ref) {
   final repository = ref.watch(availableJobsRepositoryProvider);
   return AvailableJobsNotifier(repository);
 });
@@ -37,6 +37,7 @@ class AvailableJobsNotifier extends StateNotifier<AvailableJobsState> {
       );
     } catch (e) {
       state = AvailableJobsError(message: e.toString());
+      rethrow;
     }
   }
 
