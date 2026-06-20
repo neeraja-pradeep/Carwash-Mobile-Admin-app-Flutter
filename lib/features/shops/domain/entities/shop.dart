@@ -200,6 +200,8 @@ class Shop {
     required this.weekly,
     required this.slotCapacityEnabled,
     required this.slotCap,
+    this.latitude = 0.0,
+    this.longitude = 0.0,
   });
 
   final String id;
@@ -227,6 +229,8 @@ class Shop {
   final List<WeeklyDay> weekly;
   final bool slotCapacityEnabled;
   final int slotCap;
+  final double latitude;
+  final double longitude;
 
   int get activeServices => services.where((s) => s.active).length;
 }

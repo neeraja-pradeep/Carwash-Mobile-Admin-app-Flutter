@@ -1,0 +1,412 @@
+import '../../domain/entities/shop.dart';
+
+/// Shop detail response from GET /api/shop/v1/shops/{id}/
+class ShopDetailResponseModel {
+  final int id;
+  final String name;
+  final String tagline;
+  final String status;
+  final String address;
+  final String city;
+  final String state;
+  final String pincode;
+  final double latitude;
+  final double longitude;
+  final double? distance;
+  final String phone;
+  final String? coverImageUrl;
+  final String? normalImage1Url;
+  final String? normalImage2Url;
+  final String? normalImage3Url;
+  final String? normalImage4Url;
+  final double rating;
+  final int ratingCount;
+  final bool isOpenNow;
+  final String ownerName;
+  final String ownerPhone;
+  final int todayBookings;
+  final CapacityDetailModel capacity;
+  final int? avgServiceMinutes;
+  final List<OperatingHourModel> operatingHours;
+  final HolidayModel? nextHoliday;
+  final OperationalConfigModel operationalConfig;
+  final SettlementModel? settlement;
+  final String onboardedAt;
+  final String? onboardedByName;
+  final String? lastEditedByName;
+  final String updatedAt;
+
+  ShopDetailResponseModel({
+    required this.id,
+    required this.name,
+    required this.tagline,
+    required this.status,
+    required this.address,
+    required this.city,
+    required this.state,
+    required this.pincode,
+    required this.latitude,
+    required this.longitude,
+    this.distance,
+    required this.phone,
+    this.coverImageUrl,
+    this.normalImage1Url,
+    this.normalImage2Url,
+    this.normalImage3Url,
+    this.normalImage4Url,
+    required this.rating,
+    required this.ratingCount,
+    required this.isOpenNow,
+    required this.ownerName,
+    required this.ownerPhone,
+    required this.todayBookings,
+    required this.capacity,
+    this.avgServiceMinutes,
+    required this.operatingHours,
+    this.nextHoliday,
+    required this.operationalConfig,
+    this.settlement,
+    required this.onboardedAt,
+    this.onboardedByName,
+    this.lastEditedByName,
+    required this.updatedAt,
+  });
+
+  factory ShopDetailResponseModel.fromJson(Map<String, dynamic> json) {
+    return ShopDetailResponseModel(
+      id: json['id'] as int? ?? 0,
+      name: json['name'] as String? ?? '',
+      tagline: json['tagline'] as String? ?? '',
+      status: json['status'] as String? ?? 'active',
+      address: json['address'] as String? ?? '',
+      city: json['city'] as String? ?? '',
+      state: json['state'] as String? ?? '',
+      pincode: json['pincode'] as String? ?? '',
+      latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
+      distance: (json['distance'] as num?)?.toDouble(),
+      phone: json['phone'] as String? ?? '',
+      coverImageUrl: json['cover_image_url'] as String?,
+      normalImage1Url: json['normal_image1_url'] as String?,
+      normalImage2Url: json['normal_image2_url'] as String?,
+      normalImage3Url: json['normal_image3_url'] as String?,
+      normalImage4Url: json['normal_image4_url'] as String?,
+      rating: (json['rating'] as num?)?.toDouble() ?? 0.0,
+      ratingCount: json['rating_count'] as int? ?? 0,
+      isOpenNow: json['is_open_now'] as bool? ?? false,
+      ownerName: json['owner_name'] as String? ?? '',
+      ownerPhone: json['owner_phone'] as String? ?? '',
+      todayBookings: json['today_bookings'] as int? ?? 0,
+      capacity: CapacityDetailModel.fromJson(
+        json['capacity'] as Map<String, dynamic>? ?? {},
+      ),
+      avgServiceMinutes: json['avg_service_minutes'] as int?,
+      operatingHours: ((json['operating_hours'] as List<dynamic>?) ?? [])
+          .map((h) => OperatingHourModel.fromJson(h as Map<String, dynamic>))
+          .toList(),
+      nextHoliday: json['next_holiday'] != null
+          ? HolidayModel.fromJson(json['next_holiday'] as Map<String, dynamic>)
+          : null,
+      operationalConfig: OperationalConfigModel.fromJson(
+        json['operational_config'] as Map<String, dynamic>? ?? {},
+      ),
+      settlement: json['settlement'] != null
+          ? SettlementModel.fromJson(json['settlement'] as Map<String, dynamic>)
+          : null,
+      onboardedAt: json['onboarded_at'] as String? ?? '',
+      onboardedByName: json['onboarded_by_name'] as String?,
+      lastEditedByName: json['last_edited_by_name'] as String?,
+      updatedAt: json['updated_at'] as String? ?? '',
+    );
+  }
+
+  /// Convert to domain Shop entity.
+  Shop toDomain() {
+    return Shop(
+      id: id.toString(),
+      name: name,
+      area: address,
+      ownerName: ownerName,
+      ownerPhone: ownerPhone,
+      shopPhone: phone,
+      address: address,
+      rating: rating,
+      reviews: ratingCount,
+      todayBookings: todayBookings,
+      cap: capacity.total,
+      avgServiceMin: avgServiceMinutes ?? 30,
+      active: status == 'active',
+      vehicleTypes: operationalConfig.vehicleTypes
+          .where((v) => v.supported)
+          .map((v) => v.value)
+          .toList(),
+      commission: _parseCommission(settlement?.commission),
+      bank: _parseBank(settlement?.bank),
+      hours: _parseDayHours(),
+      photos: _getPhotos(),
+      onboarded: EditMeta(date: onboardedAt, by: onboardedByName ?? ''),
+      lastEdited: EditMeta(date: updatedAt, by: lastEditedByName ?? ''),
+      services: [],
+      settlement: const Settlement(
+        lastSettled: '',
+        lifetimePaid: 0,
+        pending: [],
+        history: [],
+      ),
+      weekly: _parseWeeklyDays(),
+      slotCapacityEnabled: false,
+      slotCap: operationalConfig.dailyBookingCap,
+      latitude: latitude,
+      longitude: longitude,
+    );
+  }
+
+  List<String> _getPhotos() {
+    final photos = <String>[];
+    if (coverImageUrl?.isNotEmpty == true) photos.add(coverImageUrl!);
+    if (normalImage1Url?.isNotEmpty == true) photos.add(normalImage1Url!);
+    if (normalImage2Url?.isNotEmpty == true) photos.add(normalImage2Url!);
+    if (normalImage3Url?.isNotEmpty == true) photos.add(normalImage3Url!);
+    if (normalImage4Url?.isNotEmpty == true) photos.add(normalImage4Url!);
+    return photos;
+  }
+
+  List<DayHours> _parseDayHours() {
+    return operatingHours
+        .map((h) => DayHours(
+              day: h.label,
+              open: h.openingTime ?? '—',
+              close: h.closingTime ?? '—',
+              closed: !h.isOpen,
+            ))
+        .toList();
+  }
+
+  List<WeeklyDay> _parseWeeklyDays() {
+    return operatingHours
+        .map((h) => WeeklyDay(
+              day: h.label,
+              closed: !h.isOpen,
+              open: h.isOpen ? _parseHour(h.openingTime) : 0,
+              close: h.isOpen ? _parseHour(h.closingTime) : 0,
+            ))
+        .toList();
+  }
+
+  static int _parseHour(String? timeStr) {
+    if (timeStr == null || timeStr.isEmpty) return 9;
+    final match = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM)', caseSensitive: false)
+        .firstMatch(timeStr);
+    if (match == null) return 9;
+    int h = int.parse(match.group(1)!) % 12;
+    if (match.group(3)!.toUpperCase() == 'PM') h += 12;
+    return h;
+  }
+
+  static Commission _parseCommission(CommissionDetailModel? c) {
+    if (c == null) {
+      return const Commission(mode: CommissionMode.flat, flat: 0);
+    }
+
+    if (c.type == 'percentage') {
+      return Commission(
+        mode: CommissionMode.percentage,
+        pct: int.tryParse(c.percentage?.toString() ?? '0') ?? 0,
+      );
+    } else if (c.type == 'percent_floor') {
+      return Commission(
+        mode: CommissionMode.floor,
+        pct: int.tryParse(c.percentage?.toString() ?? '0') ?? 0,
+        floor: int.tryParse(c.floor?.toString() ?? '0') ?? 0,
+      );
+    } else {
+      return Commission(
+        mode: CommissionMode.flat,
+        flat: int.tryParse(c.amount?.toString() ?? '0') ?? 0,
+      );
+    }
+  }
+
+  static BankDetails _parseBank(BankDetailModel? b) {
+    return BankDetails(
+      accName: b?.accountName ?? '',
+      accNo: b?.accountNumber ?? '',
+      ifsc: b?.ifsc ?? '',
+      upi: b?.upiId ?? '',
+      gstin: b?.gstin ?? '',
+      pan: b?.pan ?? '',
+    );
+  }
+}
+
+class CapacityDetailModel {
+  final int used;
+  final int total;
+
+  CapacityDetailModel({required this.used, required this.total});
+
+  factory CapacityDetailModel.fromJson(Map<String, dynamic> json) {
+    return CapacityDetailModel(
+      used: json['used'] as int? ?? 0,
+      total: json['total'] as int? ?? 0,
+    );
+  }
+}
+
+class OperatingHourModel {
+  final int weekday;
+  final String label;
+  final bool isOpen;
+  final String? openingTime;
+  final String? closingTime;
+  final String display;
+
+  OperatingHourModel({
+    required this.weekday,
+    required this.label,
+    required this.isOpen,
+    this.openingTime,
+    this.closingTime,
+    required this.display,
+  });
+
+  factory OperatingHourModel.fromJson(Map<String, dynamic> json) {
+    return OperatingHourModel(
+      weekday: json['weekday'] as int? ?? 0,
+      label: json['label'] as String? ?? '',
+      isOpen: json['is_open'] as bool? ?? false,
+      openingTime: json['opening_time'] as String?,
+      closingTime: json['closing_time'] as String?,
+      display: json['display'] as String? ?? 'Off day',
+    );
+  }
+}
+
+class HolidayModel {
+  final String date;
+  final String label;
+
+  HolidayModel({required this.date, required this.label});
+
+  factory HolidayModel.fromJson(Map<String, dynamic> json) {
+    return HolidayModel(
+      date: json['date'] as String? ?? '',
+      label: json['label'] as String? ?? '',
+    );
+  }
+}
+
+class OperationalConfigModel {
+  final int dailyBookingCap;
+  final List<VehicleTypeModel> vehicleTypes;
+  final bool isActive;
+
+  OperationalConfigModel({
+    required this.dailyBookingCap,
+    required this.vehicleTypes,
+    required this.isActive,
+  });
+
+  factory OperationalConfigModel.fromJson(Map<String, dynamic> json) {
+    return OperationalConfigModel(
+      dailyBookingCap: json['daily_booking_cap'] as int? ?? 0,
+      vehicleTypes: ((json['vehicle_types'] as List<dynamic>?) ?? [])
+          .map((v) => VehicleTypeModel.fromJson(v as Map<String, dynamic>))
+          .toList(),
+      isActive: json['is_active'] as bool? ?? true,
+    );
+  }
+}
+
+class VehicleTypeModel {
+  final String value;
+  final String label;
+  final bool supported;
+
+  VehicleTypeModel({
+    required this.value,
+    required this.label,
+    required this.supported,
+  });
+
+  factory VehicleTypeModel.fromJson(Map<String, dynamic> json) {
+    return VehicleTypeModel(
+      value: json['value'] as String? ?? '',
+      label: json['label'] as String? ?? '',
+      supported: json['supported'] as bool? ?? false,
+    );
+  }
+}
+
+class SettlementModel {
+  final CommissionDetailModel commission;
+  final BankDetailModel? bank;
+
+  SettlementModel({required this.commission, this.bank});
+
+  factory SettlementModel.fromJson(Map<String, dynamic> json) {
+    return SettlementModel(
+      commission: CommissionDetailModel.fromJson(
+        json['commission'] as Map<String, dynamic>? ?? {},
+      ),
+      bank: json['bank'] != null
+          ? BankDetailModel.fromJson(json['bank'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+}
+
+class CommissionDetailModel {
+  final String type; // 'flat', 'percentage', 'percent_floor'
+  final double? percentage;
+  final String? amount;
+  final double? floor;
+  final String label;
+
+  CommissionDetailModel({
+    required this.type,
+    this.percentage,
+    this.amount,
+    this.floor,
+    required this.label,
+  });
+
+  factory CommissionDetailModel.fromJson(Map<String, dynamic> json) {
+    return CommissionDetailModel(
+      type: json['type'] as String? ?? 'flat',
+      percentage: (json['percentage'] as num?)?.toDouble(),
+      amount: json['amount'] as String?,
+      floor: (json['floor'] as num?)?.toDouble(),
+      label: json['label'] as String? ?? '',
+    );
+  }
+}
+
+class BankDetailModel {
+  final String accountName;
+  final String accountNumber;
+  final String ifsc;
+  final String upiId;
+  final String? gstin;
+  final String? pan;
+
+  BankDetailModel({
+    required this.accountName,
+    required this.accountNumber,
+    required this.ifsc,
+    required this.upiId,
+    this.gstin,
+    this.pan,
+  });
+
+  factory BankDetailModel.fromJson(Map<String, dynamic> json) {
+    return BankDetailModel(
+      accountName: json['account_name'] as String? ?? '',
+      accountNumber: json['account_number'] as String? ?? '',
+      ifsc: json['ifsc'] as String? ?? '',
+      upiId: json['upi_id'] as String? ?? '',
+      gstin: json['gstin'] as String?,
+      pan: json['pan'] as String?,
+    );
+  }
+}

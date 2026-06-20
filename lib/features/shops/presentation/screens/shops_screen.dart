@@ -27,7 +27,8 @@ class ShopsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final filter = ref.watch(shopsFilterProvider);
     final controller = ref.read(shopsFilterProvider.notifier);
-    final filtered = ref.watch(filteredShopsProvider);
+    final shopsPageAsync = ref.watch(shopsPaginatedProvider);
+    final filtered = shopsPageAsync.whenData((page) => page.items);
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,

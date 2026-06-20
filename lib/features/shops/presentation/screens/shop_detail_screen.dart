@@ -49,7 +49,7 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final shopAsync = ref.watch(shopByIdProvider(widget.shopId));
+    final shopAsync = ref.watch(shopDetailProvider(widget.shopId));
 
     return shopAsync.when(
       loading: () => const Scaffold(
@@ -65,7 +65,7 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
               Expanded(
                 child: ErrorView(
                   onRetry: () =>
-                      ref.invalidate(shopByIdProvider(widget.shopId)),
+                      ref.invalidate(shopDetailProvider(widget.shopId)),
                 ),
               ),
             ],
@@ -73,25 +73,7 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
         ),
       ),
       data: (shop) {
-        if (shop == null) {
-          return Scaffold(
-            backgroundColor: AppColors.bgPage,
-            body: SafeArea(
-              child: Column(
-                children: [
-                  TopBar(title: 'Shop', onBack: () => context.pop()),
-                  const Expanded(
-                    child: EmptyState(
-                      title: 'Shop not found',
-                      body: 'This shop may have been removed.',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-
+        // With the new provider, shop is never null
         final isActive = _activeOverride ?? shop.active;
         final services = _servicesOverride ?? shop.services;
         final live = _buildLiveShop(shop, isActive, services);

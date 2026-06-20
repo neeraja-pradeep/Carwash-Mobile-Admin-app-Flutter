@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
@@ -59,7 +60,14 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
                 label: 'Owner',
                 value: s.ownerName,
                 action: _RowAction.call_,
-                onAction: () => _toast('Calling ${s.ownerName}…'),
+                onAction: () async {
+                  final tel = Uri(scheme: 'tel', path: s.ownerPhone);
+                  if (await canLaunchUrl(tel)) {
+                    await launchUrl(tel);
+                  } else {
+                    _toast('Cannot open dialer for ${s.ownerPhone}');
+                  }
+                },
               ),
               _FieldRow(label: 'Owner phone', value: s.ownerPhone, mono: true),
               _FieldRow(label: 'Shop phone', value: s.shopPhone, mono: true),
@@ -67,7 +75,15 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
               // Map preview
               SizedBox(height: 12.h),
               GestureDetector(
-                onTap: () => _toast('Opening Google Maps…'),
+                onTap: () async {
+                  final mapsUrl = 'https://maps.google.com/?q=${s.latitude},${s.longitude}';
+                  final uri = Uri.parse(mapsUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } else {
+                    _toast('Cannot open maps');
+                  }
+                },
                 child: Container(
                   height: 110.h,
                   decoration: BoxDecoration(
@@ -445,17 +461,19 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
         SizedBox(height: 14.h),
 
         // Meta
-        Padding(
-          padding: EdgeInsets.only(bottom: 4.h),
-          child: Text(
-            'Onboarded ${s.onboarded.date} by ${s.onboarded.by}\n'
-            'Last edited ${s.lastEdited.date} by ${s.lastEdited.by}',
-            textAlign: TextAlign.center,
-            style: AppText.figtree(
-              size: 11.5,
-              weight: FontWeight.w500,
-              color: AppColors.fgMuted,
-              height: 1.6,
+        Center(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 12.w),
+            child: Text(
+              'Onboarded ${s.onboarded.date} by ${s.onboarded.by}\n'
+              'Last edited ${s.lastEdited.date} by ${s.lastEdited.by}',
+              textAlign: TextAlign.center,
+              style: AppText.figtree(
+                size: 11.5,
+                weight: FontWeight.w500,
+                color: AppColors.fgMuted,
+                height: 1.6,
+              ),
             ),
           ),
         ),
@@ -551,14 +569,50 @@ class _PhotoStrip extends StatelessWidget {
         cells.add(
           Expanded(
             child: GestureDetector(
-              onTap: () => onToast('Open photo full-screen'),
+              onTap: () async {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => Dialog(
+                    backgroundColor: Colors.black,
+                    insetPadding: EdgeInsets.all(16.r),
+                    child: Stack(
+                      children: [
+                        Center(
+                          child: Image.network(
+                            photos[i],
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) =>
+                                const Center(child: Text('Image not found', style: TextStyle(color: Colors.white))),
+                          ),
+                        ),
+                        Positioned(
+                          top: 10.h,
+                          right: 10.w,
+                          child: GestureDetector(
+                            onTap: () => Navigator.pop(ctx),
+                            child: Container(
+                              width: 40.r,
+                              height: 40.r,
+                              decoration: const BoxDecoration(
+                                color: Colors.white30,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.close, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
               child: Container(
                 height: 92.h,
                 decoration: BoxDecoration(
                   color: AppColors.borderSoft,
                   borderRadius: BorderRadius.circular(12.r),
                   image: DecorationImage(
-                    image: AssetImage(photos[i]),
+                    image: NetworkImage(photos[i]),
                     fit: BoxFit.cover,
                     onError: (_, __) {},
                   ),
@@ -695,31 +749,35 @@ class _FieldRow extends StatelessWidget {
               border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
             ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: AppText.figtree(
-              size: 13,
-              weight: FontWeight.w500,
-              color: AppColors.fgTertiary,
+          SizedBox(
+            width: 90.w,
+            child: Text(
+              label,
+              style: AppText.figtree(
+                size: 13,
+                weight: FontWeight.w500,
+                color: AppColors.fgTertiary,
+              ),
             ),
           ),
-          const Spacer(),
-          Flexible(
+          SizedBox(width: 12.w),
+          Expanded(
             child: Text(
               value,
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.right,
               style: mono
                   ? TextStyle(
                       fontFamily: 'monospace',
-                      fontSize: 13.sp,
+                      fontSize: 12.5.sp,
                       fontWeight: FontWeight.w600,
                       color: AppColors.fgPrimary,
                     )
                   : AppText.figtree(
-                      size: 13.5,
+                      size: 13,
                       weight: FontWeight.w600,
                       color: AppColors.fgPrimary,
                     ),

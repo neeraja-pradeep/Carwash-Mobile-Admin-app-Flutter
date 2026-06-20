@@ -3,34 +3,82 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/holiday.dart';
 import '../../domain/entities/shop.dart';
 import '../../domain/repositories/shops_repository.dart';
-import '../../infrastructure/data_sources/local/shops_local_ds.dart';
 import '../../infrastructure/repositories/shops_repository_impl.dart';
 import '../states/shops_filter_state.dart';
 
+export '../../domain/repositories/shops_repository.dart' show ShopsPage;
+
 // ─── Data layer providers ─────────────────────────────────────────────────────
 
-/// Local data source (swapped for remote+cache in the API phase).
-final shopsLocalDsProvider = Provider<ShopsLocalDs>(
-  (ref) => const ShopsLocalDs(),
-);
-
-/// The shops repository (domain contract → infrastructure impl).
+/// The shops repository (domain contract → infrastructure impl with API).
 final shopsRepositoryProvider = Provider<ShopsRepository>(
-  (ref) => ShopsRepositoryImpl(ref.watch(shopsLocalDsProvider)),
+  (ref) => ShopsRepositoryImpl(),
 );
 
-// ─── Read providers ───────────────────────────────────────────────────────────
+// ─── UI filter/sort state providers (autoDispose) ─────────────────────────────
 
-/// All shops. Kept alive so back-navigation is instant (warm cache).
+/// Committed filter state for the shops list screen.
+final shopsFilterProvider =
+    StateNotifierProvider.autoDispose<ShopsFilterController, ShopsFilterState>(
+  (ref) => ShopsFilterController(),
+);
+
+/// All shops (backward compatible - loads first page only).
+/// Used by bookings, payouts, and other screens that need a simple list.
 final shopsProvider = FutureProvider<List<Shop>>(
-  (ref) => ref.watch(shopsRepositoryProvider).fetchShops(),
+  (ref) async {
+    final repository = ref.watch(shopsRepositoryProvider);
+    // Load all shops from API (no filters, just first page for compatibility)
+    final page = await repository.fetchShops(
+      page: 1,
+      pageSize: 100,
+    );
+    return page.items;
+  },
 );
 
-/// Single shop by id (autoDispose so detail screens reset when popped).
+/// Current page number for paginated shops list.
+final shopsPageProvider = StateProvider.autoDispose<int>(
+  (ref) => 1,
+);
+
+/// Shops for current page with current filters (for shops list screen).
+final shopsPaginatedProvider = FutureProvider.autoDispose<ShopsPage>(
+  (ref) {
+    final filter = ref.watch(shopsFilterProvider);
+    final page = ref.watch(shopsPageProvider);
+    final repository = ref.watch(shopsRepositoryProvider);
+
+    // Convert filter state to API params
+    final status = filter.status;
+    final vehicleType = filter.types.isNotEmpty ? filter.types.join(',') : null;
+    final minRating = filter.rating == 'any' ? null : double.tryParse(filter.rating);
+    final sort = _mapSortValue(filter.sort);
+
+    return repository.fetchShops(
+      page: page,
+      pageSize: 10,
+      search: filter.query.isEmpty ? null : filter.query,
+      status: status,
+      vehicleType: vehicleType,
+      minRating: minRating,
+      sort: sort,
+    );
+  },
+);
+
+/// Single shop detail by id from API (autoDispose so detail screens reset when popped).
+final shopDetailProvider =
+    FutureProvider.autoDispose.family<Shop, String>((ref, id) async {
+  final repository = ref.watch(shopsRepositoryProvider);
+  return repository.fetchShopDetail(id);
+});
+
+/// Backward compat: single shop by id (tries to find in cached list first).
 final shopByIdProvider =
     FutureProvider.autoDispose.family<Shop?, String>((ref, id) async {
-  final shops = await ref.watch(shopsProvider.future);
   try {
+    final shops = await ref.watch(shopsProvider.future);
     return shops.firstWhere((s) => s.id == id);
   } catch (_) {
     return null;
@@ -49,22 +97,6 @@ final shopHolidaysProvider =
   final result = holidays.where((h) => h.shopIds.contains(shopId)).toList()
     ..sort((a, b) => a.date.compareTo(b.date));
   return result;
-});
-
-// ─── UI filter/sort state providers (autoDispose) ─────────────────────────────
-
-/// Committed filter state for the shops list screen.
-final shopsFilterProvider =
-    StateNotifierProvider.autoDispose<ShopsFilterController, ShopsFilterState>(
-  (ref) => ShopsFilterController(),
-);
-
-/// Derived filtered+sorted shops list.
-final filteredShopsProvider =
-    Provider.autoDispose<AsyncValue<List<Shop>>>((ref) {
-  final shops = ref.watch(shopsProvider);
-  final filter = ref.watch(shopsFilterProvider);
-  return shops.whenData((list) => applyShopsFilter(list, filter));
 });
 
 /// Working copy of the filter while the filter sheet is open.
@@ -89,4 +121,18 @@ class ShopsFilterController extends StateNotifier<ShopsFilterState> {
   void removeType(String t) =>
       state = state.copyWith(types: state.types.where((x) => x != t).toList());
   void removeRating() => state = state.copyWith(rating: 'any');
+}
+
+/// Map UI sort values to API sort values.
+String? _mapSortValue(String uiSort) {
+  switch (uiSort) {
+    case 'rating':
+      return 'rating';
+    case 'busy':
+      return 'busiest';
+    case 'cap':
+      return 'capacity';
+    default:
+      return 'name';
+  }
 }
