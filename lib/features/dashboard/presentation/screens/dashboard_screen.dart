@@ -39,6 +39,7 @@ class DashboardScreen extends ConsumerWidget {
     final snapshotAsync = ref.watch(dashboardSnapshotProvider);
     final hiringAsync = ref.watch(hiringSnapshotProvider);
     final activityAsync = ref.watch(activityFeedProvider);
+    final notificationAsync = ref.watch(notificationCountProvider);
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -46,6 +47,8 @@ class DashboardScreen extends ConsumerWidget {
         child: Column(
           children: [
             _TopBar(
+              firstName: snapshotAsync.valueOrNull?.adminName,
+              notificationCount: notificationAsync.valueOrNull ?? 0,
               onNotifications: () => context.push(Routes.notifications),
             ),
             Expanded(
@@ -247,9 +250,26 @@ class DashboardScreen extends ConsumerWidget {
 // ─────────────────────────────────────────────
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.onNotifications});
+  const _TopBar({
+    required this.onNotifications,
+    this.firstName,
+    this.notificationCount = 0,
+  });
 
   final VoidCallback onNotifications;
+  final String? firstName;
+  final int notificationCount;
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    final greeting = switch (hour) {
+      >= 0 && < 12 => 'Good morning',
+      >= 12 && < 17 => 'Good afternoon',
+      _ => 'Good evening',
+    };
+    final name = firstName?.isNotEmpty == true ? firstName : 'there';
+    return '$greeting, $name';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -292,7 +312,7 @@ class _TopBar extends StatelessWidget {
                 ),
                 SizedBox(height: 3.h),
                 Text(
-                  'Good afternoon, Anand',
+                  _getGreeting(),
                   style: AppText.figtree(
                     size: 12,
                     weight: FontWeight.w500,
@@ -307,7 +327,7 @@ class _TopBar extends StatelessWidget {
             icon: AppIcons.bell,
             onTap: onNotifications,
             semanticLabel: 'Notifications',
-            badge: '3',
+            badge: notificationCount > 0 ? '$notificationCount' : null,
             iconSize: 22,
           ),
         ],

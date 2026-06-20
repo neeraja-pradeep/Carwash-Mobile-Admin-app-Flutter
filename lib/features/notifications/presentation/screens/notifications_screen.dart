@@ -27,40 +27,43 @@ class NotificationsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final unreadAsync = ref.watch(unreadCountProvider);
-    final filteredAsync = ref.watch(filteredNotificationsProvider);
+    final notificationsAsync = ref.watch(allNotificationsProvider);
     final filter = ref.watch(notificationsFilterProvider);
     final filterController = ref.read(notificationsFilterProvider.notifier);
-    final readController = ref.read(notificationsReadStateProvider.notifier);
+    final repository = ref.read(notificationsRepositoryProvider);
 
     final unreadCount = unreadAsync.valueOrNull ?? 0;
 
-    void markAllRead() {
-      final raw = ref.read(notificationsProvider).valueOrNull ?? [];
-      readController.state = {
-        ...ref.read(notificationsReadStateProvider),
-        ...raw.map((n) => n.id),
-      };
-      AppToast.show(context, 'All marked as read');
+    void markAllRead() async {
+      await repository.markAllAsRead();
+      // Invalidate the unread count and notifications to refresh
+      ref.invalidate(unreadCountProvider);
+      ref.invalidate(notificationsProvider);
+      if (context.mounted) {
+        AppToast.show(context, 'All marked as read');
+      }
     }
 
-    void openNotification(AppNotification n) {
-      // Mark as read
-      readController.state = {
-        ...ref.read(notificationsReadStateProvider),
-        n.id
-      };
+    void openNotification(AppNotification n) async {
+      // Mark as read on API
+      await repository.markAsRead(n.id);
+      // Invalidate to refresh
+      ref.invalidate(unreadCountProvider);
+      ref.invalidate(notificationsProvider);
 
       // Deep-link
-      if (n.bookingId case final bookingId?) {
-        context.push(Routes.bookingDetail(bookingId));
-      } else if (n.refundId != null) {
-        context.push(Routes.refunds);
-      } else if (n.payoutId != null) {
-        context.push(Routes.payouts);
-      } else if (n.reviewId != null) {
-        context.push(Routes.reviews);
+      if (n.refBooking != null) {
+        if (context.mounted) {
+          context.push(Routes.bookingDetail(n.refBooking.toString()));
+        }
+      } else if (n.refDiBooking != null) {
+        if (context.mounted) {
+          context.push(Routes.bookings); // Navigate to bookings (DI requests)
+        }
       } else {
-        AppToast.show(context, n.title);
+        if (context.mounted) {
+          AppToast.show(context, n.title);
+        }
       }
     }
 
@@ -96,7 +99,7 @@ class NotificationsScreen extends ConsumerWidget {
               ],
             ),
             Expanded(
-              child: filteredAsync.when(
+              child: notificationsAsync.when(
                 loading: () => const _SkeletonList(),
                 error: (_, __) => const Center(
                   child: Text('Failed to load notifications'),

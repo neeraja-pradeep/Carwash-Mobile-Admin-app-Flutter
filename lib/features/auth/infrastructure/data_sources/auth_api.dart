@@ -1,13 +1,11 @@
 import 'dart:io';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+
+import '../../../../core/network/http_client.dart';
 import '../models/auth_response_model.dart';
 
 class AuthApi {
   late Dio _dio;
-
-  String get _baseUrl => dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
 
   static const String _sendOtpPath = '/api/accounts/v1/send-otp/';
   static const String _verifyOtpPath = '/api/accounts/v1/verify-otp/';
@@ -15,30 +13,8 @@ class AuthApi {
   static const String _logoutPath = '/api/accounts/v1/logout/';
 
   AuthApi() {
-    _dio = Dio(BaseOptions(
-      baseUrl: _baseUrl,
-      contentType: 'application/json',
-      responseType: ResponseType.json,
-      connectTimeout: const Duration(seconds: 30),
-      receiveTimeout: const Duration(seconds: 30),
-    ));
-
-    // Enable detailed logging in debug mode only
-    if (kDebugMode) {
-      _dio.interceptors.add(
-        LogInterceptor(
-          requestHeader: true,
-          requestBody: true,
-          responseHeader: true,
-          responseBody: true,
-          error: true,
-          logPrint: (obj) => debugPrint(obj.toString()),
-        ),
-      );
-
-      // Custom logging to show full URI
-      _dio.interceptors.add(_CustomLoggingInterceptor());
-    }
+    // Use shared HTTP client to maintain session cookies across the app
+    _dio = HttpClient().dio;
   }
 
   /// Send OTP to phone number.
@@ -100,10 +76,17 @@ class AuthApi {
       );
 
       final setCookieHeaders = response.headers[HttpHeaders.setCookieHeader];
-      return AuthResponseModel.fromJson(
+      final authResponse = AuthResponseModel.fromJson(
         response.data,
         setCookieHeaders,
       );
+
+      // Extract and store sessionid for subsequent requests
+      if (authResponse.sessionId != null && authResponse.sessionId!.isNotEmpty) {
+        HttpClient.setSessionId(authResponse.sessionId!);
+      }
+
+      return authResponse;
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -113,7 +96,11 @@ class AuthApi {
   Future<void> logout() async {
     try {
       await _dio.post(_logoutPath);
+      // Clear session ID after successful logout
+      HttpClient.clearSessionId();
     } on DioException catch (e) {
+      // Clear session ID even if logout fails
+      HttpClient.clearSessionId();
       throw _handleError(e);
     }
   }
@@ -155,39 +142,5 @@ class AuthApi {
       case DioExceptionType.unknown:
         return Exception(e.message ?? 'Unknown error occurred');
     }
-  }
-}
-
-/// Custom logging interceptor to show full URI in logs
-class _CustomLoggingInterceptor extends Interceptor {
-  @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    if (kDebugMode) {
-      final endpoint = '${options.baseUrl}${options.path}';
-      debugPrint('🔵 API REQUEST: ${options.method} $endpoint');
-      debugPrint('   Headers: ${options.headers}');
-      debugPrint('   Body: ${options.data}');
-    }
-    super.onRequest(options, handler);
-  }
-
-  @override
-  void onResponse(Response response, ResponseInterceptorHandler handler) {
-    if (kDebugMode) {
-      final endpoint = '${response.requestOptions.baseUrl}${response.requestOptions.path}';
-      debugPrint('🟢 API SUCCESS: ${response.statusCode} ${response.requestOptions.method} $endpoint');
-      debugPrint('   Response: ${response.data}');
-    }
-    super.onResponse(response, handler);
-  }
-
-  @override
-  void onError(DioException err, ErrorInterceptorHandler handler) {
-    if (kDebugMode) {
-      final endpoint = '${err.requestOptions.baseUrl}${err.requestOptions.path}';
-      debugPrint('🔴 API ERROR: ${err.response?.statusCode} ${err.requestOptions.method} $endpoint');
-      debugPrint('   Error: ${err.response?.data}');
-    }
-    super.onError(err, handler);
   }
 }

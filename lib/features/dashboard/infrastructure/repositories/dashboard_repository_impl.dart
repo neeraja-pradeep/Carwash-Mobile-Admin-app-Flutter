@@ -2,26 +2,34 @@ import '../../domain/entities/activity_item.dart';
 import '../../domain/entities/dashboard_snapshot.dart';
 import '../../domain/entities/hiring_snapshot.dart';
 import '../../domain/repositories/dashboard_repository.dart';
-import '../data_sources/local/dashboard_local_ds.dart';
+import '../data_sources/dashboard_api.dart';
 
-/// Fulfils [DashboardRepository] from the local static data source.
+/// Fulfils [DashboardRepository] from remote API exclusively.
 ///
-/// In the API phase this gains a remote source + cache-check-then-network flow;
-/// the contract and callers do not change.
+/// No fallback to mock data. All calls go to the API.
+/// If API fails, the error is propagated to the presentation layer.
 class DashboardRepositoryImpl implements DashboardRepository {
-  const DashboardRepositoryImpl(this._local);
+  DashboardRepositoryImpl({
+    DashboardApi? api,
+  }) : _api = api ?? DashboardApi();
 
-  final DashboardLocalDs _local;
-
-  @override
-  Future<DashboardSnapshot> fetchDashboardSnapshot() =>
-      _local.fetchDashboardSnapshot();
+  final DashboardApi _api;
 
   @override
-  Future<HiringSnapshot> fetchHiringSnapshot() =>
-      _local.fetchHiringSnapshot();
+  Future<DashboardSnapshot> fetchDashboardSnapshot() async {
+    final response = await _api.getDashboardSnapshot();
+    return response.toDomain();
+  }
 
   @override
-  Future<List<ActivityItem>> fetchActivityFeed() =>
-      _local.fetchActivityFeed();
+  Future<HiringSnapshot> fetchHiringSnapshot() async {
+    final response = await _api.getDashboardSnapshot();
+    return response.driverInspector.toHiringSnapshot();
+  }
+
+  @override
+  Future<List<ActivityItem>> fetchActivityFeed() async {
+    final responses = await _api.getRecentActivity();
+    return responses.map((r) => r.toDomain()).toList();
+  }
 }

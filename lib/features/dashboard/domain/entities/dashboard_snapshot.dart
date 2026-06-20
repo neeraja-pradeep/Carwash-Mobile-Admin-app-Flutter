@@ -1,4 +1,4 @@
-/// Point-in-time carwash operational snapshot for today (from `data.jsx` SNAPSHOT).
+/// Point-in-time carwash operational snapshot for today.
 class DashboardSnapshot {
   const DashboardSnapshot({
     required this.bookingsToday,
@@ -9,6 +9,10 @@ class DashboardSnapshot {
     required this.overdue,
     required this.pendingRefunds,
     required this.pendingRefundAmt,
+    this.adminName,
+    this.unassignedCount = 0,
+    this.unassignedOldestMinutes,
+    this.unassignedAlertMinutes = 15,
   });
 
   /// Total bookings received for today.
@@ -34,4 +38,16 @@ class DashboardSnapshot {
 
   /// Total amount (₹) across all pending refunds.
   final num pendingRefundAmt;
+
+  /// Admin name from profile (fallback for greeting).
+  final String? adminName;
+
+  /// Unassigned bookings count.
+  final int unassignedCount;
+
+  /// Age (minutes) of oldest unassigned booking.
+  final int? unassignedOldestMinutes;
+
+  /// Threshold for unassigned alert.
+  final int unassignedAlertMinutes;
 }

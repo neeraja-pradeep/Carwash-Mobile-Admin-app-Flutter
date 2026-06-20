@@ -6,12 +6,12 @@ import '../../../../app/theme/colors.dart';
 /// Notification kind enum — maps to icon + color tone.
 enum NotificationKind {
   booking,
-  overdue,
-  wash,
+  attention,
   refund,
   review,
   payout,
-  holiday,
+  system,
+  promo,
 }
 
 /// Icon + colour mapping for a notification kind.
@@ -36,17 +36,11 @@ NotificationTone toneFor(NotificationKind kind) {
         bg: AppColors.blueBg,
         fg: AppColors.blueFg,
       );
-    case NotificationKind.overdue:
+    case NotificationKind.attention:
       return const NotificationTone(
         icon: AppIcons.alert,
         bg: AppColors.amberBg,
         fg: AppColors.amberFg,
-      );
-    case NotificationKind.wash:
-      return const NotificationTone(
-        icon: AppIcons.droplet,
-        bg: AppColors.blueBg,
-        fg: AppColors.blueFg,
       );
     case NotificationKind.refund:
       return const NotificationTone(
@@ -66,42 +60,48 @@ NotificationTone toneFor(NotificationKind kind) {
         bg: AppColors.greenBg,
         fg: AppColors.greenFg,
       );
-    case NotificationKind.holiday:
+    case NotificationKind.system:
       return const NotificationTone(
         icon: AppIcons.cal,
         bg: AppColors.amberBg,
         fg: AppColors.amberFg,
       );
+    case NotificationKind.promo:
+      return const NotificationTone(
+        icon: AppIcons.tag,
+        bg: AppColors.blueBg,
+        fg: AppColors.blueFg,
+      );
   }
 }
 
-/// A single admin notification item (from `data.jsx` NOTIFICATIONS).
+/// A single admin notification item.
 class AppNotification {
   const AppNotification({
     required this.id,
     required this.kind,
     required this.title,
-    required this.body,
+    this.body,
     required this.time,
     required this.unread,
-    this.bookingId,
-    this.refundId,
-    this.reviewId,
-    this.payoutId,
+    this.refBooking,
+    this.refDiBooking,
+    this.createdAt,
   });
 
-  final String id;
+  final int id;
   final NotificationKind kind;
   final String title;
-  final String body;
+  final String? body;
   final String time;
   final bool unread;
 
   /// Deep-link targets (at most one will be set).
-  final String? bookingId;
-  final String? refundId;
-  final String? reviewId;
-  final String? payoutId;
+  final int? refBooking;
+  final int? refDiBooking;
+
+  /// Raw ISO timestamp from API.
+  final DateTime? createdAt;
 
   AppNotification copyWith({bool? unread}) {
     return AppNotification(
@@ -111,10 +111,9 @@ class AppNotification {
       body: body,
       time: time,
       unread: unread ?? this.unread,
-      bookingId: bookingId,
-      refundId: refundId,
-      reviewId: reviewId,
-      payoutId: payoutId,
+      refBooking: refBooking,
+      refDiBooking: refDiBooking,
+      createdAt: createdAt,
     );
   }
 }

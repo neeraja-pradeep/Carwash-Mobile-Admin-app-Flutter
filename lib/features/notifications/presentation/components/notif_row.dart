@@ -95,15 +95,16 @@ class NotifRow extends StatelessWidget {
                   ),
                   SizedBox(height: 4.h),
                   // Body
-                  Text(
-                    n.body,
-                    style: AppText.figtree(
-                      size: 12.5,
-                      weight: FontWeight.w400,
-                      color: AppColors.fgSecondary,
-                      height: 1.4,
+                  if (n.body != null)
+                    Text(
+                      n.body!,
+                      style: AppText.figtree(
+                        size: 12.5,
+                        weight: FontWeight.w400,
+                        color: AppColors.fgSecondary,
+                        height: 1.4,
+                      ),
                     ),
-                  ),
                   SizedBox(height: 4.h),
                   // Time
                   Text(
