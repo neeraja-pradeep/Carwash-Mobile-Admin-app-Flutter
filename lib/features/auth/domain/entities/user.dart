@@ -2,6 +2,7 @@ class User {
   final int id;
   final String phone;
   final String username;
+  final String email;
   final String firstName;
   final String lastName;
   final String fullName;
@@ -15,6 +16,7 @@ class User {
     required this.id,
     required this.phone,
     required this.username,
+    required this.email,
     required this.firstName,
     required this.lastName,
     required this.fullName,
@@ -30,6 +32,7 @@ class User {
       id: json['id'],
       phone: json['phone'],
       username: json['username'],
+      email: json['email'] ?? '',
       firstName: json['first_name'] ?? '',
       lastName: json['last_name'] ?? '',
       fullName: json['full_name'] ?? '',
@@ -45,6 +48,7 @@ class User {
     'id': id,
     'phone': phone,
     'username': username,
+    'email': email,
     'first_name': firstName,
     'last_name': lastName,
     'full_name': fullName,

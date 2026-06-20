@@ -12,6 +12,7 @@ import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/skeleton_card.dart';
 import '../../../../core/widgets/top_bar.dart';
+import '../../../auth/application/providers/auth_provider.dart';
 import '../../application/providers/settings_providers.dart';
 import '../../domain/entities/app_settings.dart';
 import '../components/edit_field_sheet.dart';
@@ -92,7 +93,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
 // ── Body ──────────────────────────────────────────────────────────────────────
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   const _Body({
     required this.settings,
     required this.notif,
@@ -112,7 +113,7 @@ class _Body extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final s = settings;
 
     return ListView(
@@ -323,7 +324,10 @@ class _Body extends StatelessWidget {
                   destructive: true,
                 );
                 if (confirmed && context.mounted) {
-                  context.go(Routes.login);
+                  await ref.read(authStateProvider.notifier).logout();
+                  if (context.mounted) {
+                    context.go(Routes.login);
+                  }
                 }
               },
             ),

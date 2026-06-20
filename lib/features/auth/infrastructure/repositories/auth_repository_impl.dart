@@ -54,6 +54,11 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> logout() async {
+    try {
+      await _authApi.logout();
+    } catch (e) {
+      // If logout API fails, still clear local data
+    }
     await _localDataSource.clearAuthData();
   }
 

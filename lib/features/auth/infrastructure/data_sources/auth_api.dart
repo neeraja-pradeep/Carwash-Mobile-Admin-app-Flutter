@@ -12,6 +12,7 @@ class AuthApi {
   static const String _sendOtpPath = '/api/accounts/v1/send-otp/';
   static const String _verifyOtpPath = '/api/accounts/v1/verify-otp/';
   static const String _loginPath = '/api/accounts/v1/login/';
+  static const String _logoutPath = '/api/accounts/v1/logout/';
 
   AuthApi() {
     _dio = Dio(BaseOptions(
@@ -108,9 +109,24 @@ class AuthApi {
     }
   }
 
+  /// Logout and clear session.
+  Future<void> logout() async {
+    try {
+      await _dio.post(_logoutPath);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Handle DioException and throw appropriate error.
   Exception _handleError(DioException e) {
     if (e.response != null) {
+      final statusCode = e.response?.statusCode;
+
+      if (statusCode == 429) {
+        return Exception('Too many login attempts. Please try again later.');
+      }
+
       final errorData = e.response?.data;
       if (errorData is Map<String, dynamic>) {
         final errorMessage = errorData['error'] ??

@@ -71,6 +71,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   Future<void> login({
     required String username,
     required String password,
+    bool validateAdminRole = true,
   }) async {
     state = const AuthLoading();
     try {
@@ -78,6 +79,16 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         username: username,
         password: password,
       );
+
+      // Validate role for admin console - only admin and superadmin are allowed
+      if (validateAdminRole && user.role != 'admin' && user.role != 'superadmin') {
+        await _repository.logout();
+        state = AuthError(
+          message: 'Access denied. Only admins and superadmins can access this console.',
+        );
+        return;
+      }
+
       state = AuthSuccess(user: user);
     } catch (e) {
       state = AuthError(message: e.toString());

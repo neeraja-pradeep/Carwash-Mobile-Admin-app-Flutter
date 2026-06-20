@@ -43,7 +43,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   String? _driverPasswordError;
 
   // ── Admin flow ───────────────────────────────────────────────────────────
-  final _adminPhoneController = TextEditingController();
+  final _adminUsernameController = TextEditingController();
   final _adminPasswordController = TextEditingController();
   bool _showPassword = false;
   bool _showForgotMessage = false;
@@ -55,7 +55,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _otpController.dispose();
     _driverUsernameController.dispose();
     _driverPasswordController.dispose();
-    _adminPhoneController.dispose();
+    _adminUsernameController.dispose();
     _adminPasswordController.dispose();
     super.dispose();
   }
@@ -117,6 +117,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ref.read(authStateProvider.notifier).login(
             username: username,
             password: password,
+            validateAdminRole: false,
           );
     } catch (e) {
       setState(() => _driverPasswordError = 'Error: ${e.toString()}');
@@ -130,11 +131,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _handleAdminSignIn() {
-    final phone = _adminPhoneController.text.trim();
+    final username = _adminUsernameController.text.trim();
     final password = _adminPasswordController.text.trim();
 
-    if (phone.isEmpty) {
-      setState(() => _adminError = 'Enter your phone number to continue.');
+    if (username.isEmpty) {
+      setState(() => _adminError = 'Enter your username to continue.');
       return;
     }
     if (password.isEmpty) {
@@ -144,8 +145,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       ref.read(authStateProvider.notifier).login(
-            username: phone,
+            username: username,
             password: password,
+            validateAdminRole: true,
           );
     } catch (e) {
       setState(() => _adminError = 'Error: ${e.toString()}');
@@ -252,7 +254,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   _otpController.clear();
                   _driverUsernameController.clear();
                   _driverPasswordController.clear();
-                  _adminPhoneController.clear();
+                  _adminUsernameController.clear();
                   _adminPasswordController.clear();
                   _showForgotMessage = false;
                 }),
@@ -264,35 +266,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               if (_mode == 'driver') _buildDriverForm() else _buildAdminForm(),
 
               SizedBox(height: 48.h),
-
-              // ── Footer ───────────────────────────────────────────────────
-              Center(
-                child: Text(
-                  _mode == 'admin'
-                      ? 'Single-city operations · Alappuzha, Kerala'
-                      : 'Drivey Driver · Alappuzha',
-                  textAlign: TextAlign.center,
-                  style: AppText.figtree(
-                    size: 11.5,
-                    weight: FontWeight.w500,
-                    color: AppColors.fgMuted,
-                  ),
-                ),
-              ),
-              if (_mode == 'admin') ...[
-                SizedBox(height: 4.h),
-                Center(
-                  child: Text(
-                    'DriveDeck Operator v0.1',
-                    style: AppText.figtree(
-                      size: 11.5,
-                      weight: FontWeight.w500,
-                      color: AppColors.fgMuted,
-                    ),
-                  ),
-                ),
-              ],
-              SizedBox(height: 24.h),
             ],
           ),
         ),
@@ -560,7 +533,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         SizedBox(height: 6.h),
         Text(
-          "Run today's washes, assignments, and refunds from one place.",
+          'Enter your credentials to access the operator console.',
           style: AppText.figtree(
             size: 14.5,
             weight: FontWeight.w400,
@@ -570,13 +543,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         ),
         SizedBox(height: 28.h),
 
-        // Phone or Username
-        _InputLabel(label: 'Phone number / Username'),
+        // Username
+        _InputLabel(label: 'Username'),
         SizedBox(height: 7.h),
         _TextField(
-          controller: _adminPhoneController,
-          hint: '+91 00000 00000 or username',
-          icon: AppIcons.phone,
+          controller: _adminUsernameController,
+          hint: 'Enter your username',
+          icon: Icons.person_outline,
         ),
 
         SizedBox(height: 18.h),
@@ -630,8 +603,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               border: Border.all(color: AppColors.borderDefault),
             ),
             child: Text(
-              'No self-serve reset in v0.1. Contact your co-founder to reset '
-              'your password.',
+              'No self-serve reset. Contact your administrator to reset your password.',
               style: AppText.figtree(
                 size: 13,
                 weight: FontWeight.w500,
