@@ -79,4 +79,161 @@ abstract class ShopsRepository {
 
   /// Returns all holidays (may span multiple shops).
   Future<List<Holiday>> fetchHolidays();
+
+  /// Get pending settlements for a shop.
+  Future<SettlementPending> fetchPendingSettlements(String shopId);
+
+  /// Create payout for a shop.
+  Future<SettlementPayout> createPayout(
+    String shopId, {
+    String? utr,
+    String? notes,
+  });
+
+  /// Get payout history for a shop.
+  Future<SettlementHistory> fetchPayoutHistory(String shopId);
+
+  /// Get settlements overview (all shops for payout picker).
+  Future<SettlementsOverview> fetchSettlementsOverview();
+}
+
+/// Settlement domain entities
+class SettlementPending {
+  final int shopId;
+  final int count;
+  final double netPayable;
+  final double pendingTotal;
+  final DateTime? lastSettled;
+  final double lifetimePaid;
+  final List<SettlementItemData> items;
+
+  SettlementPending({
+    required this.shopId,
+    required this.count,
+    required this.netPayable,
+    required this.pendingTotal,
+    this.lastSettled,
+    required this.lifetimePaid,
+    required this.items,
+  });
+}
+
+class SettlementItemData {
+  final int bookingId;
+  final String reference;
+  final String appointmentDate;
+  final double gross;
+  final double commission;
+  final double net;
+
+  SettlementItemData({
+    required this.bookingId,
+    required this.reference,
+    required this.appointmentDate,
+    required this.gross,
+    required this.commission,
+    required this.net,
+  });
+}
+
+class SettlementPayout {
+  final int id;
+  final int shop;
+  final double grossAmount;
+  final double commissionAmount;
+  final double totalAmount;
+  final int bookingCount;
+  final String status;
+  final String? utr;
+  final String? notes;
+  final String periodStart;
+  final String periodEnd;
+  final int createdBy;
+  final String createdByName;
+  final DateTime createdAt;
+  final List<PayoutItemData> items;
+
+  SettlementPayout({
+    required this.id,
+    required this.shop,
+    required this.grossAmount,
+    required this.commissionAmount,
+    required this.totalAmount,
+    required this.bookingCount,
+    required this.status,
+    this.utr,
+    this.notes,
+    required this.periodStart,
+    required this.periodEnd,
+    required this.createdBy,
+    required this.createdByName,
+    required this.createdAt,
+    required this.items,
+  });
+}
+
+class PayoutItemData {
+  final int id;
+  final int booking;
+  final String reference;
+  final String appointmentDate;
+  final double gross;
+  final double commission;
+  final double net;
+
+  PayoutItemData({
+    required this.id,
+    required this.booking,
+    required this.reference,
+    required this.appointmentDate,
+    required this.gross,
+    required this.commission,
+    required this.net,
+  });
+}
+
+class SettlementHistory {
+  final int count;
+  final List<SettlementPayout> payouts;
+
+  SettlementHistory({required this.count, required this.payouts});
+}
+
+class SettlementsOverview {
+  final int count;
+  final List<SettlementOverviewShop> shops;
+
+  SettlementsOverview({required this.count, required this.shops});
+}
+
+class SettlementOverviewShop {
+  final int shopId;
+  final String name;
+  final double pendingTotal;
+  final int bookingCount;
+  final DateRange? period;
+  final LastPaid? lastPaid;
+
+  SettlementOverviewShop({
+    required this.shopId,
+    required this.name,
+    required this.pendingTotal,
+    required this.bookingCount,
+    this.period,
+    this.lastPaid,
+  });
+}
+
+class DateRange {
+  final String start;
+  final String end;
+
+  DateRange({required this.start, required this.end});
+}
+
+class LastPaid {
+  final DateTime date;
+  final double amount;
+
+  LastPaid({required this.date, required this.amount});
 }

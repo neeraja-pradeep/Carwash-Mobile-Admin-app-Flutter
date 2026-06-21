@@ -14,7 +14,6 @@ import 'package:new_flutter_project/core/widgets/skeleton_card.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
 import '../../application/providers/payouts_providers.dart';
-import '../../application/states/payouts_filter_state.dart';
 import '../components/payout_card.dart';
 import '../components/payout_filter_sheet.dart';
 import 'payout_detail_screen.dart';
@@ -60,9 +59,9 @@ class _PayoutsScreenState extends ConsumerState<PayoutsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final filter = ref.watch(payoutsFilterProvider);
-    final controller = ref.read(payoutsFilterProvider.notifier);
-    final payoutsAsync = ref.watch(payoutsProvider);
+    final filter = ref.watch(payoutLogFilterProvider);
+    final controller = ref.read(payoutLogFilterProvider.notifier);
+    final payoutsAsync = ref.watch(payoutLogProvider);
     // Real shop id → name map (drives search-by-shop and the Shop A–Z sort).
     final shopNames = {
       for (final s in ref.watch(shopsProvider).valueOrNull ?? const [])
@@ -90,7 +89,7 @@ class _PayoutsScreenState extends ConsumerState<PayoutsScreen> {
                         Border(bottom: BorderSide(color: AppColors.borderSoft)),
                   ),
                   child: SearchField(
-                    value: filter.query,
+                    value: filter.search ?? '',
                     hintText: 'Search shop or UTR',
                     onChanged: controller.setQuery,
                   ),
@@ -109,18 +108,14 @@ class _PayoutsScreenState extends ConsumerState<PayoutsScreen> {
                       title: 'Could not load payouts',
                       body: 'Please try again.',
                       actionLabel: 'Retry',
-                      onAction: () => ref.invalidate(payoutsProvider),
+                      onAction: () => ref.invalidate(payoutLogProvider),
                     ),
-                    data: (allPayouts) {
-                      final payouts = applyPayoutFilter(
-                        allPayouts,
-                        filter,
-                        shopName: (id) => shopNames[id] ?? id,
-                      );
+                    data: (page) {
+                      final payouts = page.items;
                       if (payouts.isEmpty) {
                         return EmptyState(
                           icon: AppIcons.wallet,
-                          title: 'No payouts match',
+                          title: 'No payouts found',
                           body: 'Try clearing your search or filters.',
                           actionLabel: 'Reset filters',
                           onAction: controller.reset,
@@ -148,7 +143,7 @@ class _PayoutsScreenState extends ConsumerState<PayoutsScreen> {
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) =>
-                                    PayoutDetailScreen(payoutId: p.id),
+                                    PayoutDetailScreen(payoutId: p.id.toString()),
                               ),
                             ),
                           );
@@ -181,15 +176,48 @@ class _PayoutsScreenState extends ConsumerState<PayoutsScreen> {
 class _ActiveChips extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final filter = ref.watch(payoutsFilterProvider);
-    final controller = ref.read(payoutsFilterProvider.notifier);
-    final shopNames = {
-      for (final s in ref.watch(shopsProvider).valueOrNull ?? const [])
-        s.id: s.name,
-    };
-    final shopFirstName = filter.shopId == null
-        ? ''
-        : (shopNames[filter.shopId] ?? filter.shopId!).split(' ').first;
+    final filter = ref.watch(payoutLogFilterProvider);
+    final controller = ref.read(payoutLogFilterProvider.notifier);
+
+    if (filter.activeCount == 0) {
+      return SizedBox.shrink();
+    }
+
+    final chips = <Widget>[];
+
+    if (filter.search != null && filter.search!.isNotEmpty) {
+      chips.add(AppChip(
+        label: filter.search!,
+        active: true,
+        removable: true,
+        onRemove: () => controller.setQuery(''),
+      ));
+      chips.add(SizedBox(width: 8.w));
+    }
+
+    if (filter.status != null && filter.status!.isNotEmpty) {
+      chips.add(AppChip(
+        label: filter.status == 'paid' ? 'Paid' : 'Pending',
+        active: true,
+        removable: true,
+        onRemove: () => controller.setStatus(null),
+      ));
+      chips.add(SizedBox(width: 8.w));
+    }
+
+    if (filter.shop != null && filter.shop!.isNotEmpty) {
+      chips.add(AppChip(
+        label: 'Shop: ${filter.shop}',
+        active: true,
+        removable: true,
+        onRemove: () => controller.setShop(null),
+      ));
+      chips.add(SizedBox(width: 8.w));
+    }
+
+    if (chips.isEmpty) {
+      return SizedBox.shrink();
+    }
 
     return Container(
       width: double.infinity,
@@ -197,28 +225,7 @@ class _ActiveChips extends ConsumerWidget {
       padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 2.h),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            if (filter.status != null) ...[
-              AppChip(
-                label: filter.status == 'paid' ? 'Paid' : 'Pending',
-                active: true,
-                removable: true,
-                onRemove: controller.removeStatus,
-              ),
-              SizedBox(width: 8.w),
-            ],
-            if (filter.shopId != null) ...[
-              AppChip(
-                label: shopFirstName,
-                active: true,
-                removable: true,
-                onRemove: controller.removeShop,
-              ),
-              SizedBox(width: 8.w),
-            ],
-          ],
-        ),
+        child: Row(children: chips),
       ),
     );
   }

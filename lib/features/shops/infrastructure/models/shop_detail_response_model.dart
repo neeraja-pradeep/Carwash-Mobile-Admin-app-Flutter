@@ -375,7 +375,7 @@ class CommissionDetailModel {
     return CommissionDetailModel(
       type: json['type'] as String? ?? 'flat',
       percentage: (json['percentage'] as num?)?.toDouble(),
-      amount: json['amount'] as String?,
+      amount: json['amount'] != null ? (json['amount'] as num).toInt().toString() : null,
       floor: (json['floor'] as num?)?.toDouble(),
       label: json['label'] as String? ?? '',
     );

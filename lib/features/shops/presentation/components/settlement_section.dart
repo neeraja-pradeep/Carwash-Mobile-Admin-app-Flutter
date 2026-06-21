@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
@@ -6,11 +7,12 @@ import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/core/widgets/widgets.dart';
 
+import '../../application/providers/settlement_providers.dart';
 import '../../domain/entities/shop.dart';
 
-/// Settlement tab body for ShopDetailScreen.
-/// Mirrors `SettlementTab` in `screen_shopdetail.jsx`.
-class SettlementSection extends StatelessWidget {
+/// Settlement tab body for ShopDetailScreen using API exclusively.
+/// No mock data - all failures show error to user.
+class SettlementSection extends ConsumerWidget {
   const SettlementSection({
     required this.shop,
     required this.onCreatePayout,
@@ -21,205 +23,238 @@ class SettlementSection extends StatelessWidget {
   final VoidCallback onCreatePayout;
 
   @override
-  Widget build(BuildContext context) {
-    final st = shop.settlement;
-    final rows = st.pending
-        .map((p) => (
-              pending: p,
-              net: p.net,
-            ))
-        .toList();
-
-    final totGross =
-        st.pending.fold<int>(0, (a, r) => a + r.gross);
-    final totComm =
-        st.pending.fold<int>(0, (a, r) => a + r.commission);
-    final totRef =
-        st.pending.fold<int>(0, (a, r) => a + r.refund);
-    final totNet = totGross - totComm - totRef;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pendingAsync = ref.watch(pendingSettlementsProvider(shop.id));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Top KPI strip
-        AppCard(
-          padded: false,
-          child: Row(
-            children: [
-              _SettleCell(
-                value: Formatters.money(totNet),
-                label: 'Pending',
-                valueColor:
-                    totNet > 0 ? AppColors.amberFg : AppColors.fgPrimary,
-                isFirst: true,
-              ),
-              _SettleCell(value: st.lastSettled, label: 'Last settled'),
-              _SettleCell(
-                value: Formatters.money(st.lifetimePaid),
-                label: 'Lifetime paid',
-              ),
-            ],
+        // Pending settlements section
+        pendingAsync.when(
+          loading: () => AppCard(
+            padded: false,
+            child: SizedBox(
+              height: 120.h,
+              child: const Center(child: CircularProgressIndicator()),
+            ),
           ),
-        ),
-        SizedBox(height: 14.h),
+          error: (err, st) => AppCard(
+            child: ErrorView(
+              onRetry: () => ref.invalidate(pendingSettlementsProvider(shop.id)),
+            ),
+          ),
+          data: (pending) {
+            final rows = pending.items;
+            final totNet = pending.pendingTotal;
 
-        // Pending settlements
-        AppCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'PENDING SETTLEMENTS',
-                style: AppText.figtree(
-                  size: 11,
-                  weight: FontWeight.w700,
-                  color: AppColors.fgSecondary,
-                  letterSpacing: 0.1,
-                ),
-              ),
-              if (rows.isEmpty)
-                Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.h),
-                  child: Center(
-                    child: Text(
-                      'Nothing pending — all settled.',
-                      style: AppText.figtree(
-                        size: 13,
-                        weight: FontWeight.w500,
-                        color: AppColors.fgMuted,
-                      ),
-                    ),
-                  ),
-                )
-              else ...[
-                SizedBox(height: 6.h),
-                ...List.generate(rows.length, (i) {
-                  final r = rows[i].pending;
-                  return Container(
-                    padding: EdgeInsets.symmetric(vertical: 11.h),
-                    decoration: i < rows.length - 1
-                        ? const BoxDecoration(
-                            border: Border(
-                              bottom:
-                                  BorderSide(color: AppColors.borderSoft),
-                            ),
-                          )
-                        : null,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              r.bookingId.replaceAll('DD-KL-2026', '#…'),
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 12.sp,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.fgSecondary,
-                              ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              Formatters.money(r.net),
-                              style: AppText.figtree(
-                                size: 14,
-                                weight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 5.h),
-                        Wrap(
-                          spacing: 12.w,
-                          children: [
-                            Text(
-                              r.date,
-                              style: AppText.figtree(
-                                size: 11.5,
-                                weight: FontWeight.w500,
-                                color: AppColors.fgTertiary,
-                              ),
-                            ),
-                            Text(
-                              'Gross ${Formatters.money(r.gross)}',
-                              style: AppText.figtree(
-                                size: 11.5,
-                                weight: FontWeight.w500,
-                                color: AppColors.fgTertiary,
-                              ),
-                            ),
-                            Text(
-                              '− Comm ${Formatters.money(r.commission)}',
-                              style: AppText.figtree(
-                                size: 11.5,
-                                weight: FontWeight.w500,
-                                color: AppColors.fgTertiary,
-                              ),
-                            ),
-                            if (r.refund > 0)
-                              Text(
-                                '− Ref ${Formatters.money(r.refund)}',
-                                style: AppText.figtree(
-                                  size: 11.5,
-                                  weight: FontWeight.w500,
-                                  color: AppColors.redFg,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                }),
-                Container(
-                  margin: EdgeInsets.only(top: 12.h),
-                  padding: EdgeInsets.only(top: 12.h),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(
-                        color: AppColors.borderDefault,
-                        width: 1.5.h,
-                      ),
-                    ),
-                  ),
+            return Column(
+              children: [
+                // KPI header
+                AppCard(
+                  padded: false,
                   child: Row(
                     children: [
-                      Text(
-                        'Net payable',
-                        style: AppText.figtree(
-                          size: 14,
-                          weight: FontWeight.w700,
-                        ),
+                      _SettleCell(
+                        value: Formatters.money(totNet.toInt()),
+                        label: 'Pending',
+                        valueColor: totNet > 0 ? AppColors.amberFg : null,
+                        isFirst: true,
                       ),
-                      const Spacer(),
-                      Text(
-                        Formatters.money(totNet),
-                        style: AppText.figtree(
-                          size: 19,
-                          weight: FontWeight.w800,
-                          letterSpacing: -0.4,
-                        ),
+                      _SettleCell(
+                        value: pending.lastSettled != null
+                            ? '${pending.lastSettled!.day}/${pending.lastSettled!.month}/${pending.lastSettled!.year}'
+                            : '—',
+                        label: 'Last settled',
+                      ),
+                      _SettleCell(
+                        value: Formatters.money(pending.lifetimePaid.toInt()),
+                        label: 'Lifetime paid',
                       ),
                     ],
                   ),
                 ),
                 SizedBox(height: 14.h),
-                AppButton(
-                  label: 'Create Payout for This Shop',
-                  full: true,
-                  size: AppButtonSize.sm,
-                  icon: AppIcons.wallet,
-                  onPressed: onCreatePayout,
-                ),
-              ],
-            ],
-          ),
-        ),
-        SizedBox(height: 14.h),
 
-        // Payout history
-        AppCard(
+                // Pending settlements list
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PENDING SETTLEMENTS',
+                        style: AppText.figtree(
+                          size: 11,
+                          weight: FontWeight.w700,
+                          color: AppColors.fgSecondary,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                      if (rows.isEmpty)
+                        Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16.h),
+                          child: Center(
+                            child: Text(
+                              'Nothing pending — all settled.',
+                              style: AppText.figtree(
+                                size: 13,
+                                weight: FontWeight.w500,
+                                color: AppColors.fgMuted,
+                              ),
+                            ),
+                          ),
+                        )
+                      else ...[
+                        SizedBox(height: 6.h),
+                        ...List.generate(rows.length, (i) {
+                          final item = rows[i];
+                          return Container(
+                            padding: EdgeInsets.symmetric(vertical: 11.h),
+                            decoration: i < rows.length - 1
+                                ? const BoxDecoration(
+                                    border: Border(
+                                      bottom: BorderSide(
+                                          color: AppColors.borderSoft),
+                                    ),
+                                  )
+                                : null,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      item.reference,
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 12.sp,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.fgSecondary,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Text(
+                                      Formatters.money(item.net.toInt()),
+                                      style: AppText.figtree(
+                                        size: 14,
+                                        weight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: 5.h),
+                                Wrap(
+                                  spacing: 12.w,
+                                  children: [
+                                    Text(
+                                      item.appointmentDate,
+                                      style: AppText.figtree(
+                                        size: 11.5,
+                                        weight: FontWeight.w500,
+                                        color: AppColors.fgTertiary,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Gross ${Formatters.money(item.gross.toInt())}',
+                                      style: AppText.figtree(
+                                        size: 11.5,
+                                        weight: FontWeight.w500,
+                                        color: AppColors.fgTertiary,
+                                      ),
+                                    ),
+                                    Text(
+                                      '− Comm ${Formatters.money(item.commission.toInt())}',
+                                      style: AppText.figtree(
+                                        size: 11.5,
+                                        weight: FontWeight.w500,
+                                        color: AppColors.fgTertiary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                        Container(
+                          margin: EdgeInsets.only(top: 12.h),
+                          padding: EdgeInsets.only(top: 12.h),
+                          decoration: BoxDecoration(
+                            border: Border(
+                              top: BorderSide(
+                                color: AppColors.borderDefault,
+                                width: 1.5.h,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(
+                                'Net payable',
+                                style: AppText.figtree(
+                                  size: 14,
+                                  weight: FontWeight.w700,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                Formatters.money(totNet.toInt()),
+                                style: AppText.figtree(
+                                  size: 19,
+                                  weight: FontWeight.w800,
+                                  letterSpacing: -0.4,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 14.h),
+                        AppButton(
+                          label: 'Create Payout for This Shop',
+                          full: true,
+                          size: AppButtonSize.sm,
+                          icon: AppIcons.wallet,
+                          onPressed: onCreatePayout,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                SizedBox(height: 14.h),
+                // History only loads AFTER pending data is available
+                _PayoutHistorySection(shopId: shop.id),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// Payout history section (loads only after pending completes)
+class _PayoutHistorySection extends ConsumerWidget {
+  const _PayoutHistorySection({required this.shopId});
+
+  final String shopId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(payoutHistoryProvider(shopId));
+
+    return historyAsync.when(
+      loading: () => AppCard(
+        child: SizedBox(
+          height: 120.h,
+          child: const Center(child: CircularProgressIndicator()),
+        ),
+      ),
+      error: (err, st) => AppCard(
+        child: ErrorView(
+          onRetry: () => ref.invalidate(payoutHistoryProvider(shopId)),
+        ),
+      ),
+      data: (history) {
+        return AppCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -232,59 +267,97 @@ class SettlementSection extends StatelessWidget {
                   letterSpacing: 0.1,
                 ),
               ),
-              SizedBox(height: 6.h),
-              ...List.generate(st.history.length, (i) {
-                final h = st.history[i];
-                return Container(
-                  padding: EdgeInsets.symmetric(vertical: 12.h),
-                  decoration: i < st.history.length - 1
-                      ? const BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: AppColors.borderSoft),
-                          ),
-                        )
-                      : null,
-                  child: Row(
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            h.period,
-                            style: AppText.figtree(
-                              size: 13.5,
-                              weight: FontWeight.w600,
-                            ),
-                          ),
-                          SizedBox(height: 3.h),
-                          Text(
-                            'UTR ${h.utr}',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 11.5.sp,
-                              color: AppColors.fgTertiary,
-                            ),
-                          ),
-                        ],
+              if (history.payouts.isEmpty)
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.h),
+                  child: Center(
+                    child: Text(
+                      'No payouts yet.',
+                      style: AppText.figtree(
+                        size: 13,
+                        weight: FontWeight.w500,
+                        color: AppColors.fgMuted,
                       ),
-                      const Spacer(),
-                      Text(
-                        Formatters.money(h.net),
-                        style: AppText.figtree(
-                          size: 14,
-                          weight: FontWeight.w800,
-                        ),
-                      ),
-                      SizedBox(width: 8.w),
-                      _HistoryPill(label: h.status),
-                    ],
+                    ),
                   ),
-                );
-              }),
+                )
+              else ...[
+                SizedBox(height: 6.h),
+                ...List.generate(history.payouts.length, (i) {
+                  final payout = history.payouts[i];
+                  return Container(
+                    padding: EdgeInsets.symmetric(vertical: 12.h),
+                    decoration: i < history.payouts.length - 1
+                        ? const BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(color: AppColors.borderSoft),
+                            ),
+                          )
+                        : null,
+                    child: Row(
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${payout.periodStart} to ${payout.periodEnd}',
+                              style: AppText.figtree(
+                                size: 13.5,
+                                weight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 4.h),
+                            Text(
+                              'Bookings: ${payout.bookingCount}',
+                              style: AppText.figtree(
+                                size: 11.5,
+                                weight: FontWeight.w500,
+                                color: AppColors.fgTertiary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              Formatters.money(payout.totalAmount.toInt()),
+                              style: AppText.figtree(
+                                size: 15,
+                                weight: FontWeight.w800,
+                              ),
+                            ),
+                            SizedBox(height: 4.h),
+                            Container(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 8.w,
+                                vertical: 3.h,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.greenBg,
+                                borderRadius: BorderRadius.circular(4.r),
+                              ),
+                              child: Text(
+                                payout.status.toUpperCase(),
+                                style: AppText.figtree(
+                                  size: 10,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.greenFg,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
             ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 }
@@ -306,15 +379,14 @@ class _SettleCell extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 15.h, horizontal: 8.w),
-        decoration: isFirst
-            ? null
-            : const BoxDecoration(
-                border: Border(
-                  left: BorderSide(color: AppColors.borderSoft),
-                ),
-              ),
+        padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+        decoration: BoxDecoration(
+          border: isFirst
+              ? null
+              : Border(left: BorderSide(color: AppColors.borderSoft)),
+        ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               value,
@@ -322,59 +394,19 @@ class _SettleCell extends StatelessWidget {
                 size: 16,
                 weight: FontWeight.w800,
                 color: valueColor ?? AppColors.fgPrimary,
-                letterSpacing: -0.4,
               ),
             ),
-            SizedBox(height: 5.h),
+            SizedBox(height: 4.h),
             Text(
-              label.toUpperCase(),
+              label,
               style: AppText.figtree(
                 size: 10,
                 weight: FontWeight.w600,
-                color: AppColors.fgTertiary,
-                letterSpacing: 0.05,
+                color: AppColors.fgSecondary,
               ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _HistoryPill extends StatelessWidget {
-  const _HistoryPill({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 9.w, vertical: 4.h),
-      decoration: BoxDecoration(
-        color: AppColors.greenBg,
-        borderRadius: BorderRadius.circular(999.r),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 5.r,
-            height: 5.r,
-            decoration: const BoxDecoration(
-              color: AppColors.greenFg,
-              shape: BoxShape.circle,
-            ),
-          ),
-          SizedBox(width: 5.w),
-          Text(
-            label,
-            style: AppText.figtree(
-              size: 11,
-              weight: FontWeight.w700,
-              color: AppColors.greenFg,
-            ),
-          ),
-        ],
       ),
     );
   }

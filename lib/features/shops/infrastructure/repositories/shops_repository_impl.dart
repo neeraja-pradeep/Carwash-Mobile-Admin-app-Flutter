@@ -1,9 +1,13 @@
+import 'package:flutter/foundation.dart';
+
 import '../../domain/entities/holiday.dart';
 import '../../domain/entities/shop.dart';
 import '../../domain/repositories/shops_repository.dart';
 import '../data_sources/local/shops_local_ds.dart';
+import '../data_sources/settlements_api.dart';
 import '../data_sources/shop_services_api.dart';
 import '../data_sources/shops_api.dart';
+import '../models/settlement_response_model.dart';
 import '../models/shop_service_response_model.dart';
 
 /// Concrete shop repository using API exclusively.
@@ -13,13 +17,16 @@ class ShopsRepositoryImpl implements ShopsRepository {
     ShopsApi? api,
     ShopsLocalDs? local,
     ShopServicesApi? servicesApi,
+    SettlementsApi? settlementsApi,
   })  : _api = api ?? ShopsApi(),
         _local = local ?? const ShopsLocalDs(),
-        _servicesApi = servicesApi ?? ShopServicesApi();
+        _servicesApi = servicesApi ?? ShopServicesApi(),
+        _settlementsApi = settlementsApi ?? SettlementsApi();
 
   final ShopsApi _api;
   final ShopsLocalDs _local;
   final ShopServicesApi _servicesApi;
+  final SettlementsApi _settlementsApi;
 
   @override
   Future<ShopsPage> fetchShops({
@@ -59,7 +66,9 @@ class ShopsRepositoryImpl implements ShopsRepository {
     try {
       final response = await _api.getShopDetail(shopId);
       return response.toDomain();
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ ERROR parsing shop detail: $e');
+      debugPrint('StackTrace: $stackTrace');
       // Propagate the error - don't fallback to mock data
       rethrow;
     }
@@ -173,4 +182,125 @@ class ShopsRepositoryImpl implements ShopsRepository {
 
   @override
   Future<List<Holiday>> fetchHolidays() => _local.fetchHolidays();
+
+  @override
+  Future<SettlementPending> fetchPendingSettlements(String shopId) async {
+    final response = await _settlementsApi.getPendingSettlements(shopId);
+    return SettlementPending(
+      shopId: response.shopId,
+      count: response.count,
+      netPayable: double.tryParse(response.netPayable) ?? 0.0,
+      pendingTotal: double.tryParse(response.pendingTotal) ?? 0.0,
+      lastSettled: response.lastSettled != null ? DateTime.parse(response.lastSettled!) : null,
+      lifetimePaid: double.tryParse(response.lifetimePaid) ?? 0.0,
+      items: response.items
+          .map((item) => SettlementItemData(
+                bookingId: item.bookingId,
+                reference: item.reference,
+                appointmentDate: item.appointmentDate,
+                gross: double.tryParse(item.gross) ?? 0.0,
+                commission: double.tryParse(item.commission) ?? 0.0,
+                net: double.tryParse(item.net) ?? 0.0,
+              ))
+          .toList(),
+    );
+  }
+
+  @override
+  Future<SettlementPayout> createPayout(
+    String shopId, {
+    String? utr,
+    String? notes,
+  }) async {
+    final response = await _settlementsApi.createPayout(shopId, utr: utr, notes: notes);
+    return SettlementPayout(
+      id: response.id,
+      shop: response.shop,
+      grossAmount: double.tryParse(response.grossAmount) ?? 0.0,
+      commissionAmount: double.tryParse(response.commissionAmount) ?? 0.0,
+      totalAmount: double.tryParse(response.totalAmount) ?? 0.0,
+      bookingCount: response.bookingCount,
+      status: response.status,
+      utr: response.utr,
+      notes: response.notes,
+      periodStart: response.periodStart,
+      periodEnd: response.periodEnd,
+      createdBy: response.createdBy,
+      createdByName: response.createdByName,
+      createdAt: DateTime.parse(response.createdAt),
+      items: response.items
+          .map((item) => PayoutItemData(
+                id: item.id,
+                booking: item.booking,
+                reference: item.reference,
+                appointmentDate: item.appointmentDate,
+                gross: double.tryParse(item.gross) ?? 0.0,
+                commission: double.tryParse(item.commission) ?? 0.0,
+                net: double.tryParse(item.net) ?? 0.0,
+              ))
+          .toList(),
+    );
+  }
+
+  @override
+  Future<SettlementHistory> fetchPayoutHistory(String shopId) async {
+    final response = await _settlementsApi.getPayoutHistory(shopId);
+    return SettlementHistory(
+      count: response.count,
+      payouts: response.results
+          .map((payout) => SettlementPayout(
+                id: payout.id,
+                shop: payout.shop,
+                grossAmount: double.tryParse(payout.grossAmount) ?? 0.0,
+                commissionAmount: double.tryParse(payout.commissionAmount) ?? 0.0,
+                totalAmount: double.tryParse(payout.totalAmount) ?? 0.0,
+                bookingCount: payout.bookingCount,
+                status: payout.status,
+                utr: payout.utr,
+                notes: payout.notes,
+                periodStart: payout.periodStart,
+                periodEnd: payout.periodEnd,
+                createdBy: payout.createdBy,
+                createdByName: payout.createdByName,
+                createdAt: DateTime.parse(payout.createdAt),
+                items: payout.items
+                    .map((item) => PayoutItemData(
+                          id: item.id,
+                          booking: item.booking,
+                          reference: item.reference,
+                          appointmentDate: item.appointmentDate,
+                          gross: double.tryParse(item.gross) ?? 0.0,
+                          commission: double.tryParse(item.commission) ?? 0.0,
+                          net: double.tryParse(item.net) ?? 0.0,
+                        ))
+                    .toList(),
+              ))
+          .toList(),
+    );
+  }
+
+  @override
+  Future<SettlementsOverview> fetchSettlementsOverview() async {
+    final response = await _settlementsApi.getSettlementsOverview();
+    return SettlementsOverview(
+      count: response.count,
+      shops: response.items
+          .map((item) => SettlementOverviewShop(
+                shopId: item.shopId,
+                name: item.name,
+                pendingTotal: double.tryParse(item.pendingTotal) ?? 0.0,
+                bookingCount: item.bookingCount,
+                period: item.period != null
+                    ? DateRange(start: item.period!.start, end: item.period!.end)
+                    : null,
+                lastPaid: item.lastPaid != null
+                    ? LastPaid(
+                        date: DateTime.parse(item.lastPaid!.date),
+                        amount: double.tryParse(item.lastPaid!.amount) ?? 0.0,
+                      )
+                    : null,
+              ))
+          .toList(),
+    );
+  }
 }

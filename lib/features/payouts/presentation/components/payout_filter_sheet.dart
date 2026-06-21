@@ -23,7 +23,7 @@ Future<void> showPayoutFilterSheet(BuildContext context, WidgetRef ref) async {
 class _FilterFooter extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final controller = ref.read(payoutsFilterProvider.notifier);
+    final controller = ref.read(payoutLogFilterProvider.notifier);
     return Row(
       children: [
         Expanded(
@@ -54,8 +54,8 @@ class _FilterFooter extends ConsumerWidget {
 class _FilterBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final filter = ref.watch(payoutsFilterProvider);
-    final controller = ref.read(payoutsFilterProvider.notifier);
+    final filter = ref.watch(payoutLogFilterProvider);
+    final controller = ref.read(payoutLogFilterProvider.notifier);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -110,12 +110,13 @@ class _FilterBody extends ConsumerWidget {
                 spacing: 9.w,
                 runSpacing: 9.h,
                 children: shops.map((s) {
-                  final active = filter.shopId == s.id;
+                  final shopIdStr = s.id.toString();
+                  final active = filter.shop == shopIdStr;
                   return AppChip(
                     label: s.name.split(' ').first,
                     active: active,
                     onTap: () => controller.apply(
-                      filter.copyWith(shopId: active ? null : s.id),
+                      filter.copyWith(shop: active ? null : shopIdStr),
                     ),
                   );
                 }).toList(),
