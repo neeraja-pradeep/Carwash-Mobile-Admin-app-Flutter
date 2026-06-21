@@ -162,6 +162,9 @@ class _NewServiceRequestScreenState
           '${_isDriver ? 'Driver hire' : 'Inspection'} request created'
           '${isNew ? ' · new customer added' : ''}',
         );
+        // Force refresh the requests list to show the new request
+        ref.invalidate(serviceRequestsProvider);
+        ref.invalidate(filteredServiceRequestsProvider);
         context.pop();
       }
     } catch (e) {
