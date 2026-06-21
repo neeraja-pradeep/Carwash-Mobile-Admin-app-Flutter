@@ -9,6 +9,7 @@ class HttpClient {
 
   late Dio _dio;
   static String? _sessionId;
+  static String? _csrfToken;
 
   factory HttpClient() {
     return _instance;
@@ -16,7 +17,29 @@ class HttpClient {
 
   HttpClient._internal() {
     _initDio();
-    _loadSessionFromStorage();
+    // Load session/CSRF asynchronously on startup
+    _loadSessionAndCsrfFromStorage();
+  }
+
+  /// Load session ID and CSRF token from local storage (no server calls on startup).
+  Future<void> _loadSessionAndCsrfFromStorage() async {
+    try {
+      final box = await Hive.openBox<String>('session');
+      _sessionId = box.get('sessionid');
+      _csrfToken = box.get('csrftoken');
+
+      if (_sessionId != null) {
+        debugPrint('🔐 Session ID loaded: $_sessionId');
+      }
+      if (_csrfToken != null) {
+        debugPrint('🔐 CSRF token loaded: ${_csrfToken!.substring(0, 10)}...');
+        // Add loaded token to interceptor's cookies map
+        _CsrfInterceptor.addCookie('csrftoken', _csrfToken!);
+        debugPrint('💾 CSRF token added to cookies map');
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading session/CSRF: $e');
+    }
   }
 
   Dio get dio => _dio;
@@ -47,8 +70,9 @@ class HttpClient {
       persistentConnection: true,
     ));
 
-    // Add session interceptor to include sessionid in all requests
+    // Add session and CSRF interceptor
     _dio.interceptors.add(_SessionInterceptor());
+    _dio.interceptors.add(_CsrfInterceptor());
 
     // Enable detailed logging in debug mode only
     if (kDebugMode) {
@@ -67,16 +91,14 @@ class HttpClient {
     }
   }
 
-  /// Load session ID from local storage.
-  Future<void> _loadSessionFromStorage() async {
+  /// Save CSRF token to local storage.
+  static Future<void> _saveCsrfToStorage(String csrfToken) async {
     try {
       final box = await Hive.openBox<String>('session');
-      _sessionId = box.get('sessionid');
-      if (_sessionId != null) {
-        debugPrint('🔐 Session ID loaded from storage: $_sessionId');
-      }
+      await box.put('csrftoken', csrfToken);
+      debugPrint('💾 CSRF token saved locally');
     } catch (e) {
-      debugPrint('❌ Error loading session: $e');
+      debugPrint('❌ Error saving CSRF: $e');
     }
   }
 
@@ -90,11 +112,14 @@ class HttpClient {
     }
   }
 
-  /// Remove session from local storage.
+  /// Remove session and CSRF from local storage (on logout).
   static Future<void> _removeSessionFromStorage() async {
     try {
       final box = await Hive.openBox<String>('session');
       await box.delete('sessionid');
+      await box.delete('csrftoken');
+      _csrfToken = null;
+      debugPrint('🔓 Session and CSRF cleared');
     } catch (e) {
       debugPrint('❌ Error removing session: $e');
     }
@@ -115,6 +140,100 @@ class _SessionInterceptor extends Interceptor {
     options.receiveTimeout = const Duration(seconds: 60);
     super.onRequest(options, handler);
   }
+}
+
+/// Interceptor to handle CSRF tokens for POST/PATCH requests
+class _CsrfInterceptor extends Interceptor {
+  static final Map<String, String> _cookies = {};
+
+  /// Add a cookie to the cookies map (used to load from storage).
+  static void addCookie(String name, String value) {
+    _cookies[name] = value;
+  }
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    // Merge all stored cookies into request Cookie header
+    if (_cookies.isNotEmpty) {
+      final cookieList = _cookies.entries
+          .map((e) => '${e.key}=${e.value}')
+          .toList();
+
+      String cookieHeader = cookieList.join('; ');
+      final existingCookie = options.headers['Cookie'] as String?;
+      if (existingCookie != null && existingCookie.isNotEmpty) {
+        // Merge with existing cookies
+        cookieHeader = '$existingCookie; $cookieHeader';
+      }
+
+      options.headers['Cookie'] = cookieHeader;
+      debugPrint('🍪 Cookies in request: $cookieHeader');
+    }
+
+    // For POST/PATCH/PUT/DELETE requests, add CSRF token header
+    if (['POST', 'PATCH', 'PUT', 'DELETE'].contains(options.method)) {
+      if (HttpClient._csrfToken != null && HttpClient._csrfToken!.isNotEmpty) {
+        options.headers['X-CSRFToken'] = HttpClient._csrfToken;
+        debugPrint('🔐 X-CSRFToken header added: ${HttpClient._csrfToken!.substring(0, 10)}...');
+      } else {
+        debugPrint('⚠️ CSRF token missing for ${options.method}');
+        // Try to add from cookies if available
+        if (_cookies.containsKey('csrftoken')) {
+          final token = _cookies['csrftoken']!;
+          options.headers['X-CSRFToken'] = token;
+          HttpClient._csrfToken = token;
+          debugPrint('🔐 CSRF token from cookies: ${token.substring(0, 10)}...');
+        }
+      }
+    }
+
+    super.onRequest(options, handler);
+  }
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    // Extract cookies from response Set-Cookie headers
+    // Dio stores headers as lowercase
+    final setCookieHeaders = response.headers['set-cookie'];
+
+    if (setCookieHeaders != null && setCookieHeaders.isNotEmpty) {
+      debugPrint('📋 Found ${setCookieHeaders.length} Set-Cookie header(s)');
+
+      for (final cookieStr in setCookieHeaders) {
+        debugPrint('🔍 Parsing cookie: $cookieStr');
+
+        // Parse: "name=value; Path=/; HttpOnly; ..."
+        final parts = cookieStr.split(';');
+        if (parts.isNotEmpty) {
+          final nameValue = parts[0].trim();
+          if (nameValue.contains('=')) {
+            final idx = nameValue.indexOf('=');
+            final name = nameValue.substring(0, idx).trim();
+            final value = nameValue.substring(idx + 1).trim();
+
+            if (value.isNotEmpty) {
+              _cookies[name] = value;
+              debugPrint('✅ Stored cookie: $name=${value.substring(0, Math.min(15, value.length))}...');
+
+              // Track CSRF token specifically and save to storage
+              if (name.toLowerCase() == 'csrftoken') {
+                HttpClient._csrfToken = value;
+                HttpClient._saveCsrfToStorage(value);
+                debugPrint('🔐 CSRF token updated: ${value.substring(0, 10)}...');
+              }
+            }
+          }
+        }
+      }
+    }
+
+    super.onResponse(response, handler);
+  }
+}
+
+// Simple Math helper
+class Math {
+  static int min(int a, int b) => a < b ? a : b;
 }
 
 /// Custom logging interceptor to show API calls in clean format

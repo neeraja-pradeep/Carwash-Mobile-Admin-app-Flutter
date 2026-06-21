@@ -484,9 +484,9 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
 
               // Save bar
               Container(
-                color: AppColors.bgCard,
                 padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
                 decoration: const BoxDecoration(
+                  color: AppColors.bgCard,
                   border: Border(top: BorderSide(color: AppColors.borderSoft)),
                 ),
                 child: AppButton(

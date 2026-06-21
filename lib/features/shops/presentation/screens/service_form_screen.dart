@@ -8,6 +8,7 @@ import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
 import 'package:new_flutter_project/core/widgets/widgets.dart';
 
+import '../../application/providers/shop_services_providers.dart';
 import '../../application/providers/shops_providers.dart';
 import '../../domain/entities/shop.dart';
 
@@ -26,7 +27,8 @@ class ServiceFormScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final shopAsync = ref.watch(shopByIdProvider(shopId));
+    final shopAsync = ref.watch(shopDetailProvider(shopId));
+
     return shopAsync.when(
       loading: () => const Scaffold(
         backgroundColor: AppColors.bgPage,
@@ -40,7 +42,7 @@ class ServiceFormScreen extends ConsumerWidget {
               TopBar(title: 'Service', onBack: () => context.pop()),
               Expanded(
                 child: ErrorView(
-                  onRetry: () => ref.invalidate(shopByIdProvider(shopId)),
+                  onRetry: () => ref.invalidate(shopDetailProvider(shopId)),
                 ),
               ),
             ],
@@ -48,55 +50,62 @@ class ServiceFormScreen extends ConsumerWidget {
         ),
       ),
       data: (shop) {
-        if (shop == null) {
-          return Scaffold(
+        // Only fetch services if editing (serviceId is not null)
+        if (serviceId == null) {
+          return _ServiceFormBody(
+            shop: shop,
+            existing: null,
+          );
+        }
+
+        // Fetch services sequentially (not in parallel) to avoid connection pool exhaustion
+        final servicesAsync = ref.watch(shopServicesProvider(shopId));
+        return servicesAsync.when(
+          loading: () => const Scaffold(
+            backgroundColor: AppColors.bgPage,
+            body: Center(child: CircularProgressIndicator()),
+          ),
+          error: (_, __) => Scaffold(
             backgroundColor: AppColors.bgPage,
             body: SafeArea(
               child: Column(
                 children: [
                   TopBar(title: 'Service', onBack: () => context.pop()),
-                  const Expanded(
-                    child: EmptyState(
-                      title: 'Shop not found',
-                      body: '',
+                  Expanded(
+                    child: ErrorView(
+                      onRetry: () =>
+                          ref.invalidate(shopServicesProvider(shopId)),
                     ),
                   ),
                 ],
               ),
             ),
-          );
-        }
-        final existing = serviceId != null
-            ? shop.services.firstWhere(
-                (sv) => sv.id == serviceId,
-                orElse: () => const ShopService(
-                  id: '',
-                  name: '',
-                  description: '',
-                  samePrice: false,
-                  active: true,
-                ),
-              )
-            : null;
-        return _ServiceFormBody(
-          shop: shop,
-          existing: (existing?.id.isEmpty ?? true) ? null : existing,
+          ),
+          data: (services) {
+            final existing = services.cast<ShopService?>().firstWhere(
+                (sv) => sv != null && sv.id == serviceId,
+                orElse: () => null);
+            return _ServiceFormBody(
+              shop: shop,
+              existing: existing,
+            );
+          },
         );
       },
     );
   }
 }
 
-class _ServiceFormBody extends StatefulWidget {
+class _ServiceFormBody extends ConsumerStatefulWidget {
   const _ServiceFormBody({required this.shop, this.existing});
   final Shop shop;
   final ShopService? existing;
 
   @override
-  State<_ServiceFormBody> createState() => _ServiceFormBodyState();
+  ConsumerState<_ServiceFormBody> createState() => _ServiceFormBodyState();
 }
 
-class _ServiceFormBodyState extends State<_ServiceFormBody> {
+class _ServiceFormBodyState extends ConsumerState<_ServiceFormBody> {
   late String _name;
   late String _desc;
   late bool _samePrice;
@@ -181,6 +190,91 @@ class _ServiceFormBodyState extends State<_ServiceFormBody> {
       destructive: true,
     );
     if (discard && mounted) context.pop();
+  }
+
+  /// Save service to API (add or edit).
+  Future<void> _handleSave() async {
+    try {
+      final repository = ref.read(shopsRepositoryProvider);
+
+      // Parse inclusions from comma/newline separated text
+      final inclusions = _desc
+          .split(RegExp(r'[,\n]+'))
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+
+      if (_samePrice) {
+        // Uniform pricing
+        final price = int.tryParse(_flatPrice) ?? 0;
+        final minutes = int.tryParse(_flatMin) ?? 30;
+
+        if (_isEdit && widget.existing != null) {
+          await repository.updateService(
+            int.parse(widget.existing!.id),
+            _name,
+            inclusions,
+            true,
+            true,
+            price,
+            minutes ~/ 30,
+            null,
+          );
+        } else {
+          await repository.createService(
+            widget.shop.id,
+            _name,
+            inclusions,
+            true,
+            true,
+            price,
+            minutes ~/ 30,
+            null,
+          );
+        }
+      } else {
+        // Per-vehicle pricing
+        final variants = _rows
+            .where((r) => r.active && r.price.isNotEmpty)
+            .map((r) => (
+                  type: r.type,
+                  price: int.tryParse(r.price) ?? 0,
+                  minutes: int.tryParse(r.min) ?? 30,
+                  active: r.active,
+                ))
+            .toList();
+
+        if (_isEdit && widget.existing != null) {
+          await repository.updateService(
+            int.parse(widget.existing!.id),
+            _name,
+            inclusions,
+            false,
+            true,
+            null,
+            null,
+            variants,
+          );
+        } else {
+          await repository.createService(
+            widget.shop.id,
+            _name,
+            inclusions,
+            false,
+            true,
+            null,
+            null,
+            variants,
+          );
+        }
+      }
+
+      ref.invalidate(shopServicesProvider(widget.shop.id));
+      _toast(_isEdit ? 'Service updated' : 'Service added');
+      if (mounted) context.pop();
+    } catch (e) {
+      _toast('Error: ${e.toString()}');
+    }
   }
 
   @override
@@ -467,19 +561,16 @@ class _ServiceFormBodyState extends State<_ServiceFormBody> {
             ),
             // Save bar
             Container(
-              color: AppColors.bgCard,
               padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
               decoration: const BoxDecoration(
+                color: AppColors.bgCard,
                 border: Border(top: BorderSide(color: AppColors.borderSoft)),
               ),
               child: AppButton(
                 label: _isEdit ? 'Save Changes' : 'Add Service',
                 full: true,
                 disabled: !_valid,
-                onPressed: () {
-                  _toast(_isEdit ? 'Service updated' : 'Service added');
-                  context.pop();
-                },
+                onPressed: _valid ? _handleSave : null,
               ),
             ),
           ],

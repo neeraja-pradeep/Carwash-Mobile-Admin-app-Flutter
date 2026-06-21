@@ -8,6 +8,7 @@ import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/widgets/widgets.dart';
 
+import '../../application/providers/shop_services_providers.dart';
 import '../../application/providers/shops_providers.dart';
 import '../../domain/entities/shop.dart';
 import '../components/info_section.dart';
@@ -235,24 +236,8 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
           onActiveChanged: (v) => setState(() => _activeOverride = v),
         );
       case 1:
-        return ServicesSection(
-          services: services,
-          onToggleService: (id) {
-            final updated = services.map((sv) {
-              if (sv.id != id) return sv;
-              return ShopService(
-                id: sv.id,
-                name: sv.name,
-                description: sv.description,
-                samePrice: sv.samePrice,
-                active: !sv.active,
-                flatPrice: sv.flatPrice,
-                flatMinutes: sv.flatMinutes,
-                pricing: sv.pricing,
-              );
-            }).toList();
-            setState(() => _servicesOverride = updated);
-          },
+        return _ServicesTabBody(
+          shopId: live.id,
           onAddService: () => context.push(Routes.addService(live.id)),
           onEditService: (svId) =>
               context.push(Routes.editService(live.id, svId)),
@@ -347,5 +332,180 @@ class _ContextMenu extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Services tab — fetches from API and handles toggle/copy/price-change.
+class _ServicesTabBody extends ConsumerStatefulWidget {
+  const _ServicesTabBody({
+    required this.shopId,
+    required this.onAddService,
+    required this.onEditService,
+    required this.onToast,
+  });
+
+  final String shopId;
+  final VoidCallback onAddService;
+  final ValueChanged<String> onEditService;
+  final void Function(String) onToast;
+
+  @override
+  ConsumerState<_ServicesTabBody> createState() => _ServicesTabBodyState();
+}
+
+class _ServicesTabBodyState extends ConsumerState<_ServicesTabBody> {
+  @override
+  Widget build(BuildContext context) {
+    final servicesAsync = ref.watch(shopServicesProvider(widget.shopId));
+
+    return servicesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, st) => ErrorView(
+        onRetry: () =>
+            ref.invalidate(shopServicesProvider(widget.shopId)),
+      ),
+      data: (services) {
+        return ServicesSection(
+          services: services,
+          onToggleService: (id) => _onToggleService(int.parse(id)),
+          onAddService: widget.onAddService,
+          onEditService: widget.onEditService,
+          onToast: _handleBulkAction,
+        );
+      },
+    );
+  }
+
+  /// Toggle service active status via API.
+  Future<void> _onToggleService(int serviceId) async {
+    final servicesAsync = ref.read(shopServicesProvider(widget.shopId));
+    final services = servicesAsync.value;
+    if (services == null) return;
+
+    final service = services
+        .cast<ShopService?>()
+        .firstWhere((s) => s != null && int.parse(s.id) == serviceId,
+            orElse: () => null);
+    if (service == null) return;
+
+    final newActive = !service.active;
+    try {
+      final repository = ref.read(shopsRepositoryProvider);
+      await repository.toggleService(serviceId, newActive);
+      ref.invalidate(shopServicesProvider(widget.shopId));
+      widget.onToast(
+        newActive ? 'Service activated' : 'Service deactivated',
+      );
+    } catch (e) {
+      widget.onToast('Error: ${e.toString()}');
+    }
+  }
+
+  /// Handle bulk actions (copy or price change).
+  void _handleBulkAction(String action) {
+    if (action.contains('Copy')) {
+      _showCopyServicesDialog();
+    } else if (action.contains('price')) {
+      _showPriceChangeDialog();
+    }
+  }
+
+  /// Show dialog to copy services from another shop.
+  void _showCopyServicesDialog() {
+    final sourceController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Copy Services'),
+        content: TextField(
+          controller: sourceController,
+          decoration: const InputDecoration(
+            hintText: 'Enter source shop ID',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _copyServices(int.tryParse(sourceController.text) ?? 0);
+            },
+            child: const Text('Copy'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Copy services from another shop.
+  Future<void> _copyServices(int sourceShopId) async {
+    try {
+      final repository = ref.read(shopsRepositoryProvider);
+      final result = await repository.copyServices(
+        sourceShopId,
+        int.parse(widget.shopId),
+      );
+      ref.invalidate(shopServicesProvider(widget.shopId));
+      widget.onToast(
+        'Copied ${result.copied} services, skipped ${result.skipped}',
+      );
+    } catch (e) {
+      widget.onToast('Error: ${e.toString()}');
+    }
+  }
+
+  /// Show dialog to apply percentage price change.
+  void _showPriceChangeDialog() {
+    final percentController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Apply Price Change'),
+        content: TextField(
+          controller: percentController,
+          keyboardType:
+              const TextInputType.numberWithOptions(signed: true, decimal: false),
+          decoration: const InputDecoration(
+            hintText: 'Enter percent (e.g., 10 or -5)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _applyPriceChange(
+                double.tryParse(percentController.text) ?? 0,
+              );
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Apply percentage price change to all services.
+  Future<void> _applyPriceChange(double percent) async {
+    if (percent <= -100) {
+      widget.onToast('Percent must be > -100');
+      return;
+    }
+    try {
+      final repository = ref.read(shopsRepositoryProvider);
+      final result = await repository.applyPriceChange(widget.shopId, percent);
+      ref.invalidate(shopServicesProvider(widget.shopId));
+      widget.onToast(
+        'Updated ${result.servicesUpdated} services, ${result.variantsUpdated} variants',
+      );
+    } catch (e) {
+      widget.onToast('Error: ${e.toString()}');
+    }
   }
 }
