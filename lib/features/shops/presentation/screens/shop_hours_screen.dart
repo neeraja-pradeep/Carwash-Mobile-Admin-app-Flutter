@@ -91,8 +91,7 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final shopAsync = ref.watch(shopByIdProvider(widget.shopId));
-    final holidaysAsync = ref.watch(shopHolidaysProvider(widget.shopId));
+    final shopAsync = ref.watch(shopDetailProvider(widget.shopId));
 
     return shopAsync.when(
       loading: () => const Scaffold(
@@ -114,21 +113,8 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
         ),
       ),
       data: (shop) {
-        if (shop == null) {
-          return Scaffold(
-            backgroundColor: AppColors.bgPage,
-            body: SafeArea(
-              child: Column(
-                children: [
-                  TopBar(title: 'Hours & Slots', onBack: () => context.pop()),
-                  const Expanded(
-                      child: EmptyState(title: 'Shop not found', body: '')),
-                ],
-              ),
-            ),
-          );
-        }
-
+        // Load holidays only after shop loads (sequential, not parallel)
+        final holidaysAsync = ref.watch(shopHolidaysProvider(widget.shopId));
         final holidays =
             _localHolidays ?? (holidaysAsync.valueOrNull ?? <Holiday>[]);
         _init(shop, holidays);
@@ -136,10 +122,12 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
         final days = _days!;
         final slotCapEnabled = _slotCapEnabled ?? shop.slotCapacityEnabled;
         final defCap = _defCap ?? shop.slotCap;
-        final firstWorking = days.firstWhere(
-          (d) => !d.closed,
-          orElse: () => days.first,
-        );
+        final firstWorking = days.isNotEmpty
+            ? days.firstWhere(
+                (d) => !d.closed,
+                orElse: () => days.first,
+              )
+            : null;
 
         return Scaffold(
           backgroundColor: AppColors.bgPage,
@@ -281,7 +269,7 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
                               ),
                             ),
                             const Spacer(),
-                            if (!firstWorking.closed)
+                            if (firstWorking != null && !firstWorking.closed)
                               GestureDetector(
                                 onTap: () {
                                   setState(() {
@@ -555,9 +543,9 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
                 ),
                 // Save bar
                 Container(
-                  color: AppColors.bgCard,
                   padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
                   decoration: const BoxDecoration(
+                    color: AppColors.bgCard,
                     border:
                         Border(top: BorderSide(color: AppColors.borderSoft)),
                   ),

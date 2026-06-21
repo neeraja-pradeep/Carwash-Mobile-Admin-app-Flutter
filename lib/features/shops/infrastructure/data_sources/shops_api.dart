@@ -74,6 +74,22 @@ class ShopsApi {
     }
   }
 
+  /// Create a new shop - POST /api/shop/v1/shops/
+  Future<ShopDetailResponseModel> createShop(ShopCreateRequest request) async {
+    try {
+      final response = await _dio.post(
+        _shopsPath,
+        data: request.toJson(),
+      );
+
+      return ShopDetailResponseModel.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Handle DioException and throw appropriate error.
   Exception _handleError(DioException e) {
     if (e.response != null) {
@@ -85,6 +101,21 @@ class ShopsApi {
 
       final errorData = e.response?.data;
       if (errorData is Map<String, dynamic>) {
+        // Handle validation errors with field-specific messages
+        if (statusCode == 400 && errorData.isNotEmpty) {
+          final errors = <String>[];
+          errorData.forEach((key, value) {
+            if (value is List && value.isNotEmpty) {
+              errors.add('${key.replaceAll('_', ' ')}: ${value.first}');
+            } else if (value is String) {
+              errors.add('${key.replaceAll('_', ' ')}: $value');
+            }
+          });
+          if (errors.isNotEmpty) {
+            return Exception(errors.join('\n'));
+          }
+        }
+
         final errorMessage = errorData['error'] ??
             errorData['detail'] ??
             errorData['message'] ??

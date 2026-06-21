@@ -35,6 +35,30 @@ abstract class ShopsRepository {
   /// Returns shop detail by ID.
   Future<Shop> fetchShopDetail(String shopId);
 
+  /// Creates a new shop with the provided details.
+  Future<Shop> createShop({
+    required String name,
+    required String address,
+    required String pincode,
+    required String city,
+    required String state,
+    required String phone,
+    required String ownerName,
+    required String ownerPhone,
+    int? dailyBookingCap,
+    List<String>? supportedVehicleTypes,
+    required String commissionType,
+    String? commissionPercentage,
+    String? commissionAmount,
+    String? commissionFloor,
+    String? bankAccountName,
+    String? bankAccountNumber,
+    String? bankIfsc,
+    String? upiId,
+    String? gstin,
+    String? pan,
+  });
+
   /// Returns services for a shop.
   Future<List<ShopService>> fetchShopServices(String shopId);
 

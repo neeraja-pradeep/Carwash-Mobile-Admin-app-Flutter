@@ -410,3 +410,73 @@ class BankDetailModel {
     );
   }
 }
+
+/// Shop creation request for POST /api/shop/v1/shops/
+class ShopCreateRequest {
+  final String name;
+  final String address;
+  final String pincode;
+  final String city;
+  final String state;
+  final String phone;
+  final String ownerName;
+  final String ownerPhone;
+  final int? dailyBookingCap;
+  final List<String> supportedVehicleTypes;
+  final String commissionType;
+  final String? commissionPercentage;
+  final String? commissionAmount;
+  final String? commissionFloor;
+  final String? bankAccountName;
+  final String? bankAccountNumber;
+  final String? bankIfsc;
+  final String? upiId;
+  final String? gstin;
+  final String? pan;
+
+  ShopCreateRequest({
+    required this.name,
+    required this.address,
+    required this.pincode,
+    required this.city,
+    required this.state,
+    required this.phone,
+    required this.ownerName,
+    required this.ownerPhone,
+    this.dailyBookingCap,
+    this.supportedVehicleTypes = const [],
+    this.commissionType = 'flat',
+    this.commissionPercentage,
+    this.commissionAmount,
+    this.commissionFloor,
+    this.bankAccountName,
+    this.bankAccountNumber,
+    this.bankIfsc,
+    this.upiId,
+    this.gstin,
+    this.pan,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'address': address,
+        'pincode': pincode,
+        'city': city,
+        'state': state,
+        'phone': phone,
+        'owner_name': ownerName,
+        'owner_phone': ownerPhone,
+        'daily_booking_cap': dailyBookingCap,
+        'supported_vehicle_types': supportedVehicleTypes,
+        'commission_type': commissionType,
+        if (commissionPercentage != null) 'commission_percentage': commissionPercentage,
+        if (commissionAmount != null) 'commission_amount': commissionAmount,
+        if (commissionFloor != null) 'commission_floor': commissionFloor,
+        if (bankAccountName != null) 'bank_account_name': bankAccountName,
+        if (bankAccountNumber != null) 'bank_account_number': bankAccountNumber,
+        if (bankIfsc != null) 'bank_ifsc': bankIfsc,
+        if (upiId != null) 'upi_id': upiId,
+        if (gstin != null) 'gstin': gstin,
+        if (pan != null) 'pan': pan,
+      };
+}

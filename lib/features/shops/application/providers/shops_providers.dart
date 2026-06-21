@@ -136,3 +136,57 @@ String? _mapSortValue(String uiSort) {
       return 'name';
   }
 }
+
+// ─── Shop creation ───────────────────────────────────────────────────────────
+
+/// Create a new shop with the provided details.
+/// This provider handles the shop creation API call and returns the created shop.
+final createShopProvider =
+    FutureProvider.family<Shop, ({
+      String name,
+      String address,
+      String pincode,
+      String city,
+      String state,
+      String phone,
+      String ownerName,
+      String ownerPhone,
+      int? dailyBookingCap,
+      List<String>? supportedVehicleTypes,
+      String commissionType,
+      String? commissionPercentage,
+      String? commissionAmount,
+      String? commissionFloor,
+      String? bankAccountName,
+      String? bankAccountNumber,
+      String? bankIfsc,
+      String? upiId,
+      String? gstin,
+      String? pan,
+    })>(
+  (ref, params) {
+    final repository = ref.watch(shopsRepositoryProvider);
+    return repository.createShop(
+      name: params.name,
+      address: params.address,
+      pincode: params.pincode,
+      city: params.city,
+      state: params.state,
+      phone: params.phone,
+      ownerName: params.ownerName,
+      ownerPhone: params.ownerPhone,
+      dailyBookingCap: params.dailyBookingCap,
+      supportedVehicleTypes: params.supportedVehicleTypes,
+      commissionType: params.commissionType,
+      commissionPercentage: params.commissionPercentage,
+      commissionAmount: params.commissionAmount,
+      commissionFloor: params.commissionFloor,
+      bankAccountName: params.bankAccountName,
+      bankAccountNumber: params.bankAccountNumber,
+      bankIfsc: params.bankIfsc,
+      upiId: params.upiId,
+      gstin: params.gstin,
+      pan: params.pan,
+    );
+  },
+);

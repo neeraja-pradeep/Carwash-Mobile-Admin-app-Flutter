@@ -7,7 +7,7 @@ import '../data_sources/local/shops_local_ds.dart';
 import '../data_sources/settlements_api.dart';
 import '../data_sources/shop_services_api.dart';
 import '../data_sources/shops_api.dart';
-import '../models/settlement_response_model.dart';
+import '../models/shop_detail_response_model.dart';
 import '../models/shop_service_response_model.dart';
 
 /// Concrete shop repository using API exclusively.
@@ -70,6 +70,61 @@ class ShopsRepositoryImpl implements ShopsRepository {
       debugPrint('❌ ERROR parsing shop detail: $e');
       debugPrint('StackTrace: $stackTrace');
       // Propagate the error - don't fallback to mock data
+      rethrow;
+    }
+  }
+
+  @override
+  Future<Shop> createShop({
+    required String name,
+    required String address,
+    required String pincode,
+    required String city,
+    required String state,
+    required String phone,
+    required String ownerName,
+    required String ownerPhone,
+    int? dailyBookingCap,
+    List<String>? supportedVehicleTypes,
+    required String commissionType,
+    String? commissionPercentage,
+    String? commissionAmount,
+    String? commissionFloor,
+    String? bankAccountName,
+    String? bankAccountNumber,
+    String? bankIfsc,
+    String? upiId,
+    String? gstin,
+    String? pan,
+  }) async {
+    try {
+      final request = ShopCreateRequest(
+        name: name,
+        address: address,
+        pincode: pincode,
+        city: city,
+        state: state,
+        phone: phone,
+        ownerName: ownerName,
+        ownerPhone: ownerPhone,
+        dailyBookingCap: dailyBookingCap,
+        supportedVehicleTypes: supportedVehicleTypes ?? [],
+        commissionType: commissionType,
+        commissionPercentage: commissionPercentage,
+        commissionAmount: commissionAmount,
+        commissionFloor: commissionFloor,
+        bankAccountName: bankAccountName,
+        bankAccountNumber: bankAccountNumber,
+        bankIfsc: bankIfsc,
+        upiId: upiId,
+        gstin: gstin,
+        pan: pan,
+      );
+      final response = await _api.createShop(request);
+      return response.toDomain();
+    } catch (e, stackTrace) {
+      debugPrint('❌ ERROR creating shop: $e');
+      debugPrint('StackTrace: $stackTrace');
       rethrow;
     }
   }

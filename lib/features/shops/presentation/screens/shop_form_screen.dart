@@ -51,15 +51,15 @@ class ShopFormScreen extends ConsumerWidget {
   }
 }
 
-class _ShopFormBody extends StatefulWidget {
+class _ShopFormBody extends ConsumerStatefulWidget {
   const _ShopFormBody({required this.shop});
   final Shop? shop;
 
   @override
-  State<_ShopFormBody> createState() => _ShopFormBodyState();
+  ConsumerState<_ShopFormBody> createState() => _ShopFormBodyState();
 }
 
-class _ShopFormBodyState extends State<_ShopFormBody> {
+class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
   late _FormState _f;
   bool _touched = false;
 
@@ -83,7 +83,103 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
         if (_isEdit) _touched = true;
       });
 
-  void _toast(String msg) => AppToast.show(context, msg);
+  /// Map display vehicle type names to API-compatible lowercase values
+  List<String> _mapVehicleTypes(List<String> displayTypes) {
+    final mapping = {
+      'hatchback': 'hatchback',
+      'sedan': 'sedan',
+      'compact suv': 'suv',
+      'premium suv': 'suv',
+      'suv': 'suv',
+      'convertible': 'convertible',
+      'bike': 'bike',
+    };
+    return displayTypes
+        .map((t) {
+          final lower = t.toLowerCase();
+          return mapping[lower] ?? lower;
+        })
+        .toList();
+  }
+
+  /// Map commission type to API-compatible values
+  String _mapCommissionType(String mode) {
+    final mapping = {
+      'percentage': 'percentage',
+      'flat': 'flat',
+      'floor': 'percent_floor', // floor mode is actually percent_floor in API
+    };
+    return mapping[mode] ?? mode;
+  }
+
+  /// Create a new shop via API
+  void _handleCreate() async {
+    if (!_valid) return;
+
+    AppToast.show(context, 'Creating shop...');
+
+    try {
+      final params = (
+        name: _f.name.trim(),
+        address: _f.address.trim(),
+        pincode: _f.pincode.trim(),
+        city: '', // API allows empty city initially
+        state: '', // API allows empty state initially
+        phone: _f.shopPhone.trim().isEmpty ? _f.ownerPhone.trim() : _f.shopPhone.trim(),
+        ownerName: _f.ownerName.trim(),
+        ownerPhone: _f.ownerPhone.trim(),
+        dailyBookingCap: int.tryParse(_f.cap),
+        supportedVehicleTypes: _f.types.isNotEmpty ? _mapVehicleTypes(_f.types) : null,
+        commissionType: _mapCommissionType(_f.mode),
+        commissionPercentage: _f.mode == 'percentage' || _f.mode == 'floor' ? _f.pct : null,
+        commissionAmount: _f.mode == 'flat' ? _f.flat : null,
+        commissionFloor: _f.mode == 'floor' ? _f.floor : null,
+        bankAccountName: _f.accName.isEmpty ? null : _f.accName,
+        bankAccountNumber: _f.accNo.isEmpty ? null : _f.accNo,
+        bankIfsc: _f.ifsc.isEmpty ? null : _f.ifsc,
+        upiId: _f.upi.isEmpty ? null : _f.upi,
+        gstin: null,
+        pan: null,
+      );
+
+      // Trigger the provider to create the shop
+      await ref.read(createShopProvider(params).future);
+      if (!mounted) return;
+      AppToast.show(context, 'Shop created (Inactive) — add a service next');
+
+      context.pop();
+      // Shops list will reload naturally when user navigates back
+    } catch (e) {
+      if (!mounted) return;
+
+      // Extract error message
+      String errorMsg = e.toString();
+      if (errorMsg.contains('Exception:')) {
+        errorMsg = errorMsg.replaceFirst('Exception: ', '');
+      }
+
+      // Show error dialog instead of toast for better visibility
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Failed to create shop'),
+          content: Text(errorMsg),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  /// Edit existing shop (placeholder - not yet implemented in API)
+  void _handleEdit() {
+    AppToast.show(context, 'Shop details saved');
+    context.pop();
+  }
 
   /// Prompts to discard unsaved details before leaving (matches the design's
   /// discard pattern). Pops only when confirmed or when not dirty.
@@ -493,14 +589,7 @@ class _ShopFormBodyState extends State<_ShopFormBody> {
                   label: _isEdit ? 'Save Changes' : 'Save Shop',
                   full: true,
                   disabled: !_valid,
-                  onPressed: () {
-                    _toast(
-                      _isEdit
-                          ? 'Shop details saved'
-                          : 'Shop created (Inactive) — add a service next',
-                    );
-                    context.pop();
-                  },
+                  onPressed: _isEdit ? _handleEdit : _handleCreate,
                 ),
               ),
             ],

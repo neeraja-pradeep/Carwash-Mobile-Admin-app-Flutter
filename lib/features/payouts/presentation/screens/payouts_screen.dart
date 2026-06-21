@@ -143,7 +143,7 @@ class _PayoutsScreenState extends ConsumerState<PayoutsScreen> {
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) =>
-                                    PayoutDetailScreen(payoutId: p.id.toString()),
+                                    PayoutDetailScreen(payout: p),
                               ),
                             ),
                           );

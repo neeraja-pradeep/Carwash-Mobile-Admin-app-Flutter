@@ -83,16 +83,52 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
           backgroundColor: AppColors.bgPage,
           body: SafeArea(
             bottom: false,
-            child: Column(
+            child: Stack(
               children: [
-                _buildTopBar(context, shop),
-                _buildTabBar(),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 28.h),
-                    child: _buildTabBody(context, live, services, isActive),
-                  ),
+                Column(
+                  children: [
+                    _buildTopBar(context, shop),
+                    _buildTabBar(),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 28.h),
+                        child: _buildTabBody(context, live, services, isActive),
+                      ),
+                    ),
+                  ],
                 ),
+                // Menu overlay - positioned above entire screen content
+                if (_menuOpen) ...[
+                  Positioned.fill(
+                    child: GestureDetector(
+                      onTap: () => setState(() => _menuOpen = false),
+                      behavior: HitTestBehavior.opaque,
+                      child: const ColoredBox(color: Colors.transparent),
+                    ),
+                  ),
+                  Positioned(
+                    top: 52.h,
+                    right: 16.w,
+                    child: _ContextMenu(
+                      onEditShop: () {
+                        setState(() => _menuOpen = false);
+                        context.push(Routes.editShop(shop.id));
+                      },
+                      onManageHours: () {
+                        setState(() => _menuOpen = false);
+                        context.push(Routes.shopHours(shop.id));
+                      },
+                      onDuplicate: () {
+                        setState(() => _menuOpen = false);
+                        _toast('Duplicate shop');
+                      },
+                      onExport: () {
+                        setState(() => _menuOpen = false);
+                        _toast('Export (CSV)');
+                      },
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -133,50 +169,15 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
   }
 
   Widget _buildTopBar(BuildContext context, Shop shop) {
-    return Stack(
-      children: [
-        TopBar(
-          title: shop.name,
-          onBack: () => context.pop(),
-          actions: [
-            AppIconButton(
-              icon: AppIcons.more,
-              semanticLabel: 'More actions',
-              onTap: () => setState(() => _menuOpen = !_menuOpen),
-            ),
-          ],
+    return TopBar(
+      title: shop.name,
+      onBack: () => context.pop(),
+      actions: [
+        AppIconButton(
+          icon: AppIcons.more,
+          semanticLabel: 'More actions',
+          onTap: () => setState(() => _menuOpen = !_menuOpen),
         ),
-        if (_menuOpen) ...[
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: () => setState(() => _menuOpen = false),
-              behavior: HitTestBehavior.opaque,
-              child: const ColoredBox(color: Colors.transparent),
-            ),
-          ),
-          Positioned(
-            top: 52.h,
-            right: 8.w,
-            child: _ContextMenu(
-              onEditShop: () {
-                setState(() => _menuOpen = false);
-                context.push(Routes.editShop(shop.id));
-              },
-              onManageHours: () {
-                setState(() => _menuOpen = false);
-                context.push(Routes.shopHours(shop.id));
-              },
-              onDuplicate: () {
-                setState(() => _menuOpen = false);
-                _toast('Duplicate shop');
-              },
-              onExport: () {
-                setState(() => _menuOpen = false);
-                _toast('Export (CSV)');
-              },
-            ),
-          ),
-        ],
       ],
     );
   }
