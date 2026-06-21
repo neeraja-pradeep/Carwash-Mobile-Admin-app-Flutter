@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/status/service_request_status.dart';
-import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
@@ -16,24 +16,13 @@ import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/avatar.dart';
 import 'package:new_flutter_project/core/widgets/skeleton_card.dart';
-import 'package:new_flutter_project/core/widgets/status_badge.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
-import 'package:new_flutter_project/features/drivers/application/providers/drivers_providers.dart';
-import 'package:new_flutter_project/features/drivers/domain/entities/field_driver.dart'
-    show LiveLocation;
 
 import '../../application/providers/service_requests_providers.dart';
-import '../../domain/entities/service_request.dart';
+import '../../infrastructure/models/driver_inspection_detail_response_model.dart';
 import '../components/sr_assign_sheet.dart';
-import '../components/sr_otp_modal.dart';
-import '../components/sr_summary_card.dart';
 
 /// Full-screen detail for a single service request.
-///
-/// Mirrors `SrDetail` in `screen_servicereq.jsx`. Handles status transitions
-/// (New → Contacted → Assigned → In Progress → Completed / Cancelled), OTP
-/// verification, assignee picking, and displays the live location card and
-/// completion summary when applicable.
 class ServiceRequestDetailScreen extends ConsumerStatefulWidget {
   const ServiceRequestDetailScreen({required this.requestId, super.key});
 
@@ -46,10 +35,6 @@ class ServiceRequestDetailScreen extends ConsumerStatefulWidget {
 
 class _ServiceRequestDetailScreenState
     extends ConsumerState<ServiceRequestDetailScreen> {
-  ServiceRequestStatus? _statusOverride;
-  String? _assigneeIdOverride;
-  List<SrTimelineEntry>? _timelineOverride;
-  SrSummary? _summaryOverride;
   String _opsNote = '';
   bool _menuOpen = false;
 
@@ -58,15 +43,55 @@ class _ServiceRequestDetailScreenState
     final hour = now.hour % 12 == 0 ? 12 : now.hour % 12;
     final min = now.minute.toString().padLeft(2, '0');
     final period = now.hour < 12 ? 'AM' : 'PM';
-    return '29 May, $hour:$min $period';
+    return '${now.day} ${_getMonth(now.month)}, $hour:$min $period';
+  }
+
+  String _getMonth(int month) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[month - 1];
   }
 
   @override
   Widget build(BuildContext context) {
-    final requestAsync =
-        ref.watch(serviceRequestByIdProvider(widget.requestId));
+    // Parse request ID - handle both numeric strings and references
+    int? parsedId;
+    try {
+      parsedId = int.parse(widget.requestId.toString());
+    } catch (e) {
+      debugPrint('⚠️ Failed to parse requestId: ${widget.requestId}');
+    }
 
-    return requestAsync.when(
+    if (parsedId == null || parsedId <= 0) {
+      return _buildShell(
+        context,
+        title: 'Request',
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Invalid Request ID',
+                  style: AppText.figtree(size: 14, color: AppColors.danger, weight: FontWeight.w600)),
+              SizedBox(height: 8.h),
+              Text('Received: "${widget.requestId}"',
+                  style: AppText.figtree(size: 12, color: AppColors.fgTertiary)),
+              SizedBox(height: 4.h),
+              Text('Expected: numeric ID (e.g., "77")',
+                  style: AppText.figtree(size: 11, color: AppColors.fgTertiary)),
+              SizedBox(height: 16.h),
+              AppButton(
+                label: 'Go Back',
+                onPressed: () => context.pop(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final requestId = parsedId;
+    final detailAsync = ref.watch(serviceRequestDetailProvider(requestId));
+
+    return detailAsync.when(
       loading: () => _buildShell(
         context,
         title: 'Request',
@@ -81,49 +106,32 @@ class _ServiceRequestDetailScreenState
           ],
         ),
       ),
-      error: (e, _) => _buildShell(
+      error: (e, st) => _buildShell(
         context,
         title: 'Request',
         body: Center(
-          child: Text('Could not load request',
-              style: AppText.figtree(size: 14, color: AppColors.danger)),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text('Could not load request',
+                  style: AppText.figtree(size: 14, color: AppColors.danger)),
+              SizedBox(height: 8.h),
+              Text(e.toString(),
+                  style: AppText.figtree(size: 12, color: AppColors.fgTertiary),
+                  textAlign: TextAlign.center),
+            ],
+          ),
         ),
       ),
-      data: (request) {
-        if (request == null) {
-          return _buildShell(
-            context,
-            title: 'Request',
-            body: Center(
-              child:
-                  Text('Request not found', style: AppText.figtree(size: 14)),
-            ),
-          );
-        }
-        final status = _statusOverride ?? request.status;
-        final assigneeId = _assigneeIdOverride ?? request.assigneeId;
-        final timeline = _timelineOverride ?? request.timeline;
-        final summary = _summaryOverride ?? request.summary;
-
+      data: (detail) {
         return _DetailBody(
-          request: request,
-          status: status,
-          assigneeId: assigneeId,
-          timeline: timeline,
-          summary: summary,
+          requestId: requestId,
+          detail: detail,
           opsNote: _opsNote,
           menuOpen: _menuOpen,
           nowStamp: _nowStamp,
           onMenuToggle: () => setState(() => _menuOpen = !_menuOpen),
           onMenuClose: () => setState(() => _menuOpen = false),
-          onStatusChange: (s) => setState(() {
-            _statusOverride = s;
-            _menuOpen = false;
-          }),
-          onAssigneeChange: (id) => setState(() => _assigneeIdOverride = id),
-          onTimelineAdd: (e) =>
-              setState(() => _timelineOverride = [...timeline, e]),
-          onSummarySet: (s) => setState(() => _summaryOverride = s),
           onNoteChange: (n) => setState(() => _opsNote = n),
         );
       },
@@ -151,78 +159,91 @@ class _ServiceRequestDetailScreenState
 
 class _DetailBody extends ConsumerWidget {
   const _DetailBody({
-    required this.request,
-    required this.status,
-    required this.assigneeId,
-    required this.timeline,
-    required this.summary,
+    required this.requestId,
+    required this.detail,
     required this.opsNote,
     required this.menuOpen,
     required this.nowStamp,
     required this.onMenuToggle,
     required this.onMenuClose,
-    required this.onStatusChange,
-    required this.onAssigneeChange,
-    required this.onTimelineAdd,
-    required this.onSummarySet,
     required this.onNoteChange,
   });
 
-  final ServiceRequest request;
-  final ServiceRequestStatus status;
-  final String? assigneeId;
-  final List<SrTimelineEntry> timeline;
-  final SrSummary? summary;
+  final int requestId;
+  final DriverInspectionDetailResponse detail;
   final String opsNote;
   final bool menuOpen;
   final String nowStamp;
   final VoidCallback onMenuToggle;
   final VoidCallback onMenuClose;
-  final ValueChanged<ServiceRequestStatus> onStatusChange;
-  final ValueChanged<String> onAssigneeChange;
-  final ValueChanged<SrTimelineEntry> onTimelineAdd;
-  final ValueChanged<SrSummary> onSummarySet;
   final ValueChanged<String> onNoteChange;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final assigneeAsync = assigneeId != null
-        ? ref.watch(assigneeByIdProvider(assigneeId!))
-        : const AsyncValue<({String name, String phone, String role})?>.data(
-            null);
-    final assignee = assigneeAsync.valueOrNull;
+    final actionState = ref.watch(detailActionProvider);
+    final status = _parseStatus(detail.status);
+    final hasWorker = detail.worker != null;
+    final isPaid = detail.isPaid;
 
-    // Next action (mirrors nextStep in JSX).
     _NextStep? nextStep;
     if (status == ServiceRequestStatus.created) {
       nextStep = _NextStep(
         label: 'Mark Contacted',
-        action: () {
-          onStatusChange(ServiceRequestStatus.contacted);
-          onTimelineAdd(SrTimelineEntry(
-            status: ServiceRequestStatus.contacted,
-            at: nowStamp,
-            by: 'Anand',
-          ));
-          AppToast.show(context, 'Marked Contacted');
-        },
+        action: actionState.isLoading
+            ? null
+            : () async {
+                try {
+                  await ref.read(detailActionProvider.notifier).updateStatus(
+                        id: requestId,
+                        status: 'contacted',
+                      );
+                  if (context.mounted) {
+                    AppToast.show(context, 'Marked Contacted');
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    AppToast.show(context, e.toString());
+                  }
+                }
+              },
       );
     } else if ((status == ServiceRequestStatus.contacted ||
             status == ServiceRequestStatus.assigned) &&
-        assigneeId != null) {
+        hasWorker) {
+      if (!isPaid) {
+        nextStep = _NextStep(label: 'Awaiting Payment', action: null);
+      } else {
+        nextStep = _NextStep(
+          label: 'Start Job',
+          action: actionState.isLoading
+              ? null
+              : () async {
+                  try {
+                    await ref.read(detailActionProvider.notifier).markArrived(requestId);
+                    if (context.mounted) {
+                      AppToast.show(context, 'Marked Arrived');
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      AppToast.show(context, e.toString());
+                    }
+                  }
+                },
+        );
+      }
+    } else if (status == ServiceRequestStatus.arrived && hasWorker) {
       nextStep = _NextStep(
         label: 'Start Job',
-        action: () => _showOtp(context, 'start', assignee),
+        action: actionState.isLoading ? null : () => _showOtpModal(context, ref, 'start'),
       );
     } else if (status == ServiceRequestStatus.inProgress) {
       nextStep = _NextStep(
         label: 'End Job',
-        action: () => _showOtp(context, 'end', assignee),
+        action: actionState.isLoading ? null : () => _showOtpModal(context, ref, 'end'),
       );
     }
 
-    final isDone = status == ServiceRequestStatus.completed ||
-        status == ServiceRequestStatus.cancelled;
+    final isDone = status == ServiceRequestStatus.completed || status == ServiceRequestStatus.cancelled;
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -231,7 +252,7 @@ class _DetailBody extends ConsumerWidget {
         child: Column(
           children: [
             _TopBar(
-              request: request,
+              detail: detail,
               menuOpen: menuOpen,
               onMenuToggle: onMenuToggle,
               onMenuClose: onMenuClose,
@@ -241,24 +262,15 @@ class _DetailBody extends ConsumerWidget {
               child: ListView(
                 padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
                 children: [
-                  _HeaderCard(request: request, status: status),
+                  _HeaderCard(detail: detail, status: status),
                   SizedBox(height: 14.h),
-                  if (status == ServiceRequestStatus.inProgress &&
-                      request.live != null) ...[
-                    _LiveCard(
-                      live: request.live!,
-                      kind: request.kind,
-                      assigneeName: assignee?.name,
-                    ),
-                    SizedBox(height: 14.h),
-                  ],
-                  _DetailsCard(request: request),
+                  _DetailsCard(detail: detail),
                   SizedBox(height: 14.h),
-                  if (request.note.isNotEmpty) ...[
+                  if (detail.customerNote != null && detail.customerNote!.isNotEmpty) ...[
                     _NoteCard(
                       label: 'CUSTOMER NOTE',
                       icon: AppIcons.message,
-                      text: request.note,
+                      text: detail.customerNote!,
                     ),
                     SizedBox(height: 14.h),
                   ],
@@ -271,24 +283,16 @@ class _DetailBody extends ConsumerWidget {
                     ),
                     SizedBox(height: 14.h),
                   ],
-                  if (status == ServiceRequestStatus.completed &&
-                      summary != null) ...[
-                    SrSummaryCard(summary: summary!),
-                    SizedBox(height: 14.h),
-                  ],
                   _AssignCard(
-                    request: request,
+                    detail: detail,
                     status: status,
-                    assigneeId: assigneeId,
-                    assignee: assignee,
                     onAssign: () => _openAssignSheet(context, ref),
                   ),
                   SizedBox(height: 14.h),
-                  _TimelineCard(timeline: timeline),
+                  _TimelineCard(detail: detail),
                 ],
               ),
             ),
-            // Sticky footer.
             Container(
               decoration: const BoxDecoration(
                 color: AppColors.bgCard,
@@ -311,7 +315,8 @@ class _DetailBody extends ConsumerWidget {
                           Expanded(
                             flex: 1,
                             child: _CancelButton(
-                              onTap: () => _confirmCancel(context),
+                              isLoading: actionState.isLoading,
+                              onTap: () => _confirmCancel(context, ref),
                             ),
                           ),
                           SizedBox(width: 10.w),
@@ -320,7 +325,7 @@ class _DetailBody extends ConsumerWidget {
                             child: AppButton(
                               label: nextStep?.label ?? 'Assign first',
                               full: true,
-                              disabled: nextStep == null,
+                              disabled: nextStep == null || actionState.isLoading,
                               onPressed: nextStep?.action,
                             ),
                           ),
@@ -334,83 +339,120 @@ class _DetailBody extends ConsumerWidget {
     );
   }
 
-  Future<void> _showOtp(
-    BuildContext context,
-    String mode,
-    ({String name, String phone, String role})? assignee,
-  ) async {
-    if (request.otp.isEmpty) return;
-    await showModalBottomSheet<void>(
+  ServiceRequestStatus _parseStatus(String status) {
+    switch (status) {
+      case 'new':
+      case 'created':
+        return ServiceRequestStatus.created;
+      case 'contacted':
+        return ServiceRequestStatus.contacted;
+      case 'assigned':
+        return ServiceRequestStatus.assigned;
+      case 'arrived':
+        return ServiceRequestStatus.arrived;
+      case 'in_progress':
+        return ServiceRequestStatus.inProgress;
+      case 'completed':
+        return ServiceRequestStatus.completed;
+      case 'cancelled':
+        return ServiceRequestStatus.cancelled;
+      default:
+        return ServiceRequestStatus.created;
+    }
+  }
+
+  void _showOtpModal(BuildContext context, WidgetRef ref, String mode) {
+    final controller = TextEditingController();
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.bgCard,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
-      builder: (_) => SrOtpModal(
-        mode: mode,
-        expectedOtp: request.otp,
-        onVerify: () {
-          Navigator.of(context).pop();
-          if (mode == 'start') {
-            onStatusChange(ServiceRequestStatus.inProgress);
-            onTimelineAdd(SrTimelineEntry(
-              status: ServiceRequestStatus.inProgress,
-              at: nowStamp,
-              by: assignee?.name ?? 'Anand',
-              location: request.startLoc ?? request.location,
-            ));
-            AppToast.show(context, 'Job started · location captured');
-          } else {
-            onStatusChange(ServiceRequestStatus.completed);
-            onTimelineAdd(SrTimelineEntry(
-              status: ServiceRequestStatus.completed,
-              at: nowStamp,
-              by: assignee?.name ?? 'Anand',
-              location: request.endLoc ?? request.startLoc ?? request.location,
-            ));
-            onSummarySet(SrSummary(
-              plannedHours: 0,
-              actualHours: 0,
-              extraKm: 0,
-              baseFee: request.fee ?? 0,
-              extraCharge: 0,
-              extraReason: 'Completed as planned — no extra charge',
-              total: request.fee ?? 0,
-              paid: false,
-            ));
-            AppToast.show(context, 'Job completed · summary ready');
-          }
-        },
+      builder: (_) => Padding(
+        padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, MediaQuery.of(_).viewInsets.bottom + 20.h),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Enter ${mode == 'start' ? 'start' : 'end'} OTP',
+                style: AppText.figtree(size: 18, weight: FontWeight.w700)),
+            SizedBox(height: 16.h),
+            TextField(
+              controller: controller,
+              decoration: InputDecoration(
+                hintText: 'OTP',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r)),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                  borderSide: const BorderSide(color: AppColors.borderDefault),
+                ),
+              ),
+            ),
+            SizedBox(height: 16.h),
+            AppButton(
+              label: 'Verify',
+              full: true,
+              onPressed: () async {
+                final otp = controller.text.trim();
+                try {
+                  if (mode == 'start') {
+                    await ref.read(detailActionProvider.notifier).verifyStartOtp(
+                          id: requestId,
+                          otp: otp,
+                        );
+                  } else {
+                    await ref.read(detailActionProvider.notifier).verifyEndOtp(
+                          id: requestId,
+                          otp: otp,
+                        );
+                  }
+                  if (context.mounted) {
+                    Navigator.of(context).pop();
+                    AppToast.show(context, mode == 'start' ? 'Job started' : 'Job completed');
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    AppToast.show(context, e.toString());
+                  }
+                }
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Future<void> _openAssignSheet(BuildContext context, WidgetRef ref) async {
+    final isInspection = detail.requestType == 'inspection';
     await showAppBottomSheet<void>(
       context: context,
-      title:
-          request.kind == SrKind.driver ? 'Assign driver' : 'Assign inspector',
+      title: isInspection ? 'Assign inspector' : 'Assign driver',
       maxHeightFactor: 0.64,
       builder: (sheetCtx) => SrAssignSheet(
-        kind: request.kind,
-        currentRequestId: request.id,
-        currentAssigneeId: assigneeId,
+        requestId: requestId,
+        currentAssigneeId: detail.worker?.id.toString(),
         sheetContext: sheetCtx,
-        onPick: (id, name) {
-          final isFirst = assigneeId == null;
-          onAssigneeChange(id);
-          if (isFirst &&
-              (status == ServiceRequestStatus.created ||
-                  status == ServiceRequestStatus.contacted)) {
-            onStatusChange(ServiceRequestStatus.assigned);
-            onTimelineAdd(SrTimelineEntry(
-              status: ServiceRequestStatus.assigned,
-              at: nowStamp,
-              by: 'Anand',
-            ));
+        onPick: (id, name) async {
+          try {
+            const slotId = 1;
+            final workerType = isInspection ? 'inspector_id' : 'driver_id';
+            await ref.read(detailActionProvider.notifier).assignWorker(
+                  id: requestId,
+                  workerId: int.parse(id),
+                  slotId: slotId,
+                  workerType: workerType,
+                );
+            if (context.mounted) {
+              AppToast.show(context, 'Assigned to $name');
+            }
+          } catch (e) {
+            if (context.mounted) {
+              AppToast.show(context, e.toString());
+            }
           }
-          AppToast.show(context, 'Assigned to $name');
         },
       ),
     );
@@ -418,7 +460,6 @@ class _DetailBody extends ConsumerWidget {
 
   Future<void> _showNoteModal(BuildContext context) async {
     final controller = TextEditingController(text: opsNote);
-    final hadNote = opsNote.isNotEmpty;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -437,18 +478,8 @@ class _DetailBody extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(hadNote ? 'Edit note' : 'Add note',
+            Text(opsNote.isEmpty ? 'Add note' : 'Edit note',
                 style: AppText.figtree(size: 19, weight: FontWeight.w700)),
-            SizedBox(height: 6.h),
-            Text(
-              'Internal note for this request — founders only.',
-              style: AppText.figtree(
-                size: 13,
-                weight: FontWeight.w400,
-                color: AppColors.fgSecondary,
-                height: 1.5,
-              ),
-            ),
             SizedBox(height: 16.h),
             TextField(
               controller: controller,
@@ -456,15 +487,7 @@ class _DetailBody extends ConsumerWidget {
               autofocus: true,
               decoration: InputDecoration(
                 hintText: 'Type a note…',
-                hintStyle: AppText.figtree(size: 14, color: AppColors.fgMuted),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                  borderSide: const BorderSide(color: AppColors.borderDefault),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.r),
-                  borderSide: const BorderSide(color: AppColors.borderDefault),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r)),
               ),
             ),
             SizedBox(height: 20.h),
@@ -484,11 +507,12 @@ class _DetailBody extends ConsumerWidget {
                     label: 'Save',
                     full: true,
                     onPressed: () {
-                      final text = controller.text.trim();
-                      onNoteChange(text);
+                      onNoteChange(controller.text.trim());
                       Navigator.of(ctx).pop();
-                      AppToast.show(context,
-                          text.isEmpty ? 'Note cleared' : 'Note saved');
+                      AppToast.show(
+                        context,
+                        controller.text.isEmpty ? 'Note cleared' : 'Note saved',
+                      );
                     },
                   ),
                 ),
@@ -500,7 +524,7 @@ class _DetailBody extends ConsumerWidget {
     );
   }
 
-  Future<void> _confirmCancel(BuildContext context) async {
+  Future<void> _confirmCancel(BuildContext context, WidgetRef ref) async {
     final confirmed = await showConfirmDialog(
       context: context,
       title: 'Cancel this request?',
@@ -509,13 +533,16 @@ class _DetailBody extends ConsumerWidget {
       destructive: true,
     );
     if (confirmed && context.mounted) {
-      onStatusChange(ServiceRequestStatus.cancelled);
-      onTimelineAdd(SrTimelineEntry(
-        status: ServiceRequestStatus.cancelled,
-        at: nowStamp,
-        by: 'Anand',
-      ));
-      AppToast.show(context, 'Request cancelled');
+      try {
+        await ref.read(detailActionProvider.notifier).cancelRequest(requestId);
+        if (context.mounted) {
+          AppToast.show(context, 'Request cancelled');
+        }
+      } catch (e) {
+        if (context.mounted) {
+          AppToast.show(context, e.toString());
+        }
+      }
     }
   }
 }
@@ -525,22 +552,21 @@ class _DetailBody extends ConsumerWidget {
 class _NextStep {
   const _NextStep({required this.label, required this.action});
   final String label;
-  final VoidCallback action;
+  final VoidCallback? action;
 }
 
-/// Red-tinted "Cancel" footer button (matches the destructive Cancel in the
-/// JSX SR-detail footer: red-bg fill + red foreground/border).
 class _CancelButton extends StatelessWidget {
-  const _CancelButton({required this.onTap});
+  const _CancelButton({required this.onTap, this.isLoading = false});
 
   final VoidCallback onTap;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap: isLoading ? null : onTap,
         borderRadius: BorderRadius.circular(12.r),
         child: Container(
           height: 50.h,
@@ -550,14 +576,16 @@ class _CancelButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(12.r),
             border: Border.all(color: AppColors.redFg),
           ),
-          child: Text(
-            'Cancel',
-            style: AppText.figtree(
-              size: 14,
-              weight: FontWeight.w700,
-              color: AppColors.redFg,
-            ),
-          ),
+          child: isLoading
+              ? SizedBox(
+                  width: 20.h,
+                  height: 20.h,
+                  child: const CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(
+                  'Cancel',
+                  style: AppText.figtree(size: 14, weight: FontWeight.w700, color: AppColors.redFg),
+                ),
         ),
       ),
     );
@@ -566,14 +594,14 @@ class _CancelButton extends StatelessWidget {
 
 class _TopBar extends StatelessWidget {
   const _TopBar({
-    required this.request,
+    required this.detail,
     required this.menuOpen,
     required this.onMenuToggle,
     required this.onMenuClose,
     required this.onAddNote,
   });
 
-  final ServiceRequest request;
+  final DriverInspectionDetailResponse detail;
   final bool menuOpen;
   final VoidCallback onMenuToggle;
   final VoidCallback onMenuClose;
@@ -581,126 +609,48 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final typeLabel = detail.requestType == 'inspection' ? 'Inspection' : 'Driver';
     return TopBar(
-      title: '${request.kind.label} Request',
-      subtitle: request.id,
+      title: '$typeLabel Request',
+      subtitle: detail.reference,
       onBack: () => context.pop(),
       actions: [
         AppIconButton(
           icon: AppIcons.phone,
           iconSize: 20,
           semanticLabel: 'Call customer',
-          onTap: () =>
-              AppToast.show(context, 'Calling ${request.customer.name}…'),
-        ),
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            AppIconButton(
-              icon: AppIcons.more,
-              iconSize: 22,
-              semanticLabel: 'More actions',
-              onTap: onMenuToggle,
-            ),
-            if (menuOpen) ...[
-              Positioned.fill(
-                child: GestureDetector(
-                  onTap: onMenuClose,
-                  behavior: HitTestBehavior.translucent,
-                ),
-              ),
-              Positioned(
-                right: 0,
-                top: 44.h,
-                child: _DropdownMenu(
-                  onAddNote: onAddNote,
-                  onClose: onMenuClose,
-                  requestId: request.id,
-                ),
-              ),
-            ],
-          ],
+          onTap: () async {
+            if (detail.customerPhone == null || detail.customerPhone!.isEmpty) {
+              AppToast.show(context, 'No phone number available');
+              return;
+            }
+            try {
+              final uri = Uri(scheme: 'tel', path: detail.customerPhone);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri);
+              } else {
+                if (context.mounted) {
+                  AppToast.show(context, 'Could not open dialer');
+                }
+              }
+            } catch (e) {
+              if (context.mounted) {
+                AppToast.show(context, 'Error: ${e.toString()}');
+              }
+            }
+          },
         ),
       ],
     );
   }
 }
 
-class _DropdownMenu extends StatelessWidget {
-  const _DropdownMenu({
-    required this.onAddNote,
-    required this.onClose,
-    required this.requestId,
-  });
-
-  final VoidCallback onAddNote;
-  final VoidCallback onClose;
-  final String requestId;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      (AppIcons.share, 'Share request'),
-      (AppIcons.copy, 'Copy request ID'),
-      (AppIcons.note, 'Add note'),
-    ];
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        width: 190.w,
-        decoration: BoxDecoration(
-          color: AppColors.bgCard,
-          borderRadius: BorderRadius.circular(12.r),
-          border: Border.all(color: AppColors.borderSoft),
-          boxShadow: AppCard.shadow,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (var i = 0; i < items.length; i++)
-              GestureDetector(
-                onTap: () {
-                  onClose();
-                  if (items[i].$2 == 'Add note') {
-                    onAddNote();
-                  } else if (items[i].$2 == 'Copy request ID') {
-                    AppToast.show(context, 'Copied $requestId');
-                  }
-                },
-                child: Container(
-                  padding:
-                      EdgeInsets.symmetric(horizontal: 16.w, vertical: 13.h),
-                  decoration: BoxDecoration(
-                    border: i < items.length - 1
-                        ? const Border(
-                            bottom: BorderSide(color: AppColors.borderSoft))
-                        : null,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(items[i].$1,
-                          size: 16.sp, color: AppColors.fgSecondary),
-                      SizedBox(width: 10.w),
-                      Text(
-                        items[i].$2,
-                        style:
-                            AppText.figtree(size: 14, weight: FontWeight.w500),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+// ── Card components ──────────────────────────────────────────────────────────
 
 class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({required this.request, required this.status});
+  const _HeaderCard({required this.detail, required this.status});
 
-  final ServiceRequest request;
+  final DriverInspectionDetailResponse detail;
   final ServiceRequestStatus status;
 
   @override
@@ -714,288 +664,36 @@ class _HeaderCard extends StatelessWidget {
               Container(
                 padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
                 decoration: BoxDecoration(
-                  color: AppColors.bgPage,
+                  color: AppColors.bgCard,
                   borderRadius: BorderRadius.circular(8.r),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      request.kind == SrKind.driver
-                          ? AppIcons.car
-                          : AppIcons.search,
-                      size: 14.sp,
-                      color: AppColors.fgSecondary,
-                    ),
-                    SizedBox(width: 6.w),
-                    Text(
-                      request.kind.label.toUpperCase(),
-                      style: AppText.figtree(
-                        size: 11,
-                        weight: FontWeight.w700,
-                        letterSpacing: 0.04 * 11,
-                        color: AppColors.fgSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Spacer(),
-              StatusBadge(label: status.label, tone: status.tone),
-            ],
-          ),
-          SizedBox(height: 14.h),
-          Text(
-            request.customer.name,
-            style: AppText.figtree(size: 20, weight: FontWeight.w800),
-          ),
-          SizedBox(height: 4.h),
-          Row(
-            children: [
-              Icon(AppIcons.phone, size: 14.sp, color: AppColors.fgTertiary),
-              SizedBox(width: 6.w),
-              Text(
-                request.customer.phone,
-                style: AppText.figtree(
-                  size: 13.5,
-                  weight: FontWeight.w500,
-                  color: AppColors.fgSecondary,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Live-location card shown while a job is in progress.
-///
-/// Mirrors the live card in `screen_servicereq.jsx`: a GREEN left-accent white
-/// card with a pulsing green dot + "LIVE LOCATION" header and the assignee on
-/// the right, a map preview with a "Track" pill, and a current-location box
-/// carrying a Moving / Static chip and the "Updated …" timestamp.
-class _LiveCard extends StatelessWidget {
-  const _LiveCard({
-    required this.live,
-    required this.kind,
-    required this.assigneeName,
-  });
-
-  final LiveLocation live;
-  final SrKind kind;
-  final String? assigneeName;
-
-  @override
-  Widget build(BuildContext context) {
-    final moving = live.moving;
-    final moveColor = moving ? AppColors.blueFg : AppColors.fgSecondary;
-
-    return AppCard(
-      accent: AppColors.success,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header: pulsing dot · LIVE LOCATION · assignee.
-          Row(
-            children: [
-              Container(
-                width: 8.r,
-                height: 8.r,
-                decoration: BoxDecoration(
-                  color: AppColors.success,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.success.withOpacity(0.18),
-                      blurRadius: 0,
-                      spreadRadius: 3.r,
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(width: 8.w),
-              Text(
-                'LIVE LOCATION',
-                style: AppText.figtree(
-                  size: 11,
-                  weight: FontWeight.w700,
-                  letterSpacing: 0.08 * 11,
-                  color: AppColors.success,
-                ),
-              ),
-              const Spacer(),
-              Icon(
-                kind == SrKind.driver ? AppIcons.car : AppIcons.users,
-                size: 13.sp,
-                color: AppColors.fgSecondary,
-              ),
-              SizedBox(width: 5.w),
-              Flexible(
                 child: Text(
-                  assigneeName ?? '—',
-                  overflow: TextOverflow.ellipsis,
+                  detail.requestType == 'inspection' ? 'INSPECTION' : 'DRIVER',
+                  style: AppText.figtree(size: 11, weight: FontWeight.w700, color: AppColors.fgSecondary),
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
+                decoration: BoxDecoration(
+                  color: AppColors.brandYellow.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+                child: Text(
+                  status.label,
                   style: AppText.figtree(
-                    size: 11.5,
-                    weight: FontWeight.w600,
-                    color: AppColors.fgSecondary,
+                    size: 11,
+                    weight: FontWeight.w700,
+                    color: AppColors.brandYellowDeep,
                   ),
                 ),
               ),
             ],
           ),
-          SizedBox(height: 13.h),
-
-          // Map preview with a Track pill.
-          GestureDetector(
-            onTap: () => AppToast.show(context, 'Open live tracking on map'),
-            child: Container(
-              height: 120.h,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFFEEF3EC), Color(0xFFE2E9EE)],
-                ),
-                borderRadius: BorderRadius.circular(12.r),
-                border: Border.all(color: AppColors.borderSoft),
-              ),
-              child: Stack(
-                children: [
-                  Center(
-                    child: Icon(
-                      moving ? AppIcons.nav : AppIcons.pin,
-                      size: moving ? 28.sp : 30.sp,
-                      color: moving ? AppColors.blueFg : AppColors.danger,
-                    ),
-                  ),
-                  Positioned(
-                    right: 9.w,
-                    bottom: 9.h,
-                    child: Container(
-                      padding:
-                          EdgeInsets.symmetric(horizontal: 10.w, vertical: 5.h),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.85),
-                        borderRadius: BorderRadius.circular(999.r),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.12),
-                            blurRadius: 8.r,
-                            offset: Offset(0, 2.h),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(AppIcons.nav,
-                              size: 13.sp, color: AppColors.fgPrimary),
-                          SizedBox(width: 5.w),
-                          Text(
-                            'Track',
-                            style: AppText.figtree(
-                                size: 11, weight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 13.h),
-
-          // Current-location box.
-          Container(
-            padding: EdgeInsets.all(12.r),
-            decoration: BoxDecoration(
-              color: AppColors.bgPage,
-              borderRadius: BorderRadius.circular(11.r),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 36.r,
-                  height: 36.r,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: AppColors.bgCard,
-                    borderRadius: BorderRadius.circular(10.r),
-                    border: Border.all(color: AppColors.borderSoft),
-                  ),
-                  child: Icon(
-                    moving ? AppIcons.nav : AppIcons.pin,
-                    size: 18.sp,
-                    color: moveColor,
-                  ),
-                ),
-                SizedBox(width: 11.w),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'CURRENT LOCATION',
-                        style: AppText.figtree(
-                          size: 9.5,
-                          weight: FontWeight.w700,
-                          letterSpacing: 0.06 * 9.5,
-                          color: AppColors.fgTertiary,
-                        ),
-                      ),
-                      SizedBox(height: 3.h),
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              live.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppText.figtree(
-                                  size: 12.5, weight: FontWeight.w600),
-                            ),
-                          ),
-                          SizedBox(width: 7.w),
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                                horizontal: 7.w, vertical: 2.h),
-                            decoration: BoxDecoration(
-                              color:
-                                  moving ? AppColors.blueBg : AppColors.greyBg,
-                              borderRadius: BorderRadius.circular(5.r),
-                            ),
-                            child: Text(
-                              moving ? 'MOVING' : 'STATIC',
-                              style: AppText.figtree(
-                                size: 9,
-                                weight: FontWeight.w600,
-                                letterSpacing: 0.04 * 9,
-                                color: moving
-                                    ? AppColors.blueFg
-                                    : AppColors.greyFg,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 3.h),
-                      Text(
-                        'Updated ${live.lastUpdate}',
-                        style: AppText.figtree(
-                          size: 11,
-                          weight: FontWeight.w500,
-                          color: AppColors.fgMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          SizedBox(height: 12.h),
+          Text(detail.title, style: AppText.figtree(size: 15, weight: FontWeight.w700)),
+          SizedBox(height: 4.h),
+          Text(detail.reference, style: AppText.figtree(size: 12, color: AppColors.fgTertiary)),
         ],
       ),
     );
@@ -1003,50 +701,23 @@ class _LiveCard extends StatelessWidget {
 }
 
 class _DetailsCard extends StatelessWidget {
-  const _DetailsCard({required this.request});
+  const _DetailsCard({required this.detail});
 
-  final ServiceRequest request;
+  final DriverInspectionDetailResponse detail;
 
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      padded: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 4.h),
-            child: Text('REQUEST', style: AppText.eyebrow),
-          ),
+          _DetailRow(label: 'Vehicle', value: detail.carLabel ?? detail.vehicleText ?? 'N/A'),
           _DetailRow(
-            icon: AppIcons.car,
-            label: 'Vehicle',
-            value: '${request.vehicle.title} · ${request.vehicle.type}',
-            sub: request.vehicle.plate,
-          ),
-          if (request.kind == SrKind.driver && request.reason != null)
-            _DetailRow(
-              icon: AppIcons.note,
-              label: 'Reason for hire',
-              value: request.reason!,
-            ),
-          _DetailRow(
-            icon: AppIcons.clock,
             label: 'When',
-            value: '${request.when} · ${request.duration}',
+            value: '${detail.appointmentDate} ${detail.startTime} · ${detail.durationLabel}',
           ),
-          _DetailRow(
-            icon: AppIcons.pin,
-            label: 'Location',
-            value: request.location,
-            hasNav: true,
-          ),
-          _DetailRow(
-            icon: AppIcons.rupee,
-            label: 'Quoted fee',
-            value: request.fee != null ? Formatters.money(request.fee!) : 'TBD',
-            isLast: true,
-          ),
+          _DetailRow(label: 'Location', value: detail.addressText),
+          _DetailRow(label: 'Fee', value: '₹${detail.quotedFee ?? detail.estimatedFee ?? '0'}'),
         ],
       ),
     );
@@ -1054,87 +725,21 @@ class _DetailsCard extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
-  const _DetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.sub,
-    this.hasNav = false,
-    this.isLast = false,
-  });
+  const _DetailRow({required this.label, required this.value});
 
-  final IconData icon;
   final String label;
   final String value;
-  final String? sub;
-  final bool hasNav;
-  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.fromLTRB(16.w, 11.h, 16.w, 11.h),
-      decoration: BoxDecoration(
-        border: isLast
-            ? null
-            : const Border(bottom: BorderSide(color: AppColors.borderSoft)),
-      ),
-      child: Row(
+    return Padding(
+      padding: EdgeInsets.only(bottom: 12.h),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: EdgeInsets.only(top: 2.h),
-            child: Icon(icon, size: 16.sp, color: AppColors.fgTertiary),
-          ),
-          SizedBox(width: 11.w),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: AppText.figtree(
-                    size: 11.5,
-                    weight: FontWeight.w500,
-                    color: AppColors.fgTertiary,
-                  ),
-                ),
-                SizedBox(height: 3.h),
-                Text(
-                  value,
-                  style: AppText.figtree(
-                      size: 13.5, weight: FontWeight.w600, height: 1.4),
-                ),
-                if (sub != null) ...[
-                  SizedBox(height: 2.h),
-                  Text(
-                    sub!,
-                    style: AppText.figtree(
-                      size: 12,
-                      weight: FontWeight.w500,
-                      color: AppColors.fgTertiary,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (hasNav)
-            GestureDetector(
-              onTap: () => AppToast.show(context, 'Opening navigation…'),
-              child: Container(
-                width: 34.r,
-                height: 34.r,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.bgCard,
-                  borderRadius: BorderRadius.circular(9.r),
-                  border: Border.all(color: AppColors.borderDefault),
-                ),
-                child:
-                    Icon(AppIcons.nav, size: 16.sp, color: AppColors.fgPrimary),
-              ),
-            ),
+          Text(label, style: AppText.figtree(size: 11, color: AppColors.fgTertiary, weight: FontWeight.w600)),
+          SizedBox(height: 4.h),
+          Text(value, style: AppText.figtree(size: 13)),
         ],
       ),
     );
@@ -1152,8 +757,6 @@ class _NoteCard extends StatelessWidget {
   final String label;
   final IconData icon;
   final String text;
-
-  /// When non-null, an "Edit" link is shown in the header (Founder Note).
   final VoidCallback? onEdit;
 
   @override
@@ -1164,35 +767,16 @@ class _NoteCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 15.sp, color: AppColors.fgTertiary),
-              SizedBox(width: 7.w),
-              Text(label, style: AppText.eyebrow),
-              if (onEdit != null) ...[
-                const Spacer(),
-                GestureDetector(
-                  onTap: onEdit,
-                  child: Text(
-                    'Edit',
-                    style: AppText.figtree(
-                      size: 12.5,
-                      weight: FontWeight.w600,
-                      color: AppColors.fgSecondary,
-                    ),
-                  ),
-                ),
-              ],
+              Icon(icon, size: 16, color: AppColors.fgTertiary),
+              SizedBox(width: 8.w),
+              Text(label, style: AppText.figtree(size: 11, color: AppColors.fgTertiary, weight: FontWeight.w600)),
+              const Spacer(),
+              if (onEdit != null)
+                GestureDetector(onTap: onEdit, child: Icon(AppIcons.edit, size: 16, color: AppColors.fgTertiary)),
             ],
           ),
-          SizedBox(height: 10.h),
-          Text(
-            text,
-            style: AppText.figtree(
-              size: 14,
-              weight: FontWeight.w400,
-              color: AppColors.fgSecondary,
-              height: 1.5,
-            ),
-          ),
+          SizedBox(height: 8.h),
+          Text(text, style: AppText.figtree(size: 13, height: 1.5)),
         ],
       ),
     );
@@ -1201,86 +785,52 @@ class _NoteCard extends StatelessWidget {
 
 class _AssignCard extends StatelessWidget {
   const _AssignCard({
-    required this.request,
+    required this.detail,
     required this.status,
-    required this.assigneeId,
-    required this.assignee,
     required this.onAssign,
   });
 
-  final ServiceRequest request;
+  final DriverInspectionDetailResponse detail;
   final ServiceRequestStatus status;
-  final String? assigneeId;
-  final ({String name, String phone, String role})? assignee;
   final VoidCallback onAssign;
 
   @override
   Widget build(BuildContext context) {
-    final canAssign = status != ServiceRequestStatus.completed &&
-        status != ServiceRequestStatus.cancelled;
+    final worker = detail.worker;
+    final needsAssignee = detail.worker == null;
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            request.kind == SrKind.driver
-                ? 'ASSIGNED DRIVER'
-                : 'ASSIGNED INSPECTOR',
-            style: AppText.eyebrow,
-          ),
+          Text('ASSIGNMENT', style: AppText.figtree(size: 11, color: AppColors.fgTertiary, weight: FontWeight.w600)),
           SizedBox(height: 12.h),
-          if (assignee != null)
+          if (needsAssignee)
+            AppButton(
+              label: '+ Assign ${detail.requestType == 'inspection' ? 'Inspector' : 'Driver'}',
+              full: true,
+              onPressed: onAssign,
+            )
+          else if (worker != null)
             Row(
               children: [
-                Avatar(name: assignee!.name, size: 38),
+                Avatar(name: worker.name, size: 32),
                 SizedBox(width: 12.w),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        assignee!.name,
-                        style: AppText.figtree(
-                            size: 14.5, weight: FontWeight.w700),
-                      ),
-                      Text(
-                        assignee!.role,
-                        style: AppText.figtree(
-                          size: 12.5,
-                          weight: FontWeight.w500,
-                          color: AppColors.fgTertiary,
-                        ),
-                      ),
+                      Text(worker.name, style: AppText.figtree(size: 13, weight: FontWeight.w600)),
+                      Text('★ ${worker.rating?.toStringAsFixed(1) ?? 'N/A'}',
+                          style: AppText.figtree(size: 11, color: AppColors.fgTertiary)),
                     ],
                   ),
                 ),
-                if (canAssign)
-                  AppButton(
-                    label: 'Change',
-                    kind: AppButtonKind.secondary,
-                    size: AppButtonSize.sm,
-                    onPressed: onAssign,
-                  ),
+                GestureDetector(
+                  onTap: onAssign,
+                  child: Text('Change', style: AppText.figtree(size: 12, color: AppColors.fgPrimary, weight: FontWeight.w600)),
+                ),
               ],
-            )
-          else if (canAssign)
-            AppButton(
-              label: request.kind == SrKind.driver
-                  ? 'Assign Driver'
-                  : 'Assign Inspector',
-              full: true,
-              icon: AppIcons.plus,
-              onPressed: onAssign,
-            )
-          else
-            Text(
-              'No assignee',
-              style: AppText.figtree(
-                size: 13.5,
-                weight: FontWeight.w500,
-                color: AppColors.fgMuted,
-              ),
             ),
         ],
       ),
@@ -1289,9 +839,9 @@ class _AssignCard extends StatelessWidget {
 }
 
 class _TimelineCard extends StatelessWidget {
-  const _TimelineCard({required this.timeline});
+  const _TimelineCard({required this.detail});
 
-  final List<SrTimelineEntry> timeline;
+  final DriverInspectionDetailResponse detail;
 
   @override
   Widget build(BuildContext context) {
@@ -1299,104 +849,33 @@ class _TimelineCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('STATUS TIMELINE', style: AppText.eyebrow),
+          Text('TIMELINE', style: AppText.figtree(size: 11, color: AppColors.fgTertiary, weight: FontWeight.w600)),
           SizedBox(height: 12.h),
-          for (var i = 0; i < timeline.length; i++)
-            _TimelineRow(
-              entry: timeline[i],
-              isLast: i == timeline.length - 1,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TimelineRow extends StatelessWidget {
-  const _TimelineRow({required this.entry, required this.isLast});
-
-  final SrTimelineEntry entry;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 20.w,
-            child: Column(
+          if (detail.timeline.isEmpty)
+            Text('No timeline entries', style: AppText.figtree(size: 13, color: AppColors.fgTertiary))
+          else
+            Column(
               children: [
-                Padding(
-                  padding: EdgeInsets.only(top: 5.h),
-                  child: Container(
-                    width: 9.r,
-                    height: 9.r,
-                    decoration: BoxDecoration(
-                      color: isLast
-                          ? AppColors.brandYellowDeep
-                          : AppColors.borderStrong,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-                if (!isLast)
-                  Expanded(
-                    child: Container(
-                      width: 1.5.w,
-                      margin: EdgeInsets.symmetric(vertical: 2.h),
-                      color: AppColors.borderSoft,
+                for (final entry in detail.timeline)
+                  Padding(
+                    padding: EdgeInsets.only(bottom: 12.h),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(entry.status, style: AppText.figtree(size: 12, weight: FontWeight.w600)),
+                            const Spacer(),
+                            Text(entry.createdAt, style: AppText.figtree(size: 11, color: AppColors.fgTertiary)),
+                          ],
+                        ),
+                        SizedBox(height: 2.h),
+                        Text('by ${entry.actorName}', style: AppText.figtree(size: 11, color: AppColors.fgTertiary)),
+                      ],
                     ),
                   ),
               ],
             ),
-          ),
-          SizedBox(width: 12.w),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 14.h),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.status.label,
-                    style: AppText.figtree(size: 13.5, weight: FontWeight.w700),
-                  ),
-                  SizedBox(height: 2.h),
-                  Text(
-                    '${entry.at} · ${entry.by}',
-                    style: AppText.figtree(
-                      size: 12,
-                      weight: FontWeight.w500,
-                      color: AppColors.fgTertiary,
-                    ),
-                  ),
-                  if (entry.location != null) ...[
-                    SizedBox(height: 4.h),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(AppIcons.pin,
-                            size: 12.sp, color: AppColors.fgSecondary),
-                        SizedBox(width: 5.w),
-                        Expanded(
-                          child: Text(
-                            entry.location!,
-                            style: AppText.figtree(
-                              size: 11.5,
-                              weight: FontWeight.w500,
-                              color: AppColors.fgSecondary,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
         ],
       ),
     );

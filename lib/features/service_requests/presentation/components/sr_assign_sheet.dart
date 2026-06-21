@@ -6,31 +6,25 @@ import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/avatar.dart';
-import 'package:new_flutter_project/core/status/service_request_status.dart';
-import 'package:new_flutter_project/features/drivers/application/providers/drivers_providers.dart';
-import 'package:new_flutter_project/features/drivers/domain/entities/field_driver.dart';
-import 'package:new_flutter_project/features/drivers/domain/entities/team_member.dart';
 
 import '../../application/providers/service_requests_providers.dart';
-import '../../domain/entities/service_request.dart';
+import '../../infrastructure/models/driver_inspection_detail_response_model.dart';
 
 /// Bottom-sheet content for assigning a driver or inspector to a service
 /// request.
 ///
-/// Mirrors `SrAssignSheet` in `screen_servicereq.jsx`. Busy assignees
-/// (those on a job or on another active request) are shown disabled.
+/// Fetches available workers from the API endpoint with server-authoritative
+/// availability information. Workers are pre-sorted by availability and name.
 class SrAssignSheet extends ConsumerWidget {
   const SrAssignSheet({
-    required this.kind,
-    required this.currentRequestId,
+    required this.requestId,
     required this.currentAssigneeId,
     required this.sheetContext,
     required this.onPick,
     super.key,
   });
 
-  final SrKind kind;
-  final String currentRequestId;
+  final int requestId;
   final String? currentAssigneeId;
   final BuildContext sheetContext;
 
@@ -39,42 +33,32 @@ class SrAssignSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final requestsAsync = ref.watch(serviceRequestsProvider);
-    final driversAsync = ref.watch(fieldDriversProvider);
-    final inspectorsAsync = ref.watch(inspectorsProvider);
+    // Fetch available workers from API
+    final workersAsync = ref.watch(assignableWorkersProvider(requestId));
 
-    // Resolve the pool as List<dynamic> based on kind. Drivers are limited to
-    // ACTIVE field drivers (matches `FIELD_DRIVERS.filter(d => d.status ===
-    // "active")` in the JSX — invited / suspended drivers aren't assignable).
-    final AsyncValue<List<dynamic>> poolAsync = kind == SrKind.driver
-        ? driversAsync.whenData((list) => list
-            .where((d) => d.status == DriverStatus.active)
-            .cast<dynamic>()
-            .toList())
-        : inspectorsAsync.whenData((list) => list.cast<dynamic>());
-
-    return poolAsync.when(
+    return workersAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Text('Error: $e'),
-      data: (pool) {
-        return requestsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Text('Error: $e'),
-          data: (requests) {
-            return _AssignSheetBody(
-              kind: kind,
-              pool: pool,
-              currentRequestId: currentRequestId,
-              currentAssigneeId: currentAssigneeId,
-              sheetContext: sheetContext,
-              onPick: onPick,
-              activeRequests: requests
-                  .where((r) =>
-                      r.status == ServiceRequestStatus.assigned ||
-                      r.status == ServiceRequestStatus.inProgress)
-                  .toList(),
-            );
-          },
+      error: (e, st) => Padding(
+        padding: EdgeInsets.all(16.r),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Error loading workers: $e',
+              style: AppText.figtree(
+                size: 12,
+                color: AppColors.fgTertiary,
+              ),
+            ),
+          ],
+        ),
+      ),
+      data: (response) {
+        return _AssignSheetBody(
+          workers: response.items,
+          currentAssigneeId: currentAssigneeId,
+          sheetContext: sheetContext,
+          onPick: onPick,
         );
       },
     );
@@ -83,39 +67,16 @@ class SrAssignSheet extends ConsumerWidget {
 
 class _AssignSheetBody extends StatelessWidget {
   const _AssignSheetBody({
-    required this.kind,
-    required this.pool,
-    required this.currentRequestId,
+    required this.workers,
     required this.currentAssigneeId,
     required this.sheetContext,
     required this.onPick,
-    required this.activeRequests,
   });
 
-  final SrKind kind;
-  final List<dynamic> pool;
-  final String currentRequestId;
+  final List<AssignableWorkerModel> workers;
   final String? currentAssigneeId;
   final BuildContext sheetContext;
   final void Function(String id, String name) onPick;
-  final List<ServiceRequest> activeRequests;
-
-  bool _isBusy(String id) {
-    // For field drivers: check currentJob.
-    if (kind == SrKind.driver) {
-      final fd = pool.firstWhere(
-        (p) => (p as FieldDriver).id == id,
-        orElse: () => null,
-      );
-      if (fd is FieldDriver && fd.onJob && fd.id != currentAssigneeId) {
-        return true;
-      }
-    }
-    // Check active service requests.
-    return activeRequests.any(
-      (r) => r.assigneeId == id && r.id != currentRequestId,
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,8 +85,7 @@ class _AssignSheetBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Only available ${kind == SrKind.driver ? 'drivers' : 'inspectors'} '
-          'can be assigned. Those on a job at this time are shown as unavailable.',
+          'Only available workers can be assigned. Those on a job at this time are shown as unavailable.',
           style: AppText.figtree(
             size: 12.5,
             weight: FontWeight.w400,
@@ -134,38 +94,30 @@ class _AssignSheetBody extends StatelessWidget {
           ),
         ),
         SizedBox(height: 12.h),
-        for (final p in pool)
-          _AssigneeRow(
-            id: _getId(p),
-            name: _getName(p),
-            role: _getRole(p),
-            isActive: _getId(p) == currentAssigneeId,
-            isBusy: _isBusy(_getId(p)),
-            onTap: () {
-              onPick(_getId(p), _getName(p));
-              Navigator.of(sheetContext).pop();
-            },
-          ),
+        if (workers.isEmpty)
+          Text(
+            'No workers available',
+            style: AppText.figtree(
+              size: 12,
+              color: AppColors.fgTertiary,
+            ),
+          )
+        else
+          for (final worker in workers)
+            _AssigneeRow(
+              id: worker.id.toString(),
+              name: worker.name,
+              role: worker.title,
+              rating: worker.rating,
+              isActive: worker.id.toString() == currentAssigneeId,
+              isAvailable: worker.available,
+              onTap: () {
+                onPick(worker.id.toString(), worker.name);
+                Navigator.of(sheetContext).pop();
+              },
+            ),
       ],
     );
-  }
-
-  String _getId(dynamic p) {
-    if (p is FieldDriver) return p.id;
-    if (p is TeamMember) return p.id;
-    return '';
-  }
-
-  String _getName(dynamic p) {
-    if (p is FieldDriver) return p.name;
-    if (p is TeamMember) return p.name;
-    return '';
-  }
-
-  String _getRole(dynamic p) {
-    if (p is FieldDriver) return p.role;
-    if (p is TeamMember) return p.role;
-    return '';
   }
 }
 
@@ -174,16 +126,18 @@ class _AssigneeRow extends StatelessWidget {
     required this.id,
     required this.name,
     required this.role,
+    required this.rating,
     required this.isActive,
-    required this.isBusy,
+    required this.isAvailable,
     required this.onTap,
   });
 
   final String id;
   final String name;
   final String role;
+  final double? rating;
   final bool isActive;
-  final bool isBusy;
+  final bool isAvailable;
   final VoidCallback onTap;
 
   @override
@@ -191,10 +145,10 @@ class _AssigneeRow extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.only(bottom: 10.h),
       child: GestureDetector(
-        onTap: isBusy ? null : onTap,
+        onTap: isAvailable ? onTap : null,
         child: AnimatedOpacity(
           duration: const Duration(milliseconds: 150),
-          opacity: isBusy ? 0.55 : 1.0,
+          opacity: isAvailable ? 1.0 : 0.55,
           child: Container(
             padding: EdgeInsets.all(13.r),
             decoration: BoxDecoration(
@@ -235,7 +189,7 @@ class _AssigneeRow extends StatelessWidget {
                       SizedBox(height: 2.h),
                       Row(
                         children: [
-                          if (isBusy)
+                          if (!isAvailable)
                             Icon(
                               AppIcons.clock,
                               size: 12.sp,
@@ -252,15 +206,26 @@ class _AssigneeRow extends StatelessWidget {
                             ),
                           SizedBox(width: 5.w),
                           Text(
-                            isBusy ? 'On a job · unavailable' : 'Available',
+                            isAvailable ? 'Available' : 'On a job · unavailable',
                             style: AppText.figtree(
                               size: 12,
                               weight: FontWeight.w500,
-                              color: isBusy
-                                  ? AppColors.amberFg
-                                  : AppColors.fgTertiary,
+                              color: isAvailable
+                                  ? AppColors.fgTertiary
+                                  : AppColors.amberFg,
                             ),
                           ),
+                          if (rating != null) ...[
+                            SizedBox(width: 8.w),
+                            Text(
+                              '★ ${rating!.toStringAsFixed(1)}',
+                              style: AppText.figtree(
+                                size: 11,
+                                weight: FontWeight.w500,
+                                color: AppColors.fgTertiary,
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ],

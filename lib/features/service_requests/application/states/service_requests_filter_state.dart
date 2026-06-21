@@ -46,44 +46,11 @@ class ServiceRequestsFilterState {
   }
 }
 
-/// Applies [filter] to [list] and returns a sorted, filtered copy.
+/// Returns the list as-is since filtering is handled server-side by the API.
+/// The API already applies kind, status, search, and sort filters.
 List<ServiceRequest> applyServiceRequestsFilter(
   List<ServiceRequest> list,
   ServiceRequestsFilterState filter,
 ) {
-  var result = list;
-
-  // Kind sub-filter.
-  if (filter.kind != null) {
-    result = result.where((r) => r.kind == filter.kind).toList();
-  }
-
-  // Status sub-filter.
-  if (filter.status != null) {
-    result = result.where((r) => r.status == filter.status).toList();
-  }
-
-  // Search: id, customer name, customer phone.
-  final q = filter.query.trim().toLowerCase();
-  if (q.isNotEmpty) {
-    result = result.where((r) {
-      return r.id.toLowerCase().contains(q) ||
-          r.customer.name.toLowerCase().contains(q) ||
-          r.customer.phone.toLowerCase().contains(q);
-    }).toList();
-  }
-
-  // Sort.
-  result = List<ServiceRequest>.from(result);
-  switch (filter.sort) {
-    case 'upcoming':
-      // Keep original order as proxy (when is a display string; no real parse).
-      break;
-    case 'status':
-      result.sort((a, b) => a.status.order.compareTo(b.status.order));
-    default: // 'recent' — newest first (reverse of list order which is newest-first).
-      break;
-  }
-
-  return result;
+  return list;
 }

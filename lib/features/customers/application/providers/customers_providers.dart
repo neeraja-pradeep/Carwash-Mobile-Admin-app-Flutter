@@ -16,13 +16,15 @@ final customersLocalDsProvider = Provider<CustomersLocalDs>(
 
 /// The customers repository (domain contract → infrastructure impl).
 final customersRepositoryProvider = Provider<CustomersRepository>(
-  (ref) => CustomersRepositoryImpl(ref.watch(customersLocalDsProvider)),
+  (ref) => CustomersRepositoryImpl(
+    local: ref.watch(customersLocalDsProvider),
+  ),
 );
 
 // ─── Data providers ───────────────────────────────────────────────────────────
 
-/// All customers. Kept alive so navigation back is instant (warm cache).
-final customersProvider = FutureProvider<List<Customer>>(
+/// All customers. autoDispose to avoid fetching on app startup.
+final customersProvider = FutureProvider.autoDispose<List<Customer>>(
   (ref) => ref.watch(customersRepositoryProvider).fetchCustomers(),
 );
 
@@ -31,6 +33,24 @@ final customersProvider = FutureProvider<List<Customer>>(
 final customerByIdProvider =
     FutureProvider.autoDispose.family<Customer?, String>(
   (ref, id) => ref.watch(customersRepositoryProvider).fetchCustomerById(id),
+);
+
+/// Search customers by query. autoDispose so it clears when not in use.
+final searchCustomersProvider =
+    FutureProvider.autoDispose.family<List<Customer>, String>(
+  (ref, query) =>
+      ref.watch(customersRepositoryProvider).searchCustomers(query),
+);
+
+/// Create a new customer. autoDispose + family with params.
+final createCustomerProvider =
+    FutureProvider.autoDispose.family<Customer, Map<String, dynamic>>(
+  (ref, params) => ref.watch(customersRepositoryProvider).createCustomer(
+        phone: params['phone'] as String,
+        fullName: params['fullName'] as String,
+        otpCode: params['otpCode'] as String?,
+        email: params['email'] as String?,
+      ),
 );
 
 // ─── UI state providers (autoDispose — reset when list screen leaves) ─────────

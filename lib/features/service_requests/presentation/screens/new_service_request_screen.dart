@@ -14,6 +14,7 @@ import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/features/bookings/presentation/components/customer_picker.dart';
 
 import '../../domain/entities/service_request.dart';
+import '../../application/providers/service_requests_providers.dart';
 
 /// Full-screen form for creating a new Driver Hire or Inspection request.
 ///
@@ -35,6 +36,7 @@ class _NewServiceRequestScreenState
     extends ConsumerState<NewServiceRequestScreen> {
   // Form state — mirrors NewServiceReqForm in screen_servicereq.jsx.
   CustomerPick? _customer;
+  DateTime? _appointmentDate; // Store the actual date
   final _makeCtrl = TextEditingController();
   final _plateCtrl = TextEditingController();
   late String _reason = _isDriver ? 'Round Trip' : '';
@@ -44,14 +46,64 @@ class _NewServiceRequestScreenState
   final _locationCtrl = TextEditingController();
   final _feeCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
+  bool _isSubmitting = false;
 
   bool get _isDriver => widget.kind == SrKind.driver;
 
   // Matches the JSX `valid` check: customer + when + location.
   bool get _isValid =>
       _customer != null &&
-      _whenCtrl.text.trim().isNotEmpty &&
+      _appointmentDate != null &&
       _locationCtrl.text.trim().isNotEmpty;
+
+  /// Map UI reason label to API trip_type value
+  String _getTripType(String uiLabel) {
+    const mapping = {
+      'One Way': 'one_way',
+      'Round Trip': 'round_trip',
+      'Hourly': 'hourly',
+      'Hospital': 'hospital',
+    };
+    return mapping[uiLabel] ?? 'round_trip';
+  }
+
+  /// Open date picker and update appointment date
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _appointmentDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+
+    if (picked != null) {
+      final formatted =
+          '${picked.day} ${_getMonthName(picked.month)}, ${picked.year}';
+      setState(() {
+        _appointmentDate = picked;
+        _whenCtrl.text = formatted;
+      });
+    }
+  }
+
+  /// Get month name from month number
+  String _getMonthName(int month) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
+    return months[month - 1];
+  }
 
   @override
   void dispose() {
@@ -65,15 +117,62 @@ class _NewServiceRequestScreenState
     super.dispose();
   }
 
-  void _submit() {
-    if (!_isValid) return;
-    final isNew = _customer?.isNew ?? false;
-    AppToast.show(
-      context,
-      '${_isDriver ? 'Driver hire' : 'Inspection'} request created'
-      '${isNew ? ' · new customer added' : ''}',
-    );
-    context.pop();
+  Future<void> _submit() async {
+    if (!_isValid || _isSubmitting) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final customerId = int.tryParse(_customer!.id ?? '');
+      if (customerId == null) {
+        AppToast.show(context, 'Invalid customer');
+        return;
+      }
+
+      // Format appointment date as YYYY-MM-DD
+      String appointmentDate = '';
+      if (_appointmentDate != null) {
+        appointmentDate =
+            '${_appointmentDate!.year}-${_appointmentDate!.month.toString().padLeft(2, '0')}-${_appointmentDate!.day.toString().padLeft(2, '0')}';
+      } else {
+        AppToast.show(context, 'Please select appointment date');
+        return;
+      }
+
+      final params = {
+        'customerId': customerId,
+        'requestType': _isDriver ? 'driver' : 'inspection',
+        'tripType': _isDriver ? _getTripType(_reason) : null,
+        'inspectionType': null, // TODO: Add inspection type picker if needed
+        'vehicleText': _makeCtrl.text.isNotEmpty
+            ? '${_makeCtrl.text}${_plateCtrl.text.isNotEmpty ? ' · ${_plateCtrl.text}' : ''}'
+            : null,
+        'appointmentDate': appointmentDate,
+        'addressText': _locationCtrl.text,
+        'quotedFee': _feeCtrl.text.isNotEmpty ? _feeCtrl.text : null,
+        'customerNote': _noteCtrl.text.isNotEmpty ? _noteCtrl.text : null,
+      };
+
+      await ref.read(createServiceRequestProvider(params).future);
+
+      if (mounted) {
+        final isNew = _customer?.isNew ?? false;
+        AppToast.show(
+          context,
+          '${_isDriver ? 'Driver hire' : 'Inspection'} request created'
+          '${isNew ? ' · new customer added' : ''}',
+        );
+        context.pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(context, e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 
   @override
@@ -192,11 +291,11 @@ class _NewServiceRequestScreenState
                         Row(
                           children: [
                             Expanded(
-                              child: _FormInput(
+                              child: _DatePickerInput(
                                 controller: _whenCtrl,
                                 label: 'When',
-                                hint: '30 May, 7:00 AM',
-                                onChanged: (_) => setState(() {}),
+                                hint: '30 May',
+                                onTap: _pickDate,
                               ),
                             ),
                             SizedBox(width: 10.w),
@@ -252,8 +351,8 @@ class _NewServiceRequestScreenState
                   AppButton(
                     label: 'Create Request',
                     full: true,
-                    disabled: !_isValid,
-                    onPressed: _submit,
+                    disabled: !_isValid || _isSubmitting,
+                    onPressed: _isSubmitting ? null : _submit,
                   ),
                   SizedBox(height: 16.h),
                 ],
@@ -414,6 +513,72 @@ class _FormTextArea extends StatelessWidget {
               borderRadius: BorderRadius.circular(9.r),
               borderSide:
                   const BorderSide(color: AppColors.borderDefault, width: 1.5),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DatePickerInput extends StatelessWidget {
+  const _DatePickerInput({
+    required this.controller,
+    required this.label,
+    required this.hint,
+    required this.onTap,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: AppText.figtree(
+            size: 12,
+            weight: FontWeight.w600,
+            color: AppColors.fgTertiary,
+          ),
+        ),
+        SizedBox(height: 6.h),
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 12.h),
+            decoration: BoxDecoration(
+              color: AppColors.bgPage,
+              borderRadius: BorderRadius.circular(9.r),
+              border: Border.all(color: AppColors.borderDefault),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    controller.text.isEmpty ? hint : controller.text,
+                    style: AppText.figtree(
+                      size: 14.5,
+                      weight: controller.text.isEmpty
+                          ? FontWeight.w400
+                          : FontWeight.w500,
+                      color: controller.text.isEmpty
+                          ? AppColors.fgMuted
+                          : AppColors.fgPrimary,
+                    ),
+                  ),
+                ),
+                Icon(
+                  AppIcons.chevRight,
+                  size: 18.sp,
+                  color: AppColors.fgTertiary,
+                ),
+              ],
             ),
           ),
         ),

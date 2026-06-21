@@ -134,6 +134,9 @@ class _SessionInterceptor extends Interceptor {
     if (HttpClient._sessionId != null && HttpClient._sessionId!.isNotEmpty) {
       options.headers['Cookie'] = 'sessionid=${HttpClient._sessionId}';
       debugPrint('🍪 Added session cookie to request');
+      debugPrint('   ➜ SessionID: ${HttpClient._sessionId}');
+    } else {
+      debugPrint('⚠️ SESSION ID NOT AVAILABLE! _sessionId=${HttpClient._sessionId}');
     }
     // Increase timeout for dashboard queries (they're complex)
     options.connectTimeout = const Duration(seconds: 60);
@@ -172,17 +175,20 @@ class _CsrfInterceptor extends Interceptor {
 
     // For POST/PATCH/PUT/DELETE requests, add CSRF token header
     if (['POST', 'PATCH', 'PUT', 'DELETE'].contains(options.method)) {
+      debugPrint('🔍 ${options.method} request - checking CSRF token...');
       if (HttpClient._csrfToken != null && HttpClient._csrfToken!.isNotEmpty) {
         options.headers['X-CSRFToken'] = HttpClient._csrfToken;
         debugPrint('🔐 X-CSRFToken header added: ${HttpClient._csrfToken!.substring(0, 10)}...');
       } else {
-        debugPrint('⚠️ CSRF token missing for ${options.method}');
+        debugPrint('⚠️ CSRF token missing for ${options.method}! _csrfToken=${HttpClient._csrfToken}');
         // Try to add from cookies if available
         if (_cookies.containsKey('csrftoken')) {
           final token = _cookies['csrftoken']!;
           options.headers['X-CSRFToken'] = token;
           HttpClient._csrfToken = token;
           debugPrint('🔐 CSRF token from cookies: ${token.substring(0, 10)}...');
+        } else {
+          debugPrint('   ❌ No CSRF token in cookies either! _cookies keys: ${_cookies.keys}');
         }
       }
     }

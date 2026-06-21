@@ -71,16 +71,9 @@ class BookingsScreen extends ConsumerWidget {
 
             // Content
             Expanded(
-              child: IndexedStack(
-                index: segment,
-                children: [
-                  // Segment 0: Service requests list
-                  const ServiceRequestsList(),
-
-                  // Segment 1: Carwash list
-                  const _CarwashBookingsList(),
-                ],
-              ),
+              child: segment == 0
+                  ? const ServiceRequestsList()
+                  : const _CarwashBookingsList(),
             ),
           ],
         ),
