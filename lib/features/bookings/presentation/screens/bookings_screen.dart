@@ -13,6 +13,8 @@ import 'package:new_flutter_project/core/widgets/app_fab.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/empty_state.dart';
+import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
+import 'package:new_flutter_project/core/widgets/avatar.dart';
 import 'package:new_flutter_project/core/widgets/list_controls.dart';
 import 'package:new_flutter_project/core/widgets/search_field.dart';
 import 'package:new_flutter_project/core/widgets/skeleton_card.dart';
@@ -213,15 +215,24 @@ class _CarwashBookingsList extends ConsumerWidget {
                       final booking = bookings[index - 1];
                       return BookingCard(
                         booking: booking,
-                        onTap: () =>
-                            context.push(Routes.bookingDetail(booking.id)),
-                        onAssign: () {
-                          AppToast.show(
-                            context,
-                            'Assigned to you (Anand)',
-                            actionLabel: 'Undo',
-                          );
+                        onTap: () {
+                          // Convert int ID to String for detail screen navigation
+                          final stringId = booking.id.toString();
+                          context.push(Routes.bookingDetail(stringId));
                         },
+                        onAssign: booking.assigneeName != null && booking.assigneeName!.isNotEmpty
+                            ? null // Hide assign button if already assigned
+                            : () {
+                                showAppBottomSheet(
+                                  context: context,
+                                  title: 'Assign driver',
+                                  maxHeightFactor: 0.72,
+                                  builder: (_) => _AssignDriverBody(
+                                    bookingId: booking.id,
+                                    ref: ref,
+                                  ),
+                                );
+                              },
                       );
                     },
                   );
@@ -253,9 +264,9 @@ class _CarwashBookingsList extends ConsumerWidget {
   static const List<SortOption> _sortOptions = [
     ('recent', 'Most recent'),
     ('oldest', 'Oldest first'),
-    ('amount_hi', 'Amount: high → low'),
-    ('amount_lo', 'Amount: low → high'),
-    ('name', 'Customer A–Z'),
+    ('amount_desc', 'Amount: high → low'),
+    ('amount_asc', 'Amount: low → high'),
+    ('customer_az', 'Customer A–Z'),
   ];
 }
 
@@ -391,6 +402,141 @@ class _ActiveChips extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Assign Driver Body ───────────────────────────────────────────────
+
+class _AssignDriverBody extends ConsumerWidget {
+  const _AssignDriverBody({
+    required this.bookingId,
+    required this.ref,
+  });
+
+  final int bookingId;
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final driversAsync = ref.watch(assignableDriversProvider(bookingId));
+
+    return driversAsync.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator.adaptive(),
+      ),
+      error: (_, __) => Center(
+        child: Text('Failed to load drivers'),
+      ),
+      data: (response) {
+        if (response.items.isEmpty) {
+          return Center(
+            child: Text('No drivers available'),
+          );
+        }
+
+        return Column(
+          children: [
+            for (final driver in response.items)
+              Padding(
+                padding: EdgeInsets.only(bottom: 10.h),
+                child: GestureDetector(
+                  onTap: (driver.available ?? false)
+                      ? () async {
+                          try {
+                            await ref
+                                .read(bookingsRepositoryProvider)
+                                .assignDriver(bookingId, driver.id);
+                            if (context.mounted) {
+                              AppToast.show(
+                                context,
+                                'Assigned to ${driver.name}',
+                              );
+                              Navigator.pop(context);
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              AppToast.show(context, e.toString());
+                            }
+                          }
+                        }
+                      : null,
+                  child: Container(
+                    padding: EdgeInsets.all(13.r),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgCard,
+                      borderRadius: BorderRadius.circular(13.r),
+                      border: Border.all(
+                        color: AppColors.borderSoft,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Opacity(
+                          opacity: (driver.available ?? false) ? 1.0 : 0.45,
+                          child: Avatar(name: driver.name, size: 40),
+                        ),
+                        SizedBox(width: 13.w),
+                        Expanded(
+                          child: Opacity(
+                            opacity: (driver.available ?? false) ? 1.0 : 0.45,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      driver.name,
+                                      style: AppText.figtree(
+                                        size: 14.5,
+                                        weight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    if (!(driver.available ?? false)) ...[
+                                      SizedBox(width: 8.w),
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 7.w,
+                                          vertical: 2.h,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.redBg,
+                                          borderRadius:
+                                              BorderRadius.circular(99.r),
+                                        ),
+                                        child: Text(
+                                          'Busy',
+                                          style: AppText.figtree(
+                                            size: 10.5,
+                                            weight: FontWeight.w600,
+                                            color: AppColors.redFg,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                SizedBox(height: 2.h),
+                                Text(
+                                  '${driver.title ?? 'Driver'} · ${driver.phone ?? 'N/A'}',
+                                  style: AppText.figtree(
+                                    size: 12,
+                                    weight: FontWeight.w500,
+                                    color: AppColors.fgTertiary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

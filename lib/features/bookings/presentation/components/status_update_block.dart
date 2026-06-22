@@ -81,12 +81,16 @@ class StatusUpdateBlock extends StatelessWidget {
     required this.status,
     required this.timeline,
     required this.onAdvance,
+    this.carwashBookingId,
+    this.onAssignMe,
     super.key,
   });
 
   final BookingStatus status;
   final List<TimelineEntry> timeline;
   final void Function(BookingAction action) onAdvance;
+  final int? carwashBookingId;
+  final VoidCallback? onAssignMe;
 
   @override
   Widget build(BuildContext context) {
@@ -115,7 +119,33 @@ class StatusUpdateBlock extends StatelessWidget {
       );
     }
 
+    // Handle statuses that are not in the forward lifecycle (pending, refundRequested, refunded)
+    // These don't have actions in kBookingActions, so return early
     final ci = kBookingStatusOrder.indexOf(status);
+    if (ci == -1) {
+      return AppCard(
+        child: Row(
+          children: [
+            Icon(
+              Icons.info_rounded,
+              size: 20.sp,
+              color: AppColors.fgMuted,
+            ),
+            SizedBox(width: 10.w),
+            Expanded(
+              child: Text(
+                '${status.label} · No actions available.',
+                style: AppText.figtree(
+                  size: 13.5,
+                  weight: FontWeight.w600,
+                  color: AppColors.fgMuted,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     String? timeAt(BookingStatus s) {
       try {
@@ -136,7 +166,16 @@ class StatusUpdateBlock extends StatelessWidget {
                 action: action,
                 ci: ci,
                 timeAt: timeAt(action.to),
-                onTap: () => onAdvance(action),
+                onTap: () {
+                  // For carwash bookings, use API-integrated Assign Me
+                  if (carwashBookingId != null &&
+                      action.label == 'Assign Me' &&
+                      onAssignMe != null) {
+                    onAssignMe!();
+                  } else {
+                    onAdvance(action);
+                  }
+                },
               ),
           ],
         ),
@@ -161,7 +200,11 @@ class _ActionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ti = kBookingStatusOrder.indexOf(action.to);
-    final done = ti <= ci;
+    // Safety check: if ci is -1 or out of bounds, don't render this action
+    if (ci < 0 || ci >= kBookingStatusOrder.length) {
+      return const SizedBox.shrink();
+    }
+    final done = ti <= ci && ti >= 0;
     final current = action.from == kBookingStatusOrder[ci];
 
     return Padding(

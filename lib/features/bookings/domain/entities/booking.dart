@@ -3,9 +3,7 @@ import '../../../../core/status/payment_status.dart';
 
 /// A car-wash booking and its nested value objects.
 ///
-/// Pure, immutable value object — no fetching/display logic. The static data
-/// source constructs these from Dart literals today; the API phase will add a
-/// remote source that maps JSON onto the same shapes.
+/// Pure, immutable value object — no fetching/display logic.
 class Booking {
   const Booking({
     required this.id,
@@ -22,6 +20,7 @@ class Booking {
     required this.timeline,
     required this.damage,
     this.driverId,
+    this.assigneeName,
     this.notes = '',
   });
 
@@ -33,6 +32,7 @@ class Booking {
   final RoutePoint drop;
   final String shopId;
   final String? driverId;
+  final String? assigneeName;
   final List<BookingService> services;
   final int total;
   final PaymentStatus payment;

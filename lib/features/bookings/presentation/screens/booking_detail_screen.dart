@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:new_flutter_project/app/router/app_router.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
@@ -10,6 +11,7 @@ import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/status/booking_status.dart';
 import 'package:new_flutter_project/core/status/payment_status.dart';
 import 'package:new_flutter_project/core/utils/formatters.dart';
+import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
 import 'package:new_flutter_project/core/widgets/app_dialog.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
@@ -46,6 +48,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
   // Mutable local UI state that the user can advance (mirrors JSX useState)
   BookingStatus? _status;
   String? _driverId;
+  String? _assigneeName;
   List<TimelineEntry>? _timeline;
   String? _notes;
   bool _menuOpen = false;
@@ -60,10 +63,19 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
   }
 
   void _initFromBooking(Booking b) {
-    _status ??= b.status;
-    _driverId ??= b.driverId;
-    _timeline ??= List.from(b.timeline);
-    _notes ??= b.notes;
+    // Always update state from booking, not just on first load
+    // This ensures state refreshes when booking is re-fetched after API calls
+    if (_status != b.status) _status = b.status;
+    if (_driverId != b.driverId) {
+      _driverId = b.driverId;
+      debugPrint('🔄 Updated driverId: $_driverId');
+    }
+    if (_assigneeName != b.assigneeName) {
+      _assigneeName = b.assigneeName;
+      debugPrint('🔄 Updated assigneeName: $_assigneeName');
+    }
+    if (_timeline == null) _timeline = List.from(b.timeline);
+    if (_notes != b.notes) _notes = b.notes;
   }
 
   void _advance(BookingAction action, Booking base) {
@@ -83,9 +95,6 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
     final next = action.to;
     setState(() {
       _status = next;
-      if (next == BookingStatus.assigned && (_driverId == null)) {
-        _driverId = 'd1'; // default to Anand
-      }
       _timeline = [
         ..._timeline!,
         TimelineEntry(
@@ -101,6 +110,82 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
           ? 'Booking completed'
           : 'Updated → ${next.label}',
     );
+  }
+
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final uri = Uri(scheme: 'tel', path: phoneNumber);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _openMaps(double? latitude, double? longitude) async {
+    if (latitude == null || longitude == null) return;
+    final uri = Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    }
+  }
+
+  Future<void> _assignMeCarwash(BuildContext context, WidgetRef ref, int bookingId) async {
+    try {
+      await ref.read(bookingsRepositoryProvider).assignMe(bookingId);
+      if (context.mounted) {
+        AppToast.show(context, 'Assigned to you');
+        // Only invalidate detail provider (what detail screen is watching)
+        // List will refetch when user navigates back to it naturally
+        ref.invalidate(bookingByIdProvider(bookingId.toString()));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        AppToast.show(context, e.toString());
+      }
+    }
+  }
+
+  void _showAssignDriverSheet(BuildContext context, WidgetRef ref, int? bookingId) {
+    if (bookingId == null) {
+      // Use old mock assign sheet for driver & inspection bookings
+      showAssignSheet(
+        context: context,
+        ref: ref,
+        currentDriverId: _driverId,
+        onPick: (id, name) {
+          setState(() {
+            _driverId = id;
+            if (_status == BookingStatus.created) {
+              _status = BookingStatus.assigned;
+              _timeline = [
+                ..._timeline!,
+                TimelineEntry(
+                  status: BookingStatus.assigned,
+                  at: _nowStamp(),
+                  by: name,
+                ),
+              ];
+            }
+          });
+          AppToast.show(
+            context,
+            _status == BookingStatus.created
+                ? 'Assigned to $name'
+                : 'Reassigned to $name',
+          );
+        },
+      );
+    } else {
+      // Use API-integrated assign sheet for carwash bookings
+      showAppBottomSheet(
+        context: context,
+        title: 'Assign driver',
+        maxHeightFactor: 0.72,
+        builder: (_) => _CarwashAssignDriverBody(
+          bookingId: bookingId,
+          ref: ref,
+        ),
+      );
+    }
   }
 
   @override
@@ -163,22 +248,27 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
         // Seed mutable state from the loaded booking (first time only)
         _initFromBooking(booking);
 
+        // For carwash bookings, get the int ID
+        final intId = int.tryParse(widget.bookingId);
+
         final status = _status!;
         final driverId = _driverId;
         final timeline = _timeline!;
         final notes = _notes ?? '';
 
-        final ci = kBookingStatusOrder.indexOf(status);
         final totalMin = booking.estimatedMinutes;
 
         final canCancel = status != BookingStatus.completed &&
-            status != BookingStatus.cancelled;
-        final canRefund = booking.payment == PaymentStatus.paid ||
-            booking.payment == PaymentStatus.refunded;
-        final canReassign =
-            ci < kBookingStatusOrder.indexOf(BookingStatus.picked) &&
-                status != BookingStatus.cancelled &&
-                status != BookingStatus.completed;
+            status != BookingStatus.refundRequested &&
+            status != BookingStatus.refunded;
+        final canRefund = status != BookingStatus.pending &&
+            status != BookingStatus.refundRequested &&
+            status != BookingStatus.refunded;
+        final canReassign = status != BookingStatus.completed &&
+            status != BookingStatus.refundRequested &&
+            status != BookingStatus.refunded &&
+            status != BookingStatus.cancelled &&
+            status != BookingStatus.pending;
 
         // Damage summary
         final dmgPickup = booking.damage.pickup;
@@ -208,22 +298,24 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                   title: 'Booking',
                   onBack: () => context.pop(),
                   actions: [
-                    _MenuButton(
-                      open: _menuOpen,
-                      onToggle: () => setState(() => _menuOpen = !_menuOpen),
-                      onShare: () {
-                        setState(() => _menuOpen = false);
-                        AppToast.show(context, 'Share booking');
-                      },
-                      onCopyId: () {
-                        setState(() => _menuOpen = false);
-                        Clipboard.setData(ClipboardData(text: booking.id));
-                        AppToast.show(context, 'Booking ID copied');
-                      },
-                      onAddNote: () {
-                        setState(() => _menuOpen = false);
-                        _showNoteModal(context, notes);
-                      },
+                    Consumer(
+                      builder: (_, WidgetRef consumerRef, __) => _MenuButton(
+                        open: _menuOpen,
+                        onToggle: () => setState(() => _menuOpen = !_menuOpen),
+                        onShare: () {
+                          setState(() => _menuOpen = false);
+                          AppToast.show(context, 'Share booking');
+                        },
+                        onCopyId: () {
+                          setState(() => _menuOpen = false);
+                          Clipboard.setData(ClipboardData(text: booking.id));
+                          AppToast.show(context, 'Booking ID copied');
+                        },
+                        onAddNote: () {
+                          setState(() => _menuOpen = false);
+                          _showNoteModal(context, notes);
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -325,10 +417,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                               _ActionPill(
                                 icon: AppIcons.phone,
                                 label: 'Call customer',
-                                onTap: () => AppToast.show(
-                                  context,
-                                  'Calling ${booking.customer.name}…',
-                                ),
+                                onTap: () => _makePhoneCall(booking.customer.phone),
                               ),
                             ],
                           ),
@@ -490,33 +579,9 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                       // ── Driver ───────────────────────────────────────────
                       _DriverCard(
                         driverId: driverId,
-                        onAssign: () => showAssignSheet(
-                          context: context,
-                          ref: ref,
-                          currentDriverId: driverId,
-                          onPick: (id, name) {
-                            setState(() {
-                              _driverId = id;
-                              if (status == BookingStatus.created) {
-                                _status = BookingStatus.assigned;
-                                _timeline = [
-                                  ..._timeline!,
-                                  TimelineEntry(
-                                    status: BookingStatus.assigned,
-                                    at: _nowStamp(),
-                                    by: name,
-                                  ),
-                                ];
-                              }
-                            });
-                            AppToast.show(
-                              context,
-                              status == BookingStatus.created
-                                  ? 'Assigned to $name'
-                                  : 'Reassigned to $name',
-                            );
-                          },
-                        ),
+                        assigneeName: _assigneeName,
+                        carwashBookingId: intId,
+                        onAssign: () => _showAssignDriverSheet(context, ref, intId),
                         onCall: (name) =>
                             AppToast.show(context, 'Calling $name…'),
                       ),
@@ -537,6 +602,8 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                             status: status,
                             timeline: timeline,
                             onAdvance: (action) => _advance(action, booking),
+                            carwashBookingId: intId,
+                            onAssignMe: intId != null ? () => _assignMeCarwash(context, ref, intId) : null,
                           ),
                         ],
                       ),
@@ -761,50 +828,49 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                               destructive: true,
                             );
                             if (!confirmed || !context.mounted) return;
-                            setState(() {
-                              _status = BookingStatus.cancelled;
-                              _timeline = [
-                                ..._timeline!,
-                                TimelineEntry(
-                                  status: BookingStatus.cancelled,
-                                  at: _nowStamp(),
-                                  by: 'Anand',
-                                ),
-                              ];
-                            });
-                            AppToast.show(context, 'Booking cancelled');
+                            try {
+                              final intId = int.tryParse(booking.id);
+                              if (intId == null) {
+                                AppToast.show(context, 'Invalid booking ID');
+                                return;
+                              }
+                              await ref
+                                  .read(bookingsRepositoryProvider)
+                                  .cancelBooking(intId);
+                              if (context.mounted) {
+                                AppToast.show(context, 'Booking cancelled');
+                                // Only invalidate detail provider (what detail screen is watching)
+                                // List will refetch when user navigates back to it naturally
+                                ref.invalidate(bookingByIdProvider(booking.id));
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                AppToast.show(context, e.toString());
+                              }
+                            }
                           },
                         ),
                         _FooterBtn(
                           label: 'Refund',
                           icon: AppIcons.receipt,
                           enabled: canRefund,
-                          onTap: () => context.push(
-                            Routes.refunds,
-                            extra: RefundPrefill(
-                              bookingId: booking.id,
-                              customerName: booking.customer.name,
-                              total: booking.total,
-                              status: (_status ?? booking.status).key,
-                            ),
-                          ),
+                          onTap: () {
+                            context.push(
+                              Routes.refunds,
+                              extra: RefundPrefill(
+                                bookingId: booking.id,
+                                customerName: booking.customer.name,
+                                total: booking.total,
+                                status: status.key,
+                              ),
+                            );
+                          },
                         ),
                         _FooterBtn(
                           label: 'Reassign',
                           icon: AppIcons.refresh,
                           enabled: canReassign,
-                          onTap: () => showAssignSheet(
-                            context: context,
-                            ref: ref,
-                            currentDriverId: driverId,
-                            onPick: (id, name) {
-                              setState(() => _driverId = id);
-                              AppToast.show(
-                                context,
-                                'Reassigned to $name',
-                              );
-                            },
-                          ),
+                          onTap: () => _showAssignDriverSheet(context, ref, intId),
                         ),
                       ],
                     ),
@@ -1013,7 +1079,7 @@ class _JourneyCard extends ConsumerWidget {
                       _ActionPill(
                         icon: AppIcons.nav,
                         label: 'Navigate',
-                        onTap: () => onToast('Opening Maps…'),
+                        onTap: () => AppToast.show(context, 'Opening Maps…'),
                       ),
                     ],
                   ),
@@ -1066,13 +1132,13 @@ class _JourneyCard extends ConsumerWidget {
                           _ActionPill(
                             icon: AppIcons.phone,
                             label: 'Call shop',
-                            onTap: () => onToast('Calling shop…'),
+                            onTap: () => AppToast.show(context, 'Opening dialer…'),
                           ),
                           SizedBox(width: 7.w),
                           _ActionPill(
                             icon: AppIcons.nav,
                             label: 'Navigate',
-                            onTap: () => onToast('Opening Maps…'),
+                            onTap: () => AppToast.show(context, 'Opening Maps…'),
                           ),
                         ],
                       ),
@@ -1123,64 +1189,248 @@ class _DriverCard extends ConsumerWidget {
     required this.driverId,
     required this.onAssign,
     required this.onCall,
+    this.carwashBookingId,
+    this.assigneeName,
   });
 
   final String? driverId;
+  final String? assigneeName;
   final VoidCallback onAssign;
   final void Function(String name) onCall;
+  final int? carwashBookingId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    debugPrint('🎭 _DriverCard.build() - driverId: $driverId, assigneeName: $assigneeName, carwashBookingId: $carwashBookingId');
+
+    // For carwash bookings with no driver, show custom assign UI
+    if (carwashBookingId != null && driverId == null && assigneeName == null) {
+      debugPrint('📍 Branch: Carwash with no driver - showing assign button');
+      return AppCard(
+        child: _SectionLabel(
+          icon: AppIcons.car,
+          label: 'Driver',
+          child: GestureDetector(
+            onTap: onAssign,
+            child: Container(
+              padding: EdgeInsets.symmetric(vertical: 14.h, horizontal: 16.w),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AppColors.brandYellowLight,
+                    AppColors.brandYellow,
+                    AppColors.brandYellowDeep,
+                  ],
+                  stops: [0, 0.55, 1],
+                ),
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+              alignment: Alignment.center,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Assign driver',
+                    style: AppText.figtree(
+                      size: 15,
+                      weight: FontWeight.w700,
+                    ),
+                  ),
+                  SizedBox(width: 8.w),
+                  const Icon(Icons.arrow_forward, size: 18),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // If assigneeName is available but no driverId, show driver card with assignee name
+    if (assigneeName != null && driverId == null) {
+      debugPrint('📍 Branch: AssigneeName without driverId - showing $assigneeName');
+      return AppCard(
+        child: _SectionLabel(
+          icon: AppIcons.car,
+          label: 'Driver',
+          child: Row(
+            children: [
+              Avatar(name: assigneeName!, size: 38),
+              SizedBox(width: 11.w),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      assigneeName!,
+                      style: AppText.figtree(
+                        size: 14.5,
+                        weight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 2.h),
+                    Text(
+                      'Driver',
+                      style: AppText.figtree(
+                        size: 12.5,
+                        weight: FontWeight.w500,
+                        color: AppColors.fgTertiary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _ActionPill(
+                icon: AppIcons.phone,
+                label: 'Call driver',
+                onTap: () => onCall(assigneeName!),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // If driverId is available, fetch driver details
+    if (driverId != null) {
+      debugPrint('📍 Branch: DriverID available - fetching details for $driverId');
+      return AppCard(
+        child: _SectionLabel(
+          icon: AppIcons.car,
+          label: 'Driver',
+          child: ref.watch(assigneeByIdProvider(driverId!)).when(
+            loading: () =>
+                SizedBox(height: 40.h, child: const SizedBox.shrink()),
+            error: (_, __) {
+              // Show assignee name if driver fetch fails
+              if (assigneeName != null) {
+                return Row(
+                  children: [
+                    Avatar(name: assigneeName!, size: 38),
+                    SizedBox(width: 11.w),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            assigneeName!,
+                            style: AppText.figtree(
+                              size: 14.5,
+                              weight: FontWeight.w700,
+                            ),
+                          ),
+                          SizedBox(height: 2.h),
+                          Text(
+                            'Driver',
+                            style: AppText.figtree(
+                              size: 12.5,
+                              weight: FontWeight.w500,
+                              color: AppColors.fgTertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _ActionPill(
+                      icon: AppIcons.phone,
+                      label: 'Call driver',
+                      onTap: () => onCall(assigneeName!),
+                    ),
+                  ],
+                );
+              }
+              return const SizedBox.shrink();
+            },
+            data: (driver) {
+              if (driver == null) {
+                // Show assignee name if driver is null
+                if (assigneeName != null) {
+                  return Row(
+                    children: [
+                      Avatar(name: assigneeName!, size: 38),
+                      SizedBox(width: 11.w),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              assigneeName!,
+                              style: AppText.figtree(
+                                size: 14.5,
+                                weight: FontWeight.w700,
+                              ),
+                            ),
+                            SizedBox(height: 2.h),
+                            Text(
+                              'Driver',
+                              style: AppText.figtree(
+                                size: 12.5,
+                                weight: FontWeight.w500,
+                                color: AppColors.fgTertiary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _ActionPill(
+                        icon: AppIcons.phone,
+                        label: 'Call driver',
+                        onTap: () => onCall(assigneeName!),
+                      ),
+                    ],
+                  );
+                }
+                return _assignButton(onAssign);
+              }
+              return Row(
+                children: [
+                  Avatar(name: driver.name, size: 38),
+                  SizedBox(width: 11.w),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          driver.name,
+                          style: AppText.figtree(
+                            size: 14.5,
+                            weight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(height: 2.h),
+                        Text(
+                          '${driver.role} · ${driver.phone}',
+                          style: AppText.figtree(
+                            size: 12.5,
+                            weight: FontWeight.w500,
+                            color: AppColors.fgTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _ActionPill(
+                    icon: AppIcons.phone,
+                    label: 'Call driver',
+                    onTap: () => onCall(driver.name),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      );
+    }
+
+    // No driver or assignee name - show assign button
+    debugPrint('📍 Branch: No driver or assignee name - showing assign button');
     return AppCard(
       child: _SectionLabel(
         icon: AppIcons.car,
         label: 'Driver',
-        child: driverId != null
-            ? ref.watch(assigneeByIdProvider(driverId!)).when(
-                  loading: () =>
-                      SizedBox(height: 40.h, child: const SizedBox.shrink()),
-                  error: (_, __) => const SizedBox.shrink(),
-                  data: (driver) {
-                    if (driver == null) {
-                      return _assignButton(onAssign);
-                    }
-                    return Row(
-                      children: [
-                        Avatar(name: driver.name, size: 38),
-                        SizedBox(width: 11.w),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                driver.name,
-                                style: AppText.figtree(
-                                  size: 14.5,
-                                  weight: FontWeight.w700,
-                                ),
-                              ),
-                              SizedBox(height: 2.h),
-                              Text(
-                                '${driver.role} · ${driver.phone}',
-                                style: AppText.figtree(
-                                  size: 12.5,
-                                  weight: FontWeight.w500,
-                                  color: AppColors.fgTertiary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        _ActionPill(
-                          icon: AppIcons.phone,
-                          label: 'Call driver',
-                          onTap: () => onCall(driver.name),
-                        ),
-                      ],
-                    );
-                  },
-                )
-            : _assignButton(onAssign),
+        child: _assignButton(onAssign),
       ),
     );
   }
@@ -1649,7 +1899,7 @@ class _FooterBtn extends StatelessWidget {
   }
 }
 
-class _MenuButton extends StatelessWidget {
+class _MenuButton extends ConsumerStatefulWidget {
   const _MenuButton({
     required this.open,
     required this.onToggle,
@@ -1665,41 +1915,61 @@ class _MenuButton extends StatelessWidget {
   final VoidCallback onAddNote;
 
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        GestureDetector(
-          onTap: onToggle,
-          child: Container(
-            width: 36.r,
-            height: 36.r,
-            alignment: Alignment.center,
-            child: Icon(
-              AppIcons.more,
-              size: 22.sp,
-              color: AppColors.fgSecondary,
-            ),
-          ),
-        ),
-        if (open) ...[
-          Positioned(
-            right: 0,
-            top: 42.h,
+  ConsumerState<_MenuButton> createState() => _MenuButtonState();
+}
+
+class _MenuButtonState extends ConsumerState<_MenuButton> {
+  OverlayEntry? _menuOverlay;
+  final GlobalKey _buttonKey = GlobalKey();
+
+  @override
+  void didUpdateWidget(_MenuButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // Handle menu opening/closing with overlay
+    if (widget.open && !oldWidget.open) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _showMenuOverlay();
+        }
+      });
+    } else if (!widget.open && oldWidget.open) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _hideMenuOverlay();
+        }
+      });
+    }
+  }
+
+  void _showMenuOverlay() {
+    // Get button position for menu positioning
+    final RenderBox? renderBox =
+        _buttonKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final Offset offset = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    _menuOverlay = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Transparent backdrop to close menu when tapped outside
+          Positioned.fill(
             child: GestureDetector(
-              onTap: onToggle,
+              onTap: widget.onToggle,
               child: Container(
                 color: Colors.transparent,
-                width: MediaQuery.of(context).size.width,
-                height: MediaQuery.of(context).size.height,
               ),
             ),
           ),
+          // Menu positioned at button location
           Positioned(
-            right: 0,
-            top: 42.h,
+            right: MediaQuery.of(context).size.width - (offset.dx + size.width),
+            top: offset.dy + size.height + 6.h,
             child: Material(
               color: Colors.transparent,
+              elevation: 24,
               child: Container(
                 width: 190.w,
                 decoration: BoxDecoration(
@@ -1723,17 +1993,17 @@ class _MenuButton extends StatelessWidget {
                       label: 'Share booking',
                       icon: AppIcons.share,
                       first: true,
-                      onTap: onShare,
+                      onTap: widget.onShare,
                     ),
                     _MenuItem(
                       label: 'Copy booking ID',
                       icon: AppIcons.copy,
-                      onTap: onCopyId,
+                      onTap: widget.onCopyId,
                     ),
                     _MenuItem(
                       label: 'Add note',
                       icon: AppIcons.note,
-                      onTap: onAddNote,
+                      onTap: widget.onAddNote,
                     ),
                   ],
                 ),
@@ -1741,7 +2011,38 @@ class _MenuButton extends StatelessWidget {
             ),
           ),
         ],
-      ],
+      ),
+    );
+
+    Overlay.of(context).insert(_menuOverlay!);
+  }
+
+  void _hideMenuOverlay() {
+    _menuOverlay?.remove();
+    _menuOverlay = null;
+  }
+
+  @override
+  void dispose() {
+    _hideMenuOverlay();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onToggle,
+      child: Container(
+        key: _buttonKey,
+        width: 36.r,
+        height: 36.r,
+        alignment: Alignment.center,
+        child: Icon(
+          AppIcons.more,
+          size: 22.sp,
+          color: AppColors.fgSecondary,
+        ),
+      ),
     );
   }
 }
@@ -1817,6 +2118,164 @@ class _ModalBtn extends StatelessWidget {
           style: AppText.figtree(size: 15, weight: FontWeight.w700),
         ),
       ),
+    );
+  }
+}
+
+// ── Carwash Assign Driver Body ──────────────────────────────────────────
+
+class _CarwashAssignDriverBody extends ConsumerStatefulWidget {
+  const _CarwashAssignDriverBody({
+    required this.bookingId,
+    required this.ref,
+  });
+
+  final int bookingId;
+  final WidgetRef ref;
+
+  @override
+  ConsumerState<_CarwashAssignDriverBody> createState() =>
+      _CarwashAssignDriverBodyState();
+}
+
+class _CarwashAssignDriverBodyState
+    extends ConsumerState<_CarwashAssignDriverBody> {
+  @override
+  void initState() {
+    super.initState();
+    // Delay API call to avoid concurrent requests on app startup
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        ref.invalidate(assignableDriversProvider(widget.bookingId));
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final driversAsync =
+        ref.watch(assignableDriversProvider(widget.bookingId));
+
+    return driversAsync.when(
+      loading: () => const Center(
+        child: CircularProgressIndicator.adaptive(),
+      ),
+      error: (_, __) => Center(
+        child: Text('Failed to load drivers'),
+      ),
+      data: (response) {
+        if (response.items.isEmpty) {
+          return Center(
+            child: Text('No drivers available'),
+          );
+        }
+
+        return Column(
+          children: [
+            for (final driver in response.items)
+              Padding(
+                padding: EdgeInsets.only(bottom: 10.h),
+                child: GestureDetector(
+                  onTap: (driver.available ?? false)
+                      ? () async {
+                          try {
+                            await ref
+                                .read(bookingsRepositoryProvider)
+                                .assignDriver(widget.bookingId, driver.id);
+                            if (context.mounted) {
+                              AppToast.show(
+                                context,
+                                'Assigned to ${driver.name}',
+                              );
+                              // Only invalidate detail provider (what detail screen is watching)
+                              // List will refetch when user navigates back to it naturally
+                              ref.invalidate(
+                                  bookingByIdProvider(widget.bookingId.toString()));
+                              Navigator.pop(context);
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              AppToast.show(context, e.toString());
+                            }
+                          }
+                        }
+                      : null,
+                  child: Container(
+                    padding: EdgeInsets.all(13.r),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgCard,
+                      borderRadius: BorderRadius.circular(13.r),
+                      border: Border.all(
+                        color: AppColors.borderSoft,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Opacity(
+                          opacity: (driver.available ?? false) ? 1.0 : 0.45,
+                          child: Avatar(name: driver.name, size: 40),
+                        ),
+                        SizedBox(width: 13.w),
+                        Expanded(
+                          child: Opacity(
+                            opacity: (driver.available ?? false) ? 1.0 : 0.45,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      driver.name,
+                                      style: AppText.figtree(
+                                        size: 14.5,
+                                        weight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    if (!(driver.available ?? false)) ...[
+                                      SizedBox(width: 8.w),
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: 7.w,
+                                          vertical: 2.h,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.redBg,
+                                          borderRadius:
+                                              BorderRadius.circular(99.r),
+                                        ),
+                                        child: Text(
+                                          'Busy',
+                                          style: AppText.figtree(
+                                            size: 10.5,
+                                            weight: FontWeight.w600,
+                                            color: AppColors.redFg,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                                SizedBox(height: 2.h),
+                                Text(
+                                  '${driver.title ?? 'Driver'} · ${driver.phone ?? 'N/A'}',
+                                  style: AppText.figtree(
+                                    size: 12,
+                                    weight: FontWeight.w500,
+                                    color: AppColors.fgTertiary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

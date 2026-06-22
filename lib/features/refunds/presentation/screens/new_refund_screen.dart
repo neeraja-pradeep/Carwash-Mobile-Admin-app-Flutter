@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
+import 'package:new_flutter_project/core/constants/app_options.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
-import '../components/refund_filter_sheet.dart';
+import '../../../bookings/application/providers/bookings_providers.dart';
 
 /// Lightweight booking context used to pre-fill the New Refund form when it is
 /// opened from a booking's "Refund" action (mirrors `prefill.newRefundFor` in
@@ -53,22 +55,26 @@ class RefundPrefill {
 
 /// Form to create a new refund request. Standalone, or pre-filled from a
 /// booking's Refund button when [booking] is supplied.
-class NewRefundScreen extends StatefulWidget {
+class NewRefundScreen extends ConsumerStatefulWidget {
   const NewRefundScreen({this.booking, super.key});
 
   /// When non-null, the form is pre-filled from this booking.
   final RefundPrefill? booking;
 
   @override
-  State<NewRefundScreen> createState() => _NewRefundScreenState();
+  ConsumerState<NewRefundScreen> createState() => _NewRefundScreenState();
 }
 
-class _NewRefundScreenState extends State<NewRefundScreen> {
+class _NewRefundScreenState extends ConsumerState<NewRefundScreen> {
   late final TextEditingController _refController;
   late final TextEditingController _amountController;
   final _notesController = TextEditingController();
   late String _tier;
   String _reason = kRefundReasons.first;
+  bool _isLoading = false;
+  int? _amountPaid;
+  int? _totalRefunded;
+  int? _remaining;
 
   @override
   void initState() {
@@ -79,6 +85,11 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
     _amountController =
         TextEditingController(text: init.amount == 0 ? '' : '${init.amount}');
     _tier = init.tier;
+
+    // If booking is provided, fetch refund summary
+    if (widget.booking != null) {
+      _loadRefundSummary();
+    }
   }
 
   @override
@@ -89,9 +100,151 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
     super.dispose();
   }
 
+  /// Load refund summary data from API
+  Future<void> _loadRefundSummary() async {
+    try {
+      final bookingId = int.tryParse(widget.booking!.bookingId);
+      if (bookingId == null) {
+        debugPrint('Failed to parse booking ID: ${widget.booking!.bookingId}');
+        return;
+      }
+
+      debugPrint('Loading refund summary for booking ID: $bookingId');
+      final refundSummary = await ref.read(refundSummaryProvider(bookingId).future);
+
+      debugPrint(
+        'Refund summary loaded: amountPaid=${refundSummary.amountPaid}, '
+        'totalRefunded=${refundSummary.totalRefunded}, '
+        'remaining=${refundSummary.remaining}',
+      );
+
+      setState(() {
+        _amountPaid = refundSummary.amountPaid;
+        _totalRefunded = refundSummary.totalRefunded;
+        _remaining = refundSummary.remaining;
+
+        debugPrint(
+          'State updated: _amountPaid=$_amountPaid, '
+          '_totalRefunded=$_totalRefunded, '
+          '_remaining=$_remaining',
+        );
+
+        // Pre-fill amount based on tier and remaining balance
+        _updateAmountForTier(_tier);
+      });
+    } catch (e) {
+      debugPrint('Error loading refund summary: $e');
+    }
+  }
+
+  /// Update amount field based on selected tier
+  void _updateAmountForTier(String tier) {
+    debugPrint('Updating amount for tier: $tier, _amountPaid=$_amountPaid, _remaining=$_remaining');
+
+    if (tier == '100%' && _amountPaid != null) {
+      final tierAmount = (_amountPaid! * 100 / 100).round();
+      final cappedAmount = (_remaining != null && _remaining! < tierAmount)
+          ? _remaining!
+          : tierAmount;
+      _amountController.text = cappedAmount.toString();
+      debugPrint('100% tier: tierAmount=$tierAmount, cappedAmount=$cappedAmount');
+    } else if (tier == '70%' && _amountPaid != null) {
+      final tierAmount = (_amountPaid! * 70 / 100).round();
+      final cappedAmount = (_remaining != null && _remaining! < tierAmount)
+          ? _remaining!
+          : tierAmount;
+      _amountController.text = cappedAmount.toString();
+      debugPrint('70% tier: tierAmount=$tierAmount, cappedAmount=$cappedAmount');
+    } else if (tier == '0%') {
+      _amountController.text = '';
+      debugPrint('0% tier: amount cleared');
+    } else if (tier == 'Override') {
+      // Clear for user to enter custom amount
+      _amountController.text = '';
+      debugPrint('Override tier: amount cleared for custom entry');
+    } else {
+      debugPrint('Unknown tier: $tier');
+    }
+  }
+
   bool get _valid =>
       _refController.text.trim().isNotEmpty &&
-      _amountController.text.trim().isNotEmpty;
+      _amountController.text.trim().isNotEmpty &&
+      (_remaining == null || _remaining! > 0); // Allow if null (loading) or if remaining > 0
+
+  /// Parse refund reason to API key format
+  String _parseReasonToKey(String displayReason) {
+    return switch (displayReason) {
+      'Cancellation by customer' => 'cancellation_by_customer',
+      'Founder cancellation' => 'founder_cancellation',
+      'Service quality issue' => 'service_quality_issue',
+      'Damage during wash' => 'damage_during_wash',
+      'Duplicate charge' => 'duplicate_charge',
+      'Other' => 'other',
+      _ => 'other',
+    };
+  }
+
+  /// Create refund and handle response
+  Future<void> _createRefund() async {
+    if (!_valid) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final bookingId = int.parse(_refController.text.trim());
+      final amount = int.parse(_amountController.text.trim());
+
+      // Determine percent or amount based on tier
+      int? percent;
+      int? amountToSend;
+
+      if (_tier == '100%') {
+        percent = 100;
+      } else if (_tier == '70%') {
+        percent = 70;
+      } else if (_tier == '0%') {
+        percent = 0;
+      } else {
+        // Override: send actual amount
+        amountToSend = amount;
+      }
+
+      final reason = _parseReasonToKey(_reason);
+      final comment = _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
+
+      // Call API through repository
+      await ref
+          .read(bookingsRepositoryProvider)
+          .createRefund(
+            bookingId,
+            percent: percent,
+            amount: amountToSend,
+            reason: reason,
+            comment: comment,
+          );
+
+      // Only invalidate the detail provider for the specific booking being refunded
+      // This will refresh the detail screen when user pops back to it
+      // List will refetch naturally when user navigates back to it
+      ref.invalidate(bookingByIdProvider(bookingId.toString()));
+
+      if (mounted) {
+        AppToast.show(context, 'Refund created successfully');
+        Navigator.of(context).pop();
+      }
+    } on FormatException {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        AppToast.show(context, 'Invalid booking ID or amount');
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        AppToast.show(context, 'Error: ${e.toString()}');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +284,30 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
                     ],
                   ),
                   SizedBox(height: 14.h),
+                  // Refund summary (if data loaded from API)
+                  if (_amountPaid != null) ...[
+                    _FormCard(
+                      label: 'SUMMARY',
+                      children: [
+                        _SummaryRow(
+                          label: 'Amount Paid',
+                          amount: _amountPaid ?? 0,
+                        ),
+                        SizedBox(height: 10.h),
+                        _SummaryRow(
+                          label: 'Already Refunded',
+                          amount: _totalRefunded ?? 0,
+                        ),
+                        SizedBox(height: 10.h),
+                        _SummaryRow(
+                          label: 'Remaining',
+                          amount: _remaining ?? 0,
+                          highlight: true,
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 14.h),
+                  ],
                   // Refund details card
                   _FormCard(
                     label: 'REFUND',
@@ -152,7 +329,15 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
                             children: ['100%', '70%', '0%', 'Override']
                                 .map((t) => Expanded(
                                       child: GestureDetector(
-                                        onTap: () => setState(() => _tier = t),
+                                        onTap: (_remaining == null || _remaining! > 0)
+                                            ? () {
+                                                debugPrint('Tier selected: $t');
+                                                setState(() {
+                                                  _tier = t;
+                                                  _updateAmountForTier(t);
+                                                });
+                                              }
+                                            : null,
                                         child: Container(
                                           margin: EdgeInsets.only(
                                               right: t != 'Override' ? 8.w : 0),
@@ -256,6 +441,13 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
                       ),
                     ],
                   ),
+                  SizedBox(height: 14.h),
+                  // Refund history from API
+                  if (booking != null) ...[
+                    _RefundHistoryWidget(
+                      bookingId: int.tryParse(booking.bookingId) ?? 0,
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -270,13 +462,8 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
                 child: AppButton(
                   label: 'Create Refund',
                   full: true,
-                  disabled: !_valid,
-                  onPressed: _valid
-                      ? () {
-                          AppToast.show(context, 'Refund created · Requested');
-                          Navigator.of(context).pop();
-                        }
-                      : null,
+                  disabled: !_valid || _isLoading,
+                  onPressed: (_valid && !_isLoading) ? _createRefund : null,
                 ),
               ),
             ),
@@ -284,6 +471,198 @@ class _NewRefundScreenState extends State<NewRefundScreen> {
         ),
       ),
     );
+  }
+}
+
+/// Summary row showing amount with label
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({
+    required this.label,
+    required this.amount,
+    this.highlight = false,
+  });
+
+  final String label;
+  final int amount;
+  final bool highlight;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: AppText.figtree(
+            size: 12.5,
+            weight: FontWeight.w500,
+            color: AppColors.fgSecondary,
+          ),
+        ),
+        Text(
+          '₹$amount',
+          style: AppText.figtree(
+            size: 13.5,
+            weight: highlight ? FontWeight.w700 : FontWeight.w600,
+            color: highlight ? AppColors.fgPrimary : AppColors.fgPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Refund history display widget
+class _RefundHistoryWidget extends ConsumerWidget {
+  const _RefundHistoryWidget({required this.bookingId});
+
+  final int bookingId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ref.watch(refundSummaryProvider(bookingId)).when(
+      data: (summary) {
+        if (summary.refunds.isEmpty) {
+          return _FormCard(
+            label: 'REFUND HISTORY',
+            children: [
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20.h),
+                  child: Text(
+                    'No refunds yet',
+                    style: AppText.figtree(
+                      size: 12.5,
+                      weight: FontWeight.w500,
+                      color: AppColors.fgMuted,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        return _FormCard(
+          label: 'REFUND HISTORY',
+          children: [
+            ...summary.refunds.map((refund) {
+              return Padding(
+                padding: EdgeInsets.only(bottom: 12.h),
+                child: Container(
+                  padding: EdgeInsets.all(12.w),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgPage,
+                    borderRadius: BorderRadius.circular(8.r),
+                    border: Border.all(color: AppColors.borderSoft),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '₹${refund.amount}',
+                            style: AppText.figtree(
+                              size: 13.5,
+                              weight: FontWeight.w700,
+                              color: AppColors.fgPrimary,
+                            ),
+                          ),
+                          Text(
+                            _formatDate(refund.createdAt),
+                            style: AppText.figtree(
+                              size: 11,
+                              weight: FontWeight.w500,
+                              color: AppColors.fgMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 6.h),
+                      Text(
+                        refund.reason,
+                        style: AppText.figtree(
+                          size: 12,
+                          weight: FontWeight.w500,
+                          color: AppColors.fgSecondary,
+                        ),
+                      ),
+                      if (refund.comment != null && refund.comment!.isNotEmpty) ...[
+                        SizedBox(height: 6.h),
+                        Text(
+                          refund.comment!,
+                          style: AppText.figtree(
+                            size: 11,
+                            weight: FontWeight.w400,
+                            color: AppColors.fgMuted,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      },
+      loading: () => _FormCard(
+        label: 'REFUND HISTORY',
+        children: [
+          Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 20.h),
+              child: SizedBox(
+                height: 20.h,
+                width: 20.h,
+                child: const CircularProgressIndicator(
+                  strokeWidth: 2,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      error: (_, __) => _FormCard(
+        label: 'REFUND HISTORY',
+        children: [
+          Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 20.h),
+              child: Text(
+                'Error loading refund history',
+                style: AppText.figtree(
+                  size: 12.5,
+                  weight: FontWeight.w500,
+                  color: AppColors.fgMuted,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      return '${date.day} ${_monthName(date.month)} ${date.year}';
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  String _monthName(int month) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return months[month - 1];
   }
 }
 

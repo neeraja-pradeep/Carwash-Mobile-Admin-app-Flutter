@@ -15,6 +15,9 @@ enum BookingStatus {
   returning,
   completed,
   cancelled,
+  pending,
+  refundRequested,
+  refunded,
 }
 
 /// Display label, badge tone and wire-key for a [BookingStatus].
@@ -30,6 +33,9 @@ extension BookingStatusX on BookingStatus {
         BookingStatus.returning => 'Returning',
         BookingStatus.completed => 'Completed',
         BookingStatus.cancelled => 'Cancelled',
+        BookingStatus.pending => 'Pending',
+        BookingStatus.refundRequested => 'Refund Requested',
+        BookingStatus.refunded => 'Refunded',
       };
 
   BadgeTone get tone => switch (this) {

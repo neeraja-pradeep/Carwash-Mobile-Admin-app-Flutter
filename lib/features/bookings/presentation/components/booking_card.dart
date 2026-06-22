@@ -1,26 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
-import 'package:new_flutter_project/core/status/booking_status.dart';
-import 'package:new_flutter_project/core/status/payment_status.dart';
-import 'package:new_flutter_project/core/utils/formatters.dart';
+import 'package:new_flutter_project/core/status/badge_tone.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/status_badge.dart';
-import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
-import 'package:new_flutter_project/features/drivers/application/providers/drivers_providers.dart';
 
-import '../../domain/entities/booking.dart';
+import '../../domain/entities/carwash_booking.dart';
 
 /// Ride-hailing style "route-ladder" card for a car-wash booking.
 ///
-/// Displays: status badge + ID, customer + vehicle, pickup (yellow-dot) →
+/// Displays: status badge + reference, customer + vehicle, pickup (yellow-dot) →
 /// shop (black store badge) ladder with addresses, driver or "Assign →"
-/// button in the footer, and ₹ total + payment status.
-class BookingCard extends ConsumerWidget {
+/// button in the footer, and ₹ amount + payment status.
+class BookingCard extends StatelessWidget {
   const BookingCard({
     required this.booking,
     required this.onTap,
@@ -28,23 +23,68 @@ class BookingCard extends ConsumerWidget {
     super.key,
   });
 
-  final Booking booking;
+  final CarwashBooking booking;
   final VoidCallback onTap;
-  final VoidCallback onAssign;
+  final VoidCallback? onAssign;
+
+  String _getStatusLabel() {
+    if (booking.status == 'cancelled') return 'Cancelled';
+
+    final isAssigned = booking.assigneeName != null && booking.assigneeName!.isNotEmpty;
+
+    switch (booking.washingStatus) {
+      case 'crew_en_route':
+        return 'Going';
+      case 'picked_up':
+        return 'Picked';
+      case 'dropped_at_shop':
+        return 'At Shop';
+      case 'in_progress':
+        return 'Washing';
+      case 'wash_done':
+        return 'Done';
+      case 'returning':
+        return 'Returning';
+      case 'completed':
+        return 'Completed';
+      default:
+        if (booking.status == 'completed') return 'Completed';
+        return isAssigned ? 'Assigned' : 'New';
+    }
+  }
+
+  BadgeTone _getStatusTone() {
+    final status = _getStatusLabel();
+    switch (status) {
+      case 'New':
+        return BadgeTone.amber;
+      case 'Assigned':
+        return BadgeTone.blue;
+      case 'Going':
+      case 'Washing':
+      case 'Picked':
+      case 'At Shop':
+        return BadgeTone.blue;
+      case 'Returning':
+        return BadgeTone.blue;
+      case 'Done':
+        return BadgeTone.green;
+      case 'Completed':
+        return BadgeTone.green;
+      case 'Cancelled':
+        return BadgeTone.red;
+      default:
+        return BadgeTone.grey;
+    }
+  }
+
+  bool get _isUnassigned =>
+      (booking.assigneeName == null || booking.assigneeName!.isEmpty) &&
+      booking.status != 'cancelled' &&
+      booking.status != 'completed';
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final shopAsync = ref.watch(shopByIdProvider(booking.shopId));
-    final driverAsync = booking.driverId != null
-        ? ref.watch(assigneeByIdProvider(booking.driverId!))
-        : null;
-
-    final unassigned = booking.driverId == null &&
-        booking.status != BookingStatus.cancelled &&
-        booking.status != BookingStatus.completed;
-
-    final shortId = booking.id.replaceAll('DD-KL-20260529-', '#');
-
+  Widget build(BuildContext context) {
     return AppCard(
       onTap: onTap,
       padded: false,
@@ -53,7 +93,7 @@ class BookingCard extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Row 1: time anchor + status badge
+            // Row 1: time anchor + reference + status badge
             Row(
               children: [
                 Icon(
@@ -63,7 +103,7 @@ class BookingCard extends ConsumerWidget {
                 ),
                 SizedBox(width: 5.w),
                 Text(
-                  booking.pickup.time,
+                  booking.startSlotTime ?? '—',
                   style: AppText.figtree(
                     size: 15,
                     weight: FontWeight.w800,
@@ -73,7 +113,7 @@ class BookingCard extends ConsumerWidget {
                 SizedBox(width: 6.w),
                 Expanded(
                   child: Text(
-                    '· $shortId',
+                    '· ${booking.reference}',
                     overflow: TextOverflow.ellipsis,
                     style: AppText.figtree(
                       size: 11.5,
@@ -83,8 +123,8 @@ class BookingCard extends ConsumerWidget {
                   ),
                 ),
                 StatusBadge(
-                  label: booking.status.label,
-                  tone: booking.status.tone,
+                  label: _getStatusLabel(),
+                  tone: _getStatusTone(),
                 ),
               ],
             ),
@@ -93,7 +133,7 @@ class BookingCard extends ConsumerWidget {
 
             // Row 2: customer name + vehicle
             Text(
-              booking.customer.name,
+              booking.customerName ?? '—',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppText.figtree(
@@ -103,7 +143,7 @@ class BookingCard extends ConsumerWidget {
             ),
             SizedBox(height: 3.h),
             Text(
-              '${booking.vehicle.make} ${booking.vehicle.model} · ${booking.vehicle.plate ?? ""}',
+              booking.vehicleLabel ?? '—',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppText.figtree(
@@ -189,7 +229,7 @@ class BookingCard extends ConsumerWidget {
                           ),
                           SizedBox(height: 3.h),
                           Text(
-                            booking.pickup.address,
+                            booking.pickupAddress ?? '—',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppText.figtree(
@@ -211,44 +251,30 @@ class BookingCard extends ConsumerWidget {
                             ),
                           ),
                           SizedBox(height: 3.h),
-                          shopAsync.when(
-                            loading: () => Container(
-                              height: 14.h,
-                              width: 120.w,
-                              color: AppColors.borderSoft,
-                            ),
-                            error: (_, __) => Text(
-                              booking.shopId,
-                              style: AppText.figtree(
-                                size: 12.5,
-                                weight: FontWeight.w600,
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                booking.shopName ?? '—',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppText.figtree(
+                                  size: 12.5,
+                                  weight: FontWeight.w600,
+                                ),
                               ),
-                            ),
-                            data: (shop) => Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                              if (booking.shopArea != null)
                                 Text(
-                                  shop?.name ?? booking.shopId,
+                                  booking.shopArea!,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: AppText.figtree(
-                                    size: 12.5,
-                                    weight: FontWeight.w600,
+                                    size: 11.5,
+                                    weight: FontWeight.w500,
+                                    color: AppColors.fgTertiary,
                                   ),
                                 ),
-                                if (shop?.area != null)
-                                  Text(
-                                    shop!.area,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppText.figtree(
-                                      size: 11.5,
-                                      weight: FontWeight.w500,
-                                      color: AppColors.fgTertiary,
-                                    ),
-                                  ),
-                              ],
-                            ),
+                            ],
                           ),
                         ],
                       ),
@@ -273,7 +299,7 @@ class BookingCard extends ConsumerWidget {
                       child: Row(
                         children: [
                           Text(
-                            Formatters.money(booking.total),
+                            booking.amount ?? '₹0',
                             style: AppText.figtree(
                               size: 16,
                               weight: FontWeight.w800,
@@ -291,11 +317,13 @@ class BookingCard extends ConsumerWidget {
                           ),
                           SizedBox(width: 8.w),
                           Text(
-                            booking.payment.label,
+                            booking.isPaid == true ? 'Paid' : (booking.paymentStatus ?? 'Pending'),
                             style: AppText.figtree(
                               size: 12,
                               weight: FontWeight.w600,
-                              color: _paymentColor(booking.payment),
+                              color: booking.isPaid == true
+                                  ? AppColors.greenFg
+                                  : AppColors.amberFg,
                             ),
                           ),
                         ],
@@ -303,11 +331,9 @@ class BookingCard extends ConsumerWidget {
                     ),
 
                     // Assign or driver
-                    if (unassigned)
+                    if (_isUnassigned && onAssign != null)
                       GestureDetector(
-                        onTap: () {
-                          onAssign();
-                        },
+                        onTap: onAssign,
                         child: Container(
                           padding: EdgeInsets.symmetric(
                             horizontal: 12.w,
@@ -349,38 +375,14 @@ class BookingCard extends ConsumerWidget {
                             color: AppColors.fgTertiary,
                           ),
                           SizedBox(width: 5.w),
-                          driverAsync != null
-                              ? driverAsync.when(
-                                  loading: () => Container(
-                                    height: 12.h,
-                                    width: 60.w,
-                                    color: AppColors.borderSoft,
-                                  ),
-                                  error: (_, __) => Text(
-                                    '—',
-                                    style: AppText.figtree(
-                                      size: 12.5,
-                                      weight: FontWeight.w500,
-                                      color: AppColors.fgSecondary,
-                                    ),
-                                  ),
-                                  data: (driver) => Text(
-                                    driver?.name ?? '—',
-                                    style: AppText.figtree(
-                                      size: 12.5,
-                                      weight: FontWeight.w500,
-                                      color: AppColors.fgSecondary,
-                                    ),
-                                  ),
-                                )
-                              : Text(
-                                  '—',
-                                  style: AppText.figtree(
-                                    size: 12.5,
-                                    weight: FontWeight.w500,
-                                    color: AppColors.fgSecondary,
-                                  ),
-                                ),
+                          Text(
+                            booking.assigneeName ?? '—',
+                            style: AppText.figtree(
+                              size: 12.5,
+                              weight: FontWeight.w500,
+                              color: AppColors.fgSecondary,
+                            ),
+                          ),
                         ],
                       ),
                   ],
@@ -391,16 +393,5 @@ class BookingCard extends ConsumerWidget {
         ),
       ),
     );
-  }
-
-  Color _paymentColor(PaymentStatus p) {
-    switch (p) {
-      case PaymentStatus.paid:
-        return AppColors.greenFg;
-      case PaymentStatus.refunded:
-        return AppColors.redFg;
-      case PaymentStatus.pending:
-        return AppColors.amberFg;
-    }
   }
 }
