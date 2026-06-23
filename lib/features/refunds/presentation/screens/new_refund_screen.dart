@@ -170,7 +170,8 @@ class _NewRefundScreenState extends ConsumerState<NewRefundScreen> {
   bool get _valid =>
       _refController.text.trim().isNotEmpty &&
       _amountController.text.trim().isNotEmpty &&
-      (_remaining == null || _remaining! > 0); // Allow if null (loading) or if remaining > 0
+      _remaining != null &&
+      _remaining! > 0;
 
   /// Parse refund reason to API key format
   String _parseReasonToKey(String displayReason) {

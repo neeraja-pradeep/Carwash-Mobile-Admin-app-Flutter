@@ -2,26 +2,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/refund.dart';
 import '../../domain/repositories/refunds_repository.dart';
-import '../../infrastructure/data_sources/local/refunds_local_ds.dart';
 import '../../infrastructure/repositories/refunds_repository_impl.dart';
 import '../states/refunds_filter_state.dart';
 
-/// Local data source provider.
-final refundsLocalDsProvider = Provider<RefundsLocalDs>(
-  (ref) => const RefundsLocalDs(),
-);
-
 /// The refunds repository (domain contract → infrastructure impl).
 final refundsRepositoryProvider = Provider<RefundsRepository>(
-  (ref) => RefundsRepositoryImpl(ref.watch(refundsLocalDsProvider)),
+  (ref) => RefundsRepositoryImpl(),
 );
 
-/// All refunds (read). Kept alive so back-navigation is instant.
-final refundsProvider = FutureProvider<List<Refund>>(
+/// All refunds (read). Auto-dispose to prevent unwanted API calls.
+final refundsProvider = FutureProvider.autoDispose<List<Refund>>(
   (ref) => ref.watch(refundsRepositoryProvider).fetchRefunds(),
 );
 
-/// Single refund by id (autoDispose — resets when detail screen is gone).
+/// Single refund by id — searches cached refunds list (no extra API call).
 final refundByIdProvider =
     FutureProvider.autoDispose.family<Refund?, String>((ref, id) async {
   final refunds = await ref.watch(refundsProvider.future);
