@@ -8,8 +8,7 @@ import '../states/customers_filter_state.dart';
 
 // ─── Infrastructure providers ─────────────────────────────────────────────────
 
-/// Local data source provider (swapped for a remote+cache source in the API
-/// phase).
+/// Local data source provider (list fallback only).
 final customersLocalDsProvider = Provider<CustomersLocalDs>(
   (ref) => const CustomersLocalDs(),
 );
@@ -23,16 +22,33 @@ final customersRepositoryProvider = Provider<CustomersRepository>(
 
 // ─── Data providers ───────────────────────────────────────────────────────────
 
-/// All customers. autoDispose to avoid fetching on app startup.
-final customersProvider = FutureProvider.autoDispose<List<Customer>>(
-  (ref) => ref.watch(customersRepositoryProvider).fetchCustomers(),
-);
+/// Customers list, fetched server-side from the committed filter/sort/search.
+/// autoDispose to avoid fetching on app startup; re-runs whenever the filter
+/// state changes.
+final customersProvider = FutureProvider.autoDispose<List<Customer>>((ref) {
+  final filter = ref.watch(customersFilterProvider);
+  return ref.watch(customersRepositoryProvider).fetchCustomers(
+        search: filter.query.trim().isEmpty ? null : filter.query.trim(),
+        status: filter.status,
+        joined: filter.joinedParam,
+        bookingCount: filter.bookingCountParam,
+        sort: filter.sortParam,
+      );
+});
 
-/// A single customer by id. autoDispose + family so each detail screen gets
-/// its own slot, cleared when the screen is gone.
+/// A single customer by id — calls the dedicated detail endpoint. autoDispose +
+/// family so each detail screen gets its own slot, cleared when the screen is gone.
 final customerByIdProvider =
     FutureProvider.autoDispose.family<Customer?, String>(
   (ref, id) => ref.watch(customersRepositoryProvider).fetchCustomerById(id),
+);
+
+/// A page of a customer's booking history. Family keyed by `(id, page)`.
+final customerHistoryProvider = FutureProvider.autoDispose
+    .family<CustomerHistoryPage, ({String id, int page})>(
+  (ref, arg) => ref
+      .watch(customersRepositoryProvider)
+      .fetchCustomerHistory(arg.id, page: arg.page),
 );
 
 /// Search customers by query. autoDispose so it clears when not in use.
@@ -68,13 +84,46 @@ final customersFilterDraftProvider =
   (ref) => ref.read(customersFilterProvider),
 );
 
-/// Derived, filtered+sorted customers (keeps widget `build` free of logic).
+/// The list screen's customers. Filtering/sorting now happens on the server
+/// (see [customersProvider]); this just forwards the async value so the screen
+/// API stays unchanged.
 final filteredCustomersProvider =
     Provider.autoDispose<AsyncValue<List<Customer>>>((ref) {
-  final customers = ref.watch(customersProvider);
-  final filter = ref.watch(customersFilterProvider);
-  return customers.whenData((list) => applyCustomerFilter(list, filter));
+  return ref.watch(customersProvider);
 });
+
+// ─── Mutation helpers ──────────────────────────────────────────────────────────
+
+/// Saves founder notes for [id], then refreshes the detail provider.
+Future<void> saveFounderNotes(WidgetRef ref, String id, String notes) async {
+  await ref.read(customersRepositoryProvider).updateFounderNotes(id, notes);
+  _refreshCustomer(ref, id);
+}
+
+/// Blocks [id] with an optional reason enum + notes, then refreshes.
+Future<void> blockCustomer(
+  WidgetRef ref,
+  String id, {
+  String? reason,
+  String? notes,
+}) async {
+  await ref
+      .read(customersRepositoryProvider)
+      .blockCustomer(id, reason: reason, notes: notes);
+  _refreshCustomer(ref, id);
+}
+
+/// Unblocks [id], then refreshes.
+Future<void> unblockCustomer(WidgetRef ref, String id) async {
+  await ref.read(customersRepositoryProvider).unblockCustomer(id);
+  _refreshCustomer(ref, id);
+}
+
+void _refreshCustomer(WidgetRef ref, String id) {
+  ref.invalidate(customerByIdProvider(id));
+  // The list shows the active/blocked badge + stats, so refresh it too.
+  ref.invalidate(customersProvider);
+}
 
 // ─── Controller ──────────────────────────────────────────────────────────────
 

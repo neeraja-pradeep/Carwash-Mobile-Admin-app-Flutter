@@ -10,7 +10,12 @@ import 'package:new_flutter_project/core/widgets/app_card.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
-import '../../../bookings/application/providers/bookings_providers.dart';
+// Read-only refund summary/history (application layer) is reused from the
+// bookings feature; the refund *write* now goes through the refunds feature's
+// own standalone create endpoint (not the bookings API).
+import '../../../bookings/application/providers/bookings_providers.dart'
+    show refundSummaryProvider;
+import '../../application/providers/refunds_providers.dart';
 
 /// Lightweight booking context used to pre-fill the New Refund form when it is
 /// opened from a booking's "Refund" action (mirrors `prefill.newRefundFor` in
@@ -22,14 +27,20 @@ class RefundPrefill {
     required this.customerName,
     required this.total,
     required this.status,
+    this.bookingReference,
   });
 
+  /// Numeric booking id — used to load the read-only refund summary/history.
   final String bookingId;
   final String customerName;
   final int total;
 
   /// Booking status string (e.g. `new`, `assigned`, `washing`, `completed`).
   final String status;
+
+  /// Real booking reference (`DT-…`/`SR-…`) sent to the standalone create
+  /// endpoint. Falls back to [bookingId] when not supplied (user can edit).
+  final String? bookingReference;
 }
 
 /// Suggested refund tier + amount for a booking, by its stage.
@@ -80,8 +91,9 @@ class _NewRefundScreenState extends ConsumerState<NewRefundScreen> {
   void initState() {
     super.initState();
     final init = _suggestedTier(widget.booking);
-    _refController =
-        TextEditingController(text: widget.booking?.bookingId ?? '');
+    _refController = TextEditingController(
+      text: widget.booking?.bookingReference ?? widget.booking?.bookingId ?? '',
+    );
     _amountController =
         TextEditingController(text: init.amount == 0 ? '' : '${init.amount}');
     _tier = init.tier;
@@ -167,11 +179,14 @@ class _NewRefundScreenState extends ConsumerState<NewRefundScreen> {
     }
   }
 
-  bool get _valid =>
-      _refController.text.trim().isNotEmpty &&
-      _amountController.text.trim().isNotEmpty &&
-      _remaining != null &&
-      _remaining! > 0;
+  bool get _valid {
+    if (_refController.text.trim().isEmpty) return false;
+    // 0% tier sends percent=0 and needs no amount; every other path needs one.
+    if (_tier != '0%' && _amountController.text.trim().isEmpty) return false;
+    // When a summary is loaded (prefill flow), the booking must be refundable.
+    if (_remaining != null && _remaining! <= 0) return false;
+    return true;
+  }
 
   /// Parse refund reason to API key format
   String _parseReasonToKey(String displayReason) {
@@ -186,20 +201,18 @@ class _NewRefundScreenState extends ConsumerState<NewRefundScreen> {
     };
   }
 
-  /// Create refund and handle response
+  /// Create a standalone refund by booking reference and handle the response.
   Future<void> _createRefund() async {
     if (!_valid) return;
 
     setState(() => _isLoading = true);
 
     try {
-      final bookingId = int.parse(_refController.text.trim());
-      final amount = int.parse(_amountController.text.trim());
+      final bookingReference = _refController.text.trim();
 
-      // Determine percent or amount based on tier
+      // Determine percent or amount based on the selected tier.
       int? percent;
       int? amountToSend;
-
       if (_tier == '100%') {
         percent = 100;
       } else if (_tier == '70%') {
@@ -207,28 +220,24 @@ class _NewRefundScreenState extends ConsumerState<NewRefundScreen> {
       } else if (_tier == '0%') {
         percent = 0;
       } else {
-        // Override: send actual amount
-        amountToSend = amount;
+        // Override: send the typed rupee amount.
+        amountToSend = int.parse(_amountController.text.trim());
       }
 
       final reason = _parseReasonToKey(_reason);
-      final comment = _notesController.text.trim().isEmpty ? null : _notesController.text.trim();
+      final comment = _notesController.text.trim().isEmpty
+          ? null
+          : _notesController.text.trim();
 
-      // Call API through repository
-      await ref
-          .read(bookingsRepositoryProvider)
-          .createRefund(
-            bookingId,
+      // Standalone create-by-reference (issues directly to Paid). This
+      // invalidates the refunds list/detail providers on success.
+      await ref.read(refundActionsProvider).createStandalone(
+            bookingReference: bookingReference,
             percent: percent,
             amount: amountToSend,
             reason: reason,
             comment: comment,
           );
-
-      // Only invalidate the detail provider for the specific booking being refunded
-      // This will refresh the detail screen when user pops back to it
-      // List will refetch naturally when user navigates back to it
-      ref.invalidate(bookingByIdProvider(bookingId.toString()));
 
       if (mounted) {
         AppToast.show(context, 'Refund created successfully');
@@ -237,12 +246,14 @@ class _NewRefundScreenState extends ConsumerState<NewRefundScreen> {
     } on FormatException {
       setState(() => _isLoading = false);
       if (mounted) {
-        AppToast.show(context, 'Invalid booking ID or amount');
+        AppToast.show(context, 'Invalid amount');
       }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
-        AppToast.show(context, 'Error: ${e.toString()}');
+        final s = e.toString();
+        AppToast.show(
+            context, s.startsWith('Exception: ') ? s.substring(11) : s);
       }
     }
   }
@@ -279,7 +290,7 @@ class _NewRefundScreenState extends ConsumerState<NewRefundScreen> {
                       _LabeledInput(
                         label: 'Booking reference',
                         controller: _refController,
-                        placeholder: 'DD-KL-…',
+                        placeholder: 'DT-… or SR-…',
                         onChanged: (_) => setState(() {}),
                       ),
                     ],

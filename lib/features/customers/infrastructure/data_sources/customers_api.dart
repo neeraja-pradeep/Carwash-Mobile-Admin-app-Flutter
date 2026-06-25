@@ -13,15 +13,34 @@ class CustomersApi {
     _dio = HttpClient().dio;
   }
 
-  /// Get all customers (paginated)
+  /// Get customers (paginated) with optional search, filter and sort.
+  ///
+  /// [status]   → `active` | `blocked` (omit for all).
+  /// [joined]   → `30d` | `90d` | `year` (`any`/null → no filter).
+  /// [bookingCount] → `1-5` | `6-20` | `20plus` (`any`/null → no filter).
+  /// [sort]     → `name` | `spend` | `bookings` | `recent`.
   Future<CustomerListResponse> getCustomers({
     int page = 1,
     int pageSize = 50,
+    String? search,
+    String? status,
+    String? joined,
+    String? bookingCount,
+    String? sort,
   }) async {
     try {
-      final params = {
+      final params = <String, dynamic>{
         'page': page,
         'page_size': pageSize,
+        if (search != null && search.isNotEmpty) 'search': search,
+        if (status != null && status.isNotEmpty) 'status': status,
+        if (joined != null && joined.isNotEmpty && joined != 'any')
+          'joined': joined,
+        if (bookingCount != null &&
+            bookingCount.isNotEmpty &&
+            bookingCount != 'any')
+          'booking_count': bookingCount,
+        if (sort != null && sort.isNotEmpty) 'sort': sort,
       };
 
       final response = await _dio.get(
@@ -43,19 +62,86 @@ class CustomersApi {
     int page = 1,
     int pageSize = 50,
   }) async {
+    return getCustomers(page: page, pageSize: pageSize, search: query);
+  }
+
+  /// Get a single customer's full detail.
+  Future<CustomerDetailResponse> getCustomerDetail(String id) async {
     try {
-      final params = {
-        'search': query,
-        'page': page,
-        'page_size': pageSize,
-      };
-
-      final response = await _dio.get(
-        _customersPath,
-        queryParameters: params,
+      final response = await _dio.get('$_customersPath$id/');
+      return CustomerDetailResponse.fromJson(
+        response.data as Map<String, dynamic>,
       );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
 
-      return CustomerListResponse.fromJson(
+  /// Update the editable founder notes on a customer.
+  Future<CustomerDetailResponse> patchFounderNotes(
+    String id,
+    String notes,
+  ) async {
+    try {
+      final response = await _dio.patch(
+        '$_customersPath$id/',
+        data: {'founder_notes': notes},
+      );
+      return CustomerDetailResponse.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Block a customer. [reason] (enum) and [notes] are both optional.
+  Future<CustomerBlockResponse> blockCustomer(
+    String id, {
+    String? reason,
+    String? notes,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      };
+      final response = await _dio.post(
+        '$_customersPath$id/block/',
+        data: body,
+      );
+      return CustomerBlockResponse.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Unblock a customer.
+  Future<CustomerBlockResponse> unblockCustomer(String id) async {
+    try {
+      final response = await _dio.post('$_customersPath$id/unblock/');
+      return CustomerBlockResponse.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Fetch one page of a customer's merged booking history.
+  Future<CustomerHistoryResponse> getCustomerHistory(
+    String id, {
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '$_customersPath$id/history/',
+        queryParameters: {'page': page, 'page_size': pageSize},
+      );
+      return CustomerHistoryResponse.fromJson(
         response.data as Map<String, dynamic>,
       );
     } on DioException catch (e) {

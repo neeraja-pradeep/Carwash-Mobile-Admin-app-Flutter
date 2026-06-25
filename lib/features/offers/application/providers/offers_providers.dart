@@ -16,12 +16,32 @@ final offersRepositoryProvider = Provider<OffersRepository>(
   (ref) => OffersRepositoryImpl(ref.watch(_offersLocalDsProvider)),
 );
 
-/// All coupons.
-final couponsProvider = FutureProvider<List<Coupon>>(
-  (ref) => ref.watch(offersRepositoryProvider).fetchCoupons(),
+/// Coupons (remote) — driven by the current filter/sort/search state.
+///
+/// Watches [offersFilterProvider] so search / lifecycle / ordering changes
+/// trigger a fresh server fetch. Returns the page of coupons (count is
+/// available via [couponCountProvider]).
+final couponsProvider = FutureProvider.autoDispose<List<Coupon>>((ref) async {
+  final filter = ref.watch(offersFilterProvider);
+  final page = await ref.watch(offersRepositoryProvider).fetchCoupons(
+        search: filter.query.trim().isEmpty ? null : filter.query.trim(),
+        lifecycle: filter.lifecycle,
+        ordering: filter.ordering,
+      );
+  ref.keepAlive();
+  // Stash the count so the list controls can read it without a second fetch.
+  ref.read(_couponCountProvider.notifier).state = page.count;
+  return page.coupons;
+});
+
+final _couponCountProvider = StateProvider.autoDispose<int>((ref) => 0);
+
+/// Total server count for the current coupon query.
+final couponCountProvider = Provider.autoDispose<int>(
+  (ref) => ref.watch(_couponCountProvider),
 );
 
-/// All banners.
+/// All banners (local).
 final bannersProvider = FutureProvider<List<OfferBanner>>(
   (ref) => ref.watch(offersRepositoryProvider).fetchBanners(),
 );

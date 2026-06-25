@@ -133,7 +133,7 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> {
                             onTap: () => Navigator.of(context).push(
                               MaterialPageRoute<void>(
                                 builder: (_) =>
-                                    RefundDetailScreen(refundId: r.id),
+                                    RefundDetailScreen(refundId: r.detailKey),
                               ),
                             ),
                           );

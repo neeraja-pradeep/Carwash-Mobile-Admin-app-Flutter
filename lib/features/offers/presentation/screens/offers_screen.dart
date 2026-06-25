@@ -230,7 +230,7 @@ class _TabItem extends StatelessWidget {
 
 // ─── Coupons list ─────────────────────────────────────────────────────────────
 
-class _CouponsList extends StatelessWidget {
+class _CouponsList extends ConsumerWidget {
   const _CouponsList({
     required this.async,
     required this.filter,
@@ -243,30 +243,8 @@ class _CouponsList extends StatelessWidget {
   final OffersFilterController controller;
   final List<SortOption> sortOptions;
 
-  static int _rank(Coupon c) =>
-      (c.status == 'expired' || c.status == 'paused') ? 1 : 0;
-
-  List<Coupon> _apply(List<Coupon> all) {
-    final q = filter.query.trim().toLowerCase();
-    final st = filter.status;
-    final filtered = all.where((c) {
-      if (q.isNotEmpty &&
-          !c.code.toLowerCase().contains(q) &&
-          !c.description.toLowerCase().contains(q)) return false;
-      if (st != null && c.status != st) return false;
-      return true;
-    }).toList();
-    filtered.sort((a, b) {
-      final rank = _rank(a) - _rank(b);
-      if (rank != 0) return rank;
-      if (filter.sort == 'az') return a.code.compareTo(b.code);
-      return 0;
-    });
-    return filtered;
-  }
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return async.when(
       loading: () => ListView.separated(
         padding: EdgeInsets.all(16.r),
@@ -275,10 +253,9 @@ class _CouponsList extends StatelessWidget {
         itemBuilder: (_, __) => const SkeletonCard(),
       ),
       error: (_, __) => ErrorView(
-        onRetry: () {},
+        onRetry: () => ref.invalidate(couponsProvider),
       ),
-      data: (all) {
-        final coupons = _apply(all);
+      data: (coupons) {
         return ListView.builder(
           padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
           itemCount: coupons.length + 1,

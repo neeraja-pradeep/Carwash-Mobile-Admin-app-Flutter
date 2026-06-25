@@ -21,6 +21,7 @@ import 'package:new_flutter_project/core/constants/app_options.dart';
 
 import '../../application/providers/drivers_providers.dart';
 import '../../domain/entities/field_driver.dart';
+import '../../infrastructure/models/driver_response_model.dart';
 import '../components/documents_section.dart';
 import '../components/live_job_card.dart';
 import 'hire_driver_screen.dart';
@@ -47,8 +48,6 @@ class DriverDetailScreen extends ConsumerStatefulWidget {
 
 class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
   bool _menuOpen = false;
-  DriverStatus? _localStatus; // optimistic status after suspend/reactivate
-  List<DriverDocument>? _localDocs; // local doc mutations
 
   @override
   Widget build(BuildContext context) {
@@ -124,9 +123,8 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
           );
         }
 
-        // Apply local overrides
-        final status = _localStatus ?? driver.status;
-        final docs = _localDocs ?? driver.documents;
+        final status = driver.status;
+        final docs = driver.documents;
         final onJob = driver.onJob && status == DriverStatus.active;
 
         return Scaffold(
@@ -192,11 +190,11 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
                           _ProfileCard(driver: driver),
                           SizedBox(height: 14.h),
 
-                          // ── Documents ──────────────────────────────────
+                          // ── Documents (real uploads / verify / delete) ─
                           DocumentsSection(
                             documents: docs,
-                            onChanged: (updated) =>
-                                setState(() => _localDocs = updated),
+                            workerId: driver.id,
+                            onChanged: (_) {},
                           ),
                           SizedBox(height: 14.h),
 
@@ -229,10 +227,11 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
                       );
                     },
                     onResendInvite: () {
+                      // Inert — no SMS/invite workflow exists (🟡 gap).
                       setState(() => _menuOpen = false);
                       AppToast.show(
                         context,
-                        'Invite SMS resent to ${driver.phone}',
+                        'Invites are not enabled yet',
                       );
                     },
                     onToggleSuspend: () async {
@@ -250,15 +249,51 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
                         destructive: !isSuspended,
                       );
                       if (!confirmed || !context.mounted) return;
-                      setState(() {
-                        _localStatus = isSuspended
-                            ? DriverStatus.active
-                            : DriverStatus.suspended;
-                      });
-                      AppToast.show(
-                        context,
-                        isSuspended ? 'Driver reactivated' : 'Driver suspended',
+                      try {
+                        await ref.read(driverMutationsProvider).updateDriver(
+                              driver.id,
+                              status: isSuspended ? 'active' : 'suspended',
+                            );
+                        if (!context.mounted) return;
+                        AppToast.show(
+                          context,
+                          isSuspended
+                              ? 'Driver reactivated'
+                              : 'Driver suspended',
+                        );
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        AppToast.show(
+                          context,
+                          e.toString().replaceFirst('Exception: ', ''),
+                        );
+                      }
+                    },
+                    onDelete: () async {
+                      setState(() => _menuOpen = false);
+                      final confirmed = await showConfirmDialog(
+                        context: context,
+                        title: 'Remove this driver?',
+                        body:
+                            "This deletes the driver and their account. This can't be undone.",
+                        confirmLabel: 'Remove',
+                        destructive: true,
                       );
+                      if (!confirmed || !context.mounted) return;
+                      try {
+                        await ref
+                            .read(driverMutationsProvider)
+                            .deleteDriver(driver.id);
+                        if (!context.mounted) return;
+                        AppToast.show(context, 'Driver removed');
+                        context.pop();
+                      } catch (e) {
+                        if (!context.mounted) return;
+                        AppToast.show(
+                          context,
+                          e.toString().replaceFirst('Exception: ', ''),
+                        );
+                      }
                     },
                   ),
               ],
@@ -333,22 +368,51 @@ class _HeroCard extends StatelessWidget {
 
 // ── Role assignment card ──────────────────────────────────────────────────────
 
-class _RoleCard extends StatefulWidget {
+class _RoleCard extends ConsumerStatefulWidget {
   const _RoleCard({required this.driver});
 
   final FieldDriver driver;
 
   @override
-  State<_RoleCard> createState() => _RoleCardState();
+  ConsumerState<_RoleCard> createState() => _RoleCardState();
 }
 
-class _RoleCardState extends State<_RoleCard> {
+class _RoleCardState extends ConsumerState<_RoleCard> {
   late String _role;
+  bool _saving = false;
+
+  /// Role labels offered for drivers (excludes the "Inspector" pseudo-role —
+  /// converting driver↔inspector is out of scope, 🟡 gap).
+  List<String> get _roleOptions =>
+      kDriverRoles.where((r) => r != 'Inspector').toList();
 
   @override
   void initState() {
     super.initState();
-    _role = widget.driver.role;
+    _role = roleLabelFromSubRole(widget.driver.subRole);
+  }
+
+  Future<void> _setRole(String label) async {
+    if (_saving || label == _role) return;
+    final previous = _role;
+    setState(() {
+      _role = label;
+      _saving = true;
+    });
+    try {
+      await ref.read(driverMutationsProvider).updateDriver(
+            widget.driver.id,
+            subRole: subRoleFromLabel(label),
+          );
+      if (mounted) AppToast.show(context, 'Role set: $label');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _role = previous);
+        AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -372,16 +436,13 @@ class _RoleCardState extends State<_RoleCard> {
             spacing: 8.w,
             runSpacing: 8.h,
             children: [
-              for (final r in kDriverRoles)
+              for (final r in _roleOptions)
                 AppChip(
                   label: r
                       .replaceAll(' driver', '')
                       .replaceAll('Wash + hire', 'Wash+Hire'),
                   active: _role == r,
-                  onTap: () {
-                    setState(() => _role = r);
-                    AppToast.show(context, 'Role set: $r');
-                  },
+                  onTap: () => _setRole(r),
                 ),
             ],
           ),
@@ -651,6 +712,7 @@ class _DropdownMenu extends StatelessWidget {
     required this.onEditProfile,
     required this.onResendInvite,
     required this.onToggleSuspend,
+    required this.onDelete,
   });
 
   final DriverStatus status;
@@ -659,11 +721,12 @@ class _DropdownMenu extends StatelessWidget {
   final VoidCallback onEditProfile;
   final VoidCallback onResendInvite;
   final VoidCallback onToggleSuspend;
+  final VoidCallback onDelete;
 
   @override
   Widget build(BuildContext context) {
     final isSuspended = status == DriverStatus.suspended;
-    final items = [
+    final items = <(String, IconData, bool, VoidCallback)>[
       (
         'Edit profile',
         AppIcons.edit,
@@ -681,6 +744,12 @@ class _DropdownMenu extends StatelessWidget {
         isSuspended ? AppIcons.checkCircle : AppIcons.power,
         !isSuspended,
         onToggleSuspend,
+      ),
+      (
+        'Remove driver',
+        AppIcons.trash,
+        true,
+        onDelete,
       ),
     ];
 

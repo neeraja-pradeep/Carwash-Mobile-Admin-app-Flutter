@@ -16,6 +16,8 @@ import 'package:new_flutter_project/features/customers/domain/entities/customer.
 import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
 import 'package:new_flutter_project/features/shops/domain/entities/shop.dart';
 
+import '../../application/providers/bookings_providers.dart';
+import '../../infrastructure/models/manual_booking_models.dart';
 import '../components/customer_picker.dart';
 
 /// New Booking screen — full-screen carwash manual booking form.
@@ -37,9 +39,12 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
   // Step 2: Vehicle
   int? _vehIdx;
 
-  // Vehicle for "new customer" flow (no customer record yet)
+  // Vehicle for "new customer" flow OR "add new vehicle" inline.
   final _f0makeCtrl = TextEditingController();
   final _f0plateCtrl = TextEditingController();
+
+  // When true, show the inline add-new-vehicle fields for an existing customer.
+  bool _addingVehicle = false;
 
   // Step 3: Shop
   String? _shopId;
@@ -49,7 +54,6 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
 
   // Step 5: Pickup
   final _pickAddrCtrl = TextEditingController();
-  final _pickTimeCtrl = TextEditingController();
 
   // Step 6: Drop
   bool _dropSame = true;
@@ -61,16 +65,38 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
   // Step 8: Payment
   String _pay = 'pending';
 
+  // Resolved slot for the pickup time (start_slot id).
+  SlotOption? _slot;
+
+  // Coupon preview after validate-coupon.
+  CouponPreview? _coupon;
+  bool _validatingCoupon = false;
+
+  // Booking submission in-flight.
+  bool _submitting = false;
+
+  /// Appointment date — defaults to today (the New Booking flow has no date
+  /// picker; manual phone-in bookings are same-day).
+  String get _appointmentDate {
+    final now = DateTime.now();
+    final m = now.month.toString().padLeft(2, '0');
+    final d = now.day.toString().padLeft(2, '0');
+    return '${now.year}-$m-$d';
+  }
+
   bool get _dirty => _customer != null || _shopId != null || _picked.isNotEmpty;
 
-  bool get _valid => _customer != null && _shopId != null && _picked.isNotEmpty;
+  bool get _valid =>
+      _customer != null &&
+      _shopId != null &&
+      _picked.isNotEmpty &&
+      _slot != null;
 
   @override
   void dispose() {
     _f0makeCtrl.dispose();
     _f0plateCtrl.dispose();
     _pickAddrCtrl.dispose();
-    _pickTimeCtrl.dispose();
     _dropAddrCtrl.dispose();
     _couponCtrl.dispose();
     super.dispose();
@@ -83,6 +109,9 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
       _customerData = null;
       _shopId = null;
       _picked = [];
+      _addingVehicle = false;
+      _slot = null;
+      _coupon = null;
     });
 
     if (pick?.id != null) {
@@ -199,7 +228,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                       if (_customer != null) ...[
                         _FormCard(
                           label: '2 · Vehicle',
-                          child: _customerData != null
+                          child: (_customerData != null && !_addingVehicle)
                               ? _VehicleSelector(
                                   vehicles: _customerData!.vehicles,
                                   selectedIdx: _vehIdx,
@@ -210,10 +239,16 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                                           []; // reset services when vehicle changes
                                     });
                                   },
-                                  onAddNew: () => AppToast.show(
-                                      context, 'Add new vehicle inline'),
+                                  onAddNew: () => setState(() {
+                                    _addingVehicle = true;
+                                    _vehIdx = null;
+                                    _picked = [];
+                                    _f0makeCtrl.clear();
+                                    _f0plateCtrl.clear();
+                                  }),
                                 )
                               : Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     _TextField(
                                       label: 'Make & model',
@@ -226,6 +261,31 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                                       controller: _f0plateCtrl,
                                       placeholder: 'KL-04-…',
                                     ),
+                                    if (_customerData != null &&
+                                        _addingVehicle) ...[
+                                      SizedBox(height: 10.h),
+                                      GestureDetector(
+                                        onTap: () => setState(() {
+                                          _addingVehicle = false;
+                                          final defIdx = _customerData!.vehicles
+                                              .indexWhere((v) => v.isDefault);
+                                          _vehIdx = defIdx >= 0
+                                              ? defIdx
+                                              : (_customerData!
+                                                      .vehicles.isNotEmpty
+                                                  ? 0
+                                                  : null);
+                                        }),
+                                        child: Text(
+                                          'Use a saved vehicle instead',
+                                          style: AppText.figtree(
+                                            size: 12.5,
+                                            weight: FontWeight.w600,
+                                            color: AppColors.fgSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                         ),
@@ -247,6 +307,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                                   onTap: () => setState(() {
                                     _shopId = s.id;
                                     _picked = [];
+                                    _slot = null;
                                   }),
                                 ),
                               ),
@@ -312,6 +373,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                       _FormCard(
                         label: '5 · Pickup',
                         child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _TextField(
                               label: 'Address',
@@ -319,11 +381,32 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                               placeholder: 'Pickup address',
                             ),
                             SizedBox(height: 10.h),
-                            _TextField(
-                              label: 'Scheduled time',
-                              controller: _pickTimeCtrl,
-                              placeholder: 'e.g. 10:30 AM',
+                            Text(
+                              'Scheduled time',
+                              style: AppText.figtree(
+                                size: 12.5,
+                                weight: FontWeight.w600,
+                                color: AppColors.fgSecondary,
+                              ),
                             ),
+                            SizedBox(height: 7.h),
+                            if (shop == null)
+                              Text(
+                                'Select a shop first.',
+                                style: AppText.figtree(
+                                  size: 13,
+                                  weight: FontWeight.w500,
+                                  color: AppColors.fgMuted,
+                                ),
+                              )
+                            else
+                              _SlotPicker(
+                                shopId: int.tryParse(shop.id) ?? 0,
+                                date: _appointmentDate,
+                                vehicleType: _vehicleType,
+                                selected: _slot,
+                                onSelect: (s) => setState(() => _slot = s),
+                              ),
                           ],
                         ),
                       ),
@@ -367,12 +450,63 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                       // ── 7. Coupon ─────────────────────────────────────
                       _FormCard(
                         label: '7 · Coupon',
-                        child: _TextField(
-                          label: 'Coupon code',
-                          controller: _couponCtrl,
-                          placeholder: 'Optional',
-                          optional: true,
-                          onChanged: (v) => _couponCtrl.text = v.toUpperCase(),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _TextField(
+                              label: 'Coupon code',
+                              controller: _couponCtrl,
+                              placeholder: 'Optional',
+                              optional: true,
+                              onChanged: (v) {
+                                final up = v.toUpperCase();
+                                if (up != v) {
+                                  _couponCtrl.value = _couponCtrl.value
+                                      .copyWith(text: up);
+                                }
+                                if (_coupon != null) {
+                                  setState(() => _coupon = null);
+                                }
+                              },
+                            ),
+                            SizedBox(height: 10.h),
+                            AppButton(
+                              label: _validatingCoupon
+                                  ? 'Checking…'
+                                  : 'Apply coupon',
+                              full: true,
+                              disabled: _validatingCoupon ||
+                                  _couponCtrl.text.trim().isEmpty ||
+                                  total <= 0,
+                              onPressed: (_validatingCoupon ||
+                                      _couponCtrl.text.trim().isEmpty ||
+                                      total <= 0)
+                                  ? null
+                                  : () => _applyCoupon(total),
+                            ),
+                            if (_coupon != null && _coupon!.valid) ...[
+                              SizedBox(height: 10.h),
+                              Text(
+                                'Discount −${Formatters.money(_coupon!.discount)}'
+                                ' · pay ${Formatters.money(_coupon!.finalAmount)}',
+                                style: AppText.figtree(
+                                  size: 13,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.greenFg,
+                                ),
+                              ),
+                            ] else if (_coupon != null && !_coupon!.valid) ...[
+                              SizedBox(height: 10.h),
+                              Text(
+                                _coupon!.message ?? 'Coupon not valid',
+                                style: AppText.figtree(
+                                  size: 13,
+                                  weight: FontWeight.w600,
+                                  color: AppColors.redFg,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       SizedBox(height: 14.h),
@@ -400,13 +534,22 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                                     ),
                                     SizedBox(height: 4.h),
                                     Text(
-                                      Formatters.money(total),
+                                      Formatters.money(_payable(total)),
                                       style: AppText.figtree(
                                         size: 26,
                                         weight: FontWeight.w800,
                                         letterSpacing: -0.6,
                                       ),
                                     ),
+                                    if (_coupon != null && _coupon!.valid)
+                                      Text(
+                                        '${Formatters.money(total)} − coupon',
+                                        style: AppText.figtree(
+                                          size: 12,
+                                          weight: FontWeight.w600,
+                                          color: AppColors.fgTertiary,
+                                        ),
+                                      ),
                                   ],
                                 ),
                               ],
@@ -487,17 +630,13 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                   child: SafeArea(
                     top: false,
                     child: AppButton(
-                      label: 'Confirm Booking · ${Formatters.money(total)}',
+                      label: _submitting
+                          ? 'Creating booking…'
+                          : 'Confirm Booking · ${Formatters.money(_payable(total))}',
                       full: true,
-                      disabled: !_valid,
-                      onPressed: _valid
-                          ? () {
-                              AppToast.show(
-                                context,
-                                'Booking created${_pay == 'paid' ? ' · marked Paid' : ' · payment Pending'}',
-                              );
-                              context.pop();
-                            }
+                      disabled: !_valid || _submitting,
+                      onPressed: (_valid && !_submitting)
+                          ? () => _confirm(shop)
                           : null,
                     ),
                   ),
@@ -508,6 +647,152 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
         );
       },
     );
+  }
+
+  /// The amount the customer pays (display only — the server computes the
+  /// authoritative amount). Applies the coupon preview discount if valid.
+  int _payable(int total) {
+    if (_coupon != null && _coupon!.valid) {
+      return _coupon!.finalAmount;
+    }
+    return total;
+  }
+
+  /// Validate the typed coupon against the current order total (preview only).
+  Future<void> _applyCoupon(int total) async {
+    final code = _couponCtrl.text.trim();
+    if (code.isEmpty || total <= 0) return;
+    setState(() => _validatingCoupon = true);
+    try {
+      final preview = await ref.read(bookingsRepositoryProvider).validateCoupon(
+            code: code,
+            orderAmount: total,
+          );
+      if (!mounted) return;
+      setState(() => _coupon = preview);
+      if (!preview.valid && context.mounted) {
+        AppToast.show(context, preview.message ?? 'Coupon not valid');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _coupon = null);
+      if (context.mounted) {
+        AppToast.show(context, _errorText(e));
+      }
+    } finally {
+      if (mounted) setState(() => _validatingCoupon = false);
+    }
+  }
+
+  /// Gather the 8 steps, resolve the `car` id, and POST the manual booking.
+  Future<void> _confirm(Shop? shop) async {
+    if (!_valid || shop == null) return;
+
+    final customerIdStr = _customer?.id;
+    final customerId = int.tryParse(customerIdStr ?? '');
+    if (customerId == null) {
+      AppToast.show(
+        context,
+        'Save the new customer first, then create the booking.',
+      );
+      return;
+    }
+
+    final shopId = int.tryParse(shop.id);
+    final serviceId = int.tryParse(_picked.first);
+    final startSlot = _slot?.id;
+    if (shopId == null || serviceId == null || startSlot == null) {
+      AppToast.show(context, 'Missing shop, service, or time slot.');
+      return;
+    }
+
+    setState(() => _submitting = true);
+    final repo = ref.read(bookingsRepositoryProvider);
+
+    try {
+      // Resolve the vehicle (car) id. A saved vehicle already carries its
+      // backing `Cars` id — reuse it. Only the inline "add new vehicle" path
+      // (or a saved row missing its id) registers a new car via the documented
+      // "add vehicle then pass car" flow.
+      final GarageVehicle? savedVehicle = (!_addingVehicle &&
+              _customerData != null &&
+              _vehIdx != null &&
+              _vehIdx! < _customerData!.vehicles.length)
+          ? _customerData!.vehicles[_vehIdx!]
+          : null;
+
+      final int carId;
+      if (savedVehicle?.carId != null) {
+        carId = savedVehicle!.carId!;
+      } else {
+        final brandModel = savedVehicle != null
+            ? '${savedVehicle.make} ${savedVehicle.model}'.trim()
+            : _f0makeCtrl.text.trim();
+        final registration = savedVehicle != null
+            ? savedVehicle.plate
+            : _f0plateCtrl.text.trim();
+
+        if (brandModel.isEmpty || registration.isEmpty) {
+          if (mounted) setState(() => _submitting = false);
+          AppToast.show(context, 'Add a vehicle (make/model and plate).');
+          return;
+        }
+
+        final vehicle = await repo.createVehicle(
+          userId: customerId,
+          brandModel: brandModel,
+          registration: registration,
+          carType: _vehicleType,
+        );
+        carId = vehicle.id;
+      }
+
+      final couponCode =
+          _couponCtrl.text.trim().isNotEmpty ? _couponCtrl.text.trim() : null;
+
+      await repo.createManualBooking(
+        customerId: customerId,
+        car: carId,
+        shopId: shopId,
+        serviceId: serviceId,
+        vehicleType: _vehicleType,
+        appointmentDate: _appointmentDate,
+        startSlot: startSlot,
+        pickupAddressText: _pickAddrCtrl.text.trim().isNotEmpty
+            ? _pickAddrCtrl.text.trim()
+            : null,
+        sameAsPickup: _dropSame,
+        // The screen captures drop as free text; there is no saved-address
+        // picker, so a separate drop address id is not available. When the
+        // toggle is off we still send same_as_pickup=false; the backend
+        // creates the drop from pickup text. (Deviation noted in summary.)
+        dropAddress: null,
+        couponCode: couponCode,
+        paymentStatus: _pay,
+      );
+
+      // Refresh the bookings list so the new booking shows up.
+      ref.invalidate(bookingsProvider);
+
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        'Booking created${_pay == 'paid' ? ' · marked Paid' : ' · payment Pending'}',
+      );
+      if (context.mounted) context.pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      if (context.mounted) {
+        AppToast.show(context, _errorText(e));
+      }
+    }
+  }
+
+  /// Strip the "Exception: " prefix from a thrown error for display.
+  String _errorText(Object e) {
+    final s = e.toString();
+    return s.startsWith('Exception: ') ? s.substring(11) : s;
   }
 
   Future<void> _showExitDialog(BuildContext context) async {
@@ -903,6 +1188,96 @@ class _VehicleSelector extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Loads available slots for the shop/date/vehicle and lets the admin pick one,
+/// resolving the typed time to a `start_slot` id.
+class _SlotPicker extends ConsumerWidget {
+  const _SlotPicker({
+    required this.shopId,
+    required this.date,
+    required this.vehicleType,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final int shopId;
+  final String date;
+  final String vehicleType;
+  final SlotOption? selected;
+  final void Function(SlotOption) onSelect;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final slotsAsync = ref.watch(
+      availableSlotsProvider(
+        (shopId: shopId, date: date, vehicleType: vehicleType),
+      ),
+    );
+
+    return slotsAsync.when(
+      loading: () => Padding(
+        padding: EdgeInsets.symmetric(vertical: 8.h),
+        child: const Center(child: CircularProgressIndicator.adaptive()),
+      ),
+      error: (e, __) => Text(
+        'Could not load slots. Tap to retry.',
+        style: AppText.figtree(
+          size: 13,
+          weight: FontWeight.w500,
+          color: AppColors.redFg,
+        ),
+      ),
+      data: (slots) {
+        final available = slots.where((s) => s.available).toList();
+        if (available.isEmpty) {
+          return Text(
+            'No available slots for this date.',
+            style: AppText.figtree(
+              size: 13,
+              weight: FontWeight.w500,
+              color: AppColors.fgMuted,
+            ),
+          );
+        }
+        return Wrap(
+          spacing: 8.w,
+          runSpacing: 8.h,
+          children: [
+            for (final s in available)
+              GestureDetector(
+                onTap: () => onSelect(s),
+                child: Container(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 13.w, vertical: 9.h),
+                  decoration: BoxDecoration(
+                    color: selected?.id == s.id
+                        ? AppColors.fgPrimary
+                        : AppColors.bgCard,
+                    borderRadius: BorderRadius.circular(10.r),
+                    border: Border.all(
+                      color: selected?.id == s.id
+                          ? AppColors.fgPrimary
+                          : AppColors.borderDefault,
+                    ),
+                  ),
+                  child: Text(
+                    s.label.isNotEmpty ? s.label : s.time,
+                    style: AppText.figtree(
+                      size: 13,
+                      weight: FontWeight.w700,
+                      color: selected?.id == s.id
+                          ? AppColors.fgOnDark
+                          : AppColors.fgSecondary,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 }

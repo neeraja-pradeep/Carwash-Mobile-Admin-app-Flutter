@@ -22,6 +22,7 @@ import '../../domain/entities/field_driver.dart';
 import '../../domain/entities/team_member.dart';
 import '../components/driver_card.dart';
 import '../components/drivers_filter_sheet.dart';
+import 'hire_driver_screen.dart';
 
 /// Admin Drivers & Inspectors list — bottom-nav tab (NO back button in TopBar).
 ///
@@ -124,7 +125,11 @@ class DriversScreen extends ConsumerWidget {
               right: 18.w,
               bottom: 96.h,
               child: AppFab(
-                onPressed: () => context.push(Routes.hireDriver),
+                onPressed: () => Navigator.of(context, rootNavigator: true).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => HireDriverScreen(isInspector: !isDrivers),
+                  ),
+                ),
                 icon: AppIcons.plus,
                 semanticLabel: isDrivers ? 'Hire Driver' : 'Add Inspector',
               ),

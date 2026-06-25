@@ -22,8 +22,12 @@ class GarageVehicle {
     required this.plate,
     required this.isDefault,
     required this.bookings,
+    this.carId,
   });
 
+  /// The backing `Cars` id from the API (used when booking on the customer's
+  /// behalf). `null` for locally-sourced / mock vehicles.
+  final int? carId;
   final String make;
   final String model;
   final String type;
@@ -49,6 +53,25 @@ class CustomerBookingRef {
   final String shop;
   final BookingStatus status;
   final int amount;
+}
+
+/// One page of a customer's booking history (server-paginated).
+class CustomerHistoryPage {
+  const CustomerHistoryPage({
+    required this.rows,
+    required this.count,
+    required this.page,
+    required this.pageSize,
+    required this.hasNext,
+    required this.hasPrevious,
+  });
+
+  final List<CustomerBookingRef> rows;
+  final int count;
+  final int page;
+  final int pageSize;
+  final bool hasNext;
+  final bool hasPrevious;
 }
 
 /// A customer directory entry.

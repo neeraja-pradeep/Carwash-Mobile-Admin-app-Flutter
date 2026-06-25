@@ -4,11 +4,16 @@ import '../../../../core/network/http_client.dart';
 import '../models/booking_response_model.dart';
 import '../models/booking_detail_response_model.dart';
 import '../models/refund_response_model.dart';
+import '../models/manual_booking_models.dart';
 
 class BookingsApi {
   late Dio _dio;
 
   static const String _bookingsPath = '/api/booking/v1/bookings/';
+  static const String _manualBookingPath =
+      '/api/booking/v1/admin/manual-booking/';
+  static const String _slotsAvailablePath = '/api/booking/v1/slots-available/';
+  static const String _validateCouponPath = '/api/booking/v1/validate-coupon/';
 
   BookingsApi() {
     _dio = HttpClient().dio;
@@ -236,6 +241,103 @@ class BookingsApi {
       return RefundResponse.fromJson(
         response.data as Map<String, dynamic>,
       );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  // ── New Booking (manual carwash) ──────────────────────────────────────────
+
+  /// Create a manual (phone-in) carwash booking.
+  ///
+  /// Maps the 8-step form to the body documented in §7. `amount` is never sent
+  /// — it is computed server-side from `service.price_for(vehicle_type)` minus
+  /// any coupon. Response (201) is the full booking (`BookingSerializer`):
+  /// `status=confirmed`, `payment_mode=offline`.
+  Future<BookingDetailResponse> createManualBooking({
+    required int customerId,
+    required int car,
+    required int shopId,
+    required int serviceId,
+    required String vehicleType,
+    required String appointmentDate,
+    required int startSlot,
+    String? pickupAddressText,
+    int? addressId,
+    bool sameAsPickup = true,
+    int? dropAddress,
+    String? couponCode,
+    String paymentStatus = 'pending',
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'customer_id': customerId,
+        'car': car,
+        'shop_id': shopId,
+        'service_id': serviceId,
+        'vehicle_type': vehicleType,
+        'appointment_date': appointmentDate,
+        'start_slot': startSlot,
+        'same_as_pickup': sameAsPickup,
+        'payment_status': paymentStatus,
+        if (pickupAddressText != null && pickupAddressText.isNotEmpty)
+          'pickup_address_text': pickupAddressText,
+        if (addressId != null) 'address': addressId,
+        if (!sameAsPickup && dropAddress != null) 'drop_address': dropAddress,
+        if (couponCode != null && couponCode.isNotEmpty)
+          'coupon_code': couponCode,
+      };
+
+      final response = await _dio.post(_manualBookingPath, data: body);
+
+      return BookingDetailResponse.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Resolve available slots for a shop/date so a typed time maps to a
+  /// `Slot` id for `start_slot`.
+  Future<List<SlotOption>> getAvailableSlots({
+    required int shopId,
+    required String date,
+    String? vehicleType,
+  }) async {
+    try {
+      final params = <String, dynamic>{
+        'shop_id': shopId,
+        'date': date,
+        if (vehicleType != null && vehicleType.isNotEmpty)
+          'vehicle_type': vehicleType,
+      };
+
+      final response = await _dio.get(
+        _slotsAvailablePath,
+        queryParameters: params,
+      );
+
+      return parseSlotOptions(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Preview the discount for a coupon code against an order amount.
+  Future<CouponPreview> validateCoupon({
+    required String code,
+    required int orderAmount,
+  }) async {
+    try {
+      final body = {
+        'coupon_code': code,
+        'order_amount': orderAmount,
+      };
+
+      final response = await _dio.post(_validateCouponPath, data: body);
+
+      return CouponPreview.fromJson(response.data as Map<String, dynamic>);
     } on DioException catch (e) {
       throw _handleError(e);
     }

@@ -7,6 +7,7 @@ import '../../../../core/status/payment_status.dart';
 class Booking {
   const Booking({
     required this.id,
+    this.reference = '',
     required this.status,
     required this.customer,
     required this.vehicle,
@@ -25,6 +26,10 @@ class Booking {
   });
 
   final String id;
+
+  /// Real booking reference (`DT-…`), surfaced for the refund flow. May be
+  /// empty for locally-sourced bookings.
+  final String reference;
   final BookingStatus status;
   final BookingParty customer;
   final Vehicle vehicle;

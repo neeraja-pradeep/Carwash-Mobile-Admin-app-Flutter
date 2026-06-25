@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
@@ -12,33 +14,252 @@ import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
 
+import '../../application/providers/drivers_providers.dart';
 import '../../domain/entities/field_driver.dart';
+import '../../infrastructure/models/driver_response_model.dart';
 
 /// The Documents card with inline list, add / edit / delete flow.
 ///
-/// Mirrors `DocumentsCard` + `DocSheet` in `screen_drivers.jsx`.
-/// Uses [StatefulWidget] because the doc list is locally mutable.
-class DocumentsSection extends StatefulWidget {
+/// Two modes:
+/// * **Local (add)** — [workerId] is null (the Hire form before the worker
+///   exists). Front/Back are simple toggles; mutations are kept in memory and
+///   surfaced via [onChanged].
+/// * **Remote (detail / edit)** — [workerId] set. Picking a side uploads the
+///   file (multipart), verify toggles PATCH, delete DELETEs; the provider
+///   refreshes the underlying driver afterwards.
+class DocumentsSection extends ConsumerStatefulWidget {
   const DocumentsSection({
     required this.documents,
     required this.onChanged,
+    this.workerId,
+    this.isInspector = false,
     super.key,
   });
 
   final List<DriverDocument> documents;
   final ValueChanged<List<DriverDocument>> onChanged;
 
+  /// When set, document actions hit the API for this worker.
+  final String? workerId;
+  final bool isInspector;
+
   @override
-  State<DocumentsSection> createState() => _DocumentsSectionState();
+  ConsumerState<DocumentsSection> createState() => _DocumentsSectionState();
 }
 
-class _DocumentsSectionState extends State<DocumentsSection> {
-  /// Opens the add/edit bottom sheet for [existingDoc] (null = add new).
-  Future<void> _openSheet(BuildContext context, DriverDocument? existingDoc) {
-    // Mutable state for the sheet (boxed so body+footer share state)
+class _DocumentsSectionState extends ConsumerState<DocumentsSection> {
+  final ImagePicker _picker = ImagePicker();
+  bool _busy = false;
+
+  bool get _remote => widget.workerId != null;
+
+  // ── Remote helpers ───────────────────────────────────────────────────────
+
+  Future<String?> _pickFile() async {
+    try {
+      final x = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+      return x?.path;
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(context, 'Could not open gallery');
+      }
+      return null;
+    }
+  }
+
+  Future<void> _uploadSide({
+    required String kind,
+    required String side,
+    String? name,
+  }) async {
+    final path = await _pickFile();
+    if (path == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(driverMutationsProvider).uploadDocument(
+            widget.workerId!,
+            isInspector: widget.isInspector,
+            filePath: path,
+            kind: kind,
+            side: side,
+            name: name,
+          );
+      if (mounted) AppToast.show(context, 'Document uploaded');
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _toggleVerify(DriverDocument doc, {required bool front}) async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(driverMutationsProvider).patchDocument(
+            widget.workerId!,
+            doc.id,
+            isInspector: widget.isInspector,
+            frontVerified: front ? !doc.frontVerified : null,
+            backVerified: front ? null : !doc.backVerified,
+          );
+      if (mounted) AppToast.show(context, 'Verification updated');
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deleteRemote(DriverDocument doc) async {
+    final confirmed = await showConfirmDialog(
+      context: context,
+      title: 'Delete this document?',
+      body: "The uploaded photos will be removed. This can't be undone.",
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(driverMutationsProvider).deleteDocument(
+            widget.workerId!,
+            doc.id,
+            isInspector: widget.isInspector,
+          );
+      if (mounted) AppToast.show(context, 'Document removed');
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  // ── Remote add sheet (pick type, then upload front/back) ───────────────────
+
+  Future<void> _openRemoteSheet(
+    BuildContext context,
+    DriverDocument? existingDoc,
+  ) {
+    String type = existingDoc != null
+        ? existingDoc.type
+        : kDocTypes.first;
+    String customTitle = existingDoc?.name ?? '';
+
+    return showAppBottomSheet<void>(
+      context: context,
+      title: existingDoc != null ? 'Edit document' : 'Add document',
+      maxHeightFactor: 0.85,
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final isOther = type == 'Other';
+          final kind = existingDoc?.kind ?? docKindFromLabel(type);
+          final name = isOther
+              ? (customTitle.trim().isEmpty ? null : customTitle.trim())
+              : existingDoc?.name;
+
+          Future<void> doUpload(String side) async {
+            Navigator.of(sheetCtx).pop();
+            await _uploadSide(kind: kind, side: side, name: name);
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'DOCUMENT TYPE',
+                style: AppText.figtree(
+                  size: 11,
+                  weight: FontWeight.w700,
+                  color: AppColors.fgSecondary,
+                  letterSpacing: 1,
+                ),
+              ),
+              SizedBox(height: 11.h),
+              Wrap(
+                spacing: 8.w,
+                runSpacing: 8.h,
+                children: [
+                  for (final t in kDocTypes)
+                    AppChip(
+                      label: t,
+                      active: type == t,
+                      onTap: existingDoc != null
+                          ? () {}
+                          : () => setSheet(() => type = t),
+                    ),
+                ],
+              ),
+              if (isOther && existingDoc == null) ...[
+                SizedBox(height: 12.h),
+                _SheetTextField(
+                  label: 'Document name',
+                  value: customTitle,
+                  placeholder: 'e.g. Bank passbook',
+                  onChanged: (t) => setSheet(() => customTitle = t),
+                ),
+              ],
+              SizedBox(height: 20.h),
+              Text(
+                'UPLOAD PHOTOS',
+                style: AppText.figtree(
+                  size: 11,
+                  weight: FontWeight.w700,
+                  color: AppColors.fgSecondary,
+                  letterSpacing: 1,
+                ),
+              ),
+              SizedBox(height: 11.h),
+              Row(
+                children: [
+                  Expanded(
+                    child: _UploadTile(
+                      label: 'Front',
+                      on: existingDoc?.front ?? false,
+                      onTap: () => doUpload('front'),
+                    ),
+                  ),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: _UploadTile(
+                      label: 'Back',
+                      on: existingDoc?.back ?? false,
+                      onTap: () => doUpload('back'),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 10.h),
+              Text(
+                'Tap a side to pick a photo and upload it. Front is required; add back only if the document has two sides.',
+                style: AppText.figtree(
+                  size: 11.5,
+                  weight: FontWeight.w500,
+                  color: AppColors.fgMuted,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ── Local add sheet (add mode — no worker id yet) ──────────────────────────
+
+  Future<void> _openLocalSheet(BuildContext context, DriverDocument? existingDoc) {
     String type = existingDoc?.type ?? kDocTypes.first;
     String customTitle = '';
-    // ValueNotifier lets body and footer share the same `front` value reactively.
     final frontNotifier = ValueNotifier<bool>(existingDoc?.front ?? false);
     bool back = existingDoc?.back ?? false;
 
@@ -53,6 +274,7 @@ class _DocumentsSectionState extends State<DocumentsSection> {
         type: finalType,
         front: frontNotifier.value,
         back: back,
+        kind: docKindFromLabel(finalType),
       );
       final docs = List<DriverDocument>.from(widget.documents);
       final idx = docs.indexWhere((d) => d.id == id);
@@ -120,6 +342,14 @@ class _DocumentsSectionState extends State<DocumentsSection> {
     );
   }
 
+  void _openSheet(BuildContext context, DriverDocument? existingDoc) {
+    if (_remote) {
+      _openRemoteSheet(context, existingDoc);
+    } else {
+      _openLocalSheet(context, existingDoc);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final docs = widget.documents;
@@ -174,9 +404,16 @@ class _DocumentsSectionState extends State<DocumentsSection> {
                   if (i > 0) Divider(height: 1.h, color: AppColors.borderSoft),
                   _DocRow(
                     doc: docs[i],
+                    remote: _remote,
                     onView: () =>
                         AppToast.show(context, 'Viewing ${docs[i].type}'),
                     onEdit: () => _openSheet(context, docs[i]),
+                    onVerifyFront:
+                        _remote ? () => _toggleVerify(docs[i], front: true) : null,
+                    onVerifyBack: _remote
+                        ? () => _toggleVerify(docs[i], front: false)
+                        : null,
+                    onDelete: _remote ? () => _deleteRemote(docs[i]) : null,
                   ),
                 ],
               ],
@@ -185,7 +422,7 @@ class _DocumentsSectionState extends State<DocumentsSection> {
           // Add document button
           SizedBox(height: 12.h),
           GestureDetector(
-            onTap: () => _openSheet(context, null),
+            onTap: _busy ? null : () => _openSheet(context, null),
             child: Container(
               width: double.infinity,
               height: 44.h,
@@ -204,7 +441,7 @@ class _DocumentsSectionState extends State<DocumentsSection> {
                   ),
                   SizedBox(width: 7.w),
                   Text(
-                    'Add document',
+                    _busy ? 'Working…' : 'Add document',
                     style: AppText.figtree(
                       size: 13,
                       weight: FontWeight.w600,
@@ -226,13 +463,21 @@ class _DocumentsSectionState extends State<DocumentsSection> {
 class _DocRow extends StatelessWidget {
   const _DocRow({
     required this.doc,
+    required this.remote,
     required this.onView,
     required this.onEdit,
+    this.onVerifyFront,
+    this.onVerifyBack,
+    this.onDelete,
   });
 
   final DriverDocument doc;
+  final bool remote;
   final VoidCallback onView;
   final VoidCallback onEdit;
+  final VoidCallback? onVerifyFront;
+  final VoidCallback? onVerifyBack;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -270,9 +515,18 @@ class _DocRow extends StatelessWidget {
                 SizedBox(height: 4.h),
                 Row(
                   children: [
-                    _SideBadge(label: 'Front', on: doc.front),
+                    // In remote mode the side badges double as verify toggles.
+                    _SideBadge(
+                      label: 'Front',
+                      on: remote ? doc.frontVerified : doc.front,
+                      onTap: onVerifyFront,
+                    ),
                     SizedBox(width: 6.w),
-                    _SideBadge(label: 'Back', on: doc.back),
+                    _SideBadge(
+                      label: 'Back',
+                      on: remote ? doc.backVerified : doc.back,
+                      onTap: onVerifyBack,
+                    ),
                   ],
                 ),
               ],
@@ -289,6 +543,14 @@ class _DocRow extends StatelessWidget {
             onTap: onEdit,
             semanticLabel: 'Edit',
           ),
+          if (remote && onDelete != null) ...[
+            SizedBox(width: 6.w),
+            _IconAction(
+              icon: AppIcons.trash,
+              onTap: onDelete!,
+              semanticLabel: 'Delete',
+            ),
+          ],
         ],
       ),
     );
@@ -296,26 +558,30 @@ class _DocRow extends StatelessWidget {
 }
 
 class _SideBadge extends StatelessWidget {
-  const _SideBadge({required this.label, required this.on});
+  const _SideBadge({required this.label, required this.on, this.onTap});
 
   final String label;
   final bool on;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 2.h),
-      decoration: BoxDecoration(
-        color: on ? AppColors.greenBg : AppColors.bgPage,
-        borderRadius: BorderRadius.circular(5.r),
-      ),
-      child: Text(
-        on ? '$label ✓' : '$label —',
-        style: AppText.figtree(
-          size: 10,
-          weight: FontWeight.w600,
-          color: on ? AppColors.greenFg : AppColors.fgMuted,
-          letterSpacing: 0.3,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 2.h),
+        decoration: BoxDecoration(
+          color: on ? AppColors.greenBg : AppColors.bgPage,
+          borderRadius: BorderRadius.circular(5.r),
+        ),
+        child: Text(
+          on ? '$label ✓' : '$label —',
+          style: AppText.figtree(
+            size: 10,
+            weight: FontWeight.w600,
+            color: on ? AppColors.greenFg : AppColors.fgMuted,
+            letterSpacing: 0.3,
+          ),
         ),
       ),
     );
@@ -355,10 +621,8 @@ class _IconAction extends StatelessWidget {
   }
 }
 
-// ── Doc Sheet body ────────────────────────────────────────────────────────────
+// ── Doc Sheet body (local mode) ───────────────────────────────────────────────
 
-/// Body of the add/edit document bottom sheet.
-/// Mirrors `DocSheet` in `screen_drivers.jsx`.
 class _DocSheetBody extends StatelessWidget {
   const _DocSheetBody({
     required this.type,
@@ -463,7 +727,7 @@ class _DocSheetBody extends StatelessWidget {
   }
 }
 
-// ── Doc sheet footer ──────────────────────────────────────────────────────────
+// ── Doc sheet footer (local mode) ──────────────────────────────────────────────
 
 class _DocSheetFooter extends StatelessWidget {
   const _DocSheetFooter({

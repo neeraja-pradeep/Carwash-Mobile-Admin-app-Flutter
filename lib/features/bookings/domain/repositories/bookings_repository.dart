@@ -1,6 +1,7 @@
 import '../entities/carwash_booking.dart';
 import '../../infrastructure/models/booking_detail_response_model.dart';
 import '../../infrastructure/models/refund_response_model.dart';
+import '../../infrastructure/models/manual_booking_models.dart';
 
 /// Contract for reading car-wash bookings. Pure abstract — no implementation.
 abstract class BookingsRepository {
@@ -62,5 +63,46 @@ abstract class BookingsRepository {
     int? amount,
     String? reason,
     String? comment,
+  });
+
+  // ── New Booking (manual carwash) ──────────────────────────────────────────
+
+  /// Create a manual (phone-in) carwash booking. Returns the full created
+  /// booking (status=confirmed, payment_mode=offline).
+  Future<BookingDetailResponse> createManualBooking({
+    required int customerId,
+    required int car,
+    required int shopId,
+    required int serviceId,
+    required String vehicleType,
+    required String appointmentDate,
+    required int startSlot,
+    String? pickupAddressText,
+    int? addressId,
+    bool sameAsPickup,
+    int? dropAddress,
+    String? couponCode,
+    String paymentStatus,
+  });
+
+  /// Resolve available slots for a shop/date (maps a time to `start_slot`).
+  Future<List<SlotOption>> getAvailableSlots({
+    required int shopId,
+    required String date,
+    String? vehicleType,
+  });
+
+  /// Preview the discount for a coupon code against an order amount.
+  Future<CouponPreview> validateCoupon({
+    required String code,
+    required int orderAmount,
+  });
+
+  /// Create a vehicle for a customer and return the created `Cars` id.
+  Future<CreatedVehicle> createVehicle({
+    required int userId,
+    required String brandModel,
+    required String registration,
+    String? carType,
   });
 }

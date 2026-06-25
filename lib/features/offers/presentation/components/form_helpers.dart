@@ -267,7 +267,8 @@ class OfferToggle extends StatelessWidget {
   }
 }
 
-/// Chips for selecting specific shops.
+/// Chips for selecting specific shops (by shop id, matching the API
+/// `shop_ids` write field).
 class ShopScopeChips extends StatelessWidget {
   const ShopScopeChips({
     required this.selected,
@@ -275,28 +276,30 @@ class ShopScopeChips extends StatelessWidget {
     super.key,
   });
 
-  static const List<String> allShops = [
-    'SparkleWash Mullackal',
-    'AquaShine Thathampally',
-    'GleamPro Vazhicherry',
-    'BlueWave Komala Rd',
-    'ShineHub Iron Bridge',
-  ];
+  /// Demo shop set mapped to ids (id → label). Real ids come from the
+  /// shops API; this preserves the existing offline demo labels.
+  static const Map<int, String> allShops = {
+    1: 'SparkleWash Mullackal',
+    2: 'AquaShine Thathampally',
+    3: 'GleamPro Vazhicherry',
+    4: 'BlueWave Komala Rd',
+    5: 'ShineHub Iron Bridge',
+  };
 
-  final List<String> selected;
-  final ValueChanged<String> onToggle;
+  final List<int> selected;
+  final ValueChanged<int> onToggle;
 
   @override
   Widget build(BuildContext context) {
     return Wrap(
       spacing: 8.w,
       runSpacing: 8.h,
-      children: allShops.map((s) {
-        final active = selected.contains(s);
+      children: allShops.entries.map((e) {
+        final active = selected.contains(e.key);
         return AppChip(
-          label: s.split(' ').first,
+          label: e.value.split(' ').first,
           active: active,
-          onTap: () => onToggle(s),
+          onTap: () => onToggle(e.key),
         );
       }).toList(),
     );

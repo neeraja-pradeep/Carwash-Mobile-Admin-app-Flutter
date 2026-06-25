@@ -38,49 +38,50 @@ class CustomerDetailScreen extends ConsumerStatefulWidget {
 
 class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
   String _tab = 'info';
-  bool? _blockedOverride; // null = use entity value
-  String? _notesOverride; // null = use entity value
   bool _menuOpen = false;
+  int _historyPage = 1;
+  bool _busy = false; // guards concurrent block/unblock/save taps
 
   void _toggleMenu() => setState(() => _menuOpen = !_menuOpen);
 
   void _closeMenu() => setState(() => _menuOpen = false);
 
-  // Build a Customer reflecting local overrides (block/unblock, note edits).
-  Customer _withOverrides(Customer base) {
-    return Customer(
-      id: base.id,
-      name: base.name,
-      phone: base.phone,
-      email: base.email,
-      joined: base.joined,
-      blocked: _blockedOverride ?? base.blocked,
-      blockedReason: base.blockedReason,
-      notes: _notesOverride ?? base.notes,
-      bookings: base.bookings,
-      spend: base.spend,
-      lastBooking: base.lastBooking,
-      accountAge: base.accountAge,
-      addresses: base.addresses,
-      vehicles: base.vehicles,
-      history: base.history,
-    );
-  }
-
   // ── Block action ───────────────────────────────────────────────────────────
 
   Future<void> _onBlock(Customer c) async {
-    final reason = await showBlockCustomerModal(context);
-    if (reason == null) return;
-    setState(() => _blockedOverride = true);
-    if (mounted) {
-      AppToast.show(context, 'Customer blocked · $reason');
+    final result = await showBlockCustomerModal(context);
+    if (result == null || _busy) return;
+    setState(() => _busy = true);
+    try {
+      await blockCustomer(
+        ref,
+        c.id,
+        reason: result.enumValue,
+        notes: result.notes.isEmpty ? null : result.notes,
+      );
+      if (mounted) {
+        AppToast.show(context, 'Customer blocked · ${result.label}');
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(context, 'Could not block customer. $e');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
-  void _onUnblock(Customer c) {
-    setState(() => _blockedOverride = false);
-    AppToast.show(context, 'Customer unblocked');
+  Future<void> _onUnblock(Customer c) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await unblockCustomer(ref, c.id);
+      if (mounted) AppToast.show(context, 'Customer unblocked');
+    } catch (e) {
+      if (mounted) AppToast.show(context, 'Could not unblock customer. $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   // ── Note edit modal ────────────────────────────────────────────────────────
@@ -96,13 +97,20 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
       ),
     );
     ctrl.dispose();
-    if (saved == null) return; // cancelled
-    setState(() => _notesOverride = saved);
-    if (mounted) {
-      AppToast.show(
-        context,
-        saved.isNotEmpty ? 'Note saved' : 'Note cleared',
-      );
+    if (saved == null || _busy) return; // cancelled
+    setState(() => _busy = true);
+    try {
+      await saveFounderNotes(ref, c.id, saved);
+      if (mounted) {
+        AppToast.show(
+          context,
+          saved.isNotEmpty ? 'Note saved' : 'Note cleared',
+        );
+      }
+    } catch (e) {
+      if (mounted) AppToast.show(context, 'Could not save note. $e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -175,7 +183,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
           );
         }
 
-        final c = _withOverrides(base);
+        final c = base;
         final isBlocked = c.blocked;
 
         return Scaffold(
@@ -340,23 +348,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
       case 'garage':
         return GarageTabSection(vehicles: c.vehicles);
       case 'history':
-        return HistoryTabSection(
-          history: c.history,
-          totalBookings: c.bookings,
-          onTapBooking: (h) {
-            // Known booking IDs in the live dataset include DD-KL-202605* IDs
-            // referenced in bookings data.jsx. Archived ones show a toast.
-            final knownPrefix = RegExp(r'^DD-KL-20260529');
-            if (knownPrefix.hasMatch(h.id)) {
-              context.push(Routes.bookingDetail(h.id));
-            } else {
-              AppToast.show(
-                context,
-                'Archived booking — full record in Pass 1 dataset',
-              );
-            }
-          },
-        );
+        return _buildHistory(c);
       default:
         return InfoTabSection(
           customer: c,
@@ -365,6 +357,37 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
           onEditNotes: () => _openNoteModal(c),
         );
     }
+  }
+
+  Widget _buildHistory(Customer c) {
+    final historyAsync = ref.watch(
+      customerHistoryProvider((id: c.id, page: _historyPage)),
+    );
+    return historyAsync.when(
+      loading: () => Padding(
+        padding: EdgeInsets.symmetric(vertical: 32.h),
+        child: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, __) => Padding(
+        padding: EdgeInsets.symmetric(vertical: 24.h),
+        child: Center(
+          child: Text(
+            'Could not load history.',
+            style: AppText.figtree(size: 13.5, color: AppColors.fgSecondary),
+          ),
+        ),
+      ),
+      data: (page) => HistoryTabSection(
+        page: page,
+        onPrev: page.hasPrevious
+            ? () => setState(() => _historyPage = _historyPage - 1)
+            : null,
+        onNext: page.hasNext
+            ? () => setState(() => _historyPage = _historyPage + 1)
+            : null,
+        onTapBooking: (h) => context.push(Routes.bookingDetail(h.id)),
+      ),
+    );
   }
 }
 

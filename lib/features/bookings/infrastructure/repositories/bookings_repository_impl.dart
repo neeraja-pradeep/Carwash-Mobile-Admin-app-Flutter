@@ -3,15 +3,19 @@ import 'package:flutter/foundation.dart';
 import '../../domain/entities/carwash_booking.dart';
 import '../../domain/repositories/bookings_repository.dart';
 import '../data_sources/bookings_api.dart';
+import '../data_sources/cars_api.dart';
 import '../models/booking_detail_response_model.dart';
 import '../models/refund_response_model.dart';
+import '../models/manual_booking_models.dart';
 
 /// Fulfils [BookingsRepository] from the API.
 class BookingsRepositoryImpl implements BookingsRepository {
-  BookingsRepositoryImpl({BookingsApi? api})
-      : _api = api ?? BookingsApi();
+  BookingsRepositoryImpl({BookingsApi? api, CarsApi? carsApi})
+      : _api = api ?? BookingsApi(),
+        _carsApi = carsApi ?? CarsApi();
 
   final BookingsApi _api;
+  final CarsApi _carsApi;
 
   @override
   Future<List<CarwashBooking>> fetchBookings({
@@ -190,6 +194,101 @@ class BookingsRepositoryImpl implements BookingsRepository {
       );
     } catch (e, stackTrace) {
       debugPrint('❌ ERROR creating refund: $e');
+      debugPrint('StackTrace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  // ── New Booking (manual carwash) ──────────────────────────────────────────
+
+  @override
+  Future<BookingDetailResponse> createManualBooking({
+    required int customerId,
+    required int car,
+    required int shopId,
+    required int serviceId,
+    required String vehicleType,
+    required String appointmentDate,
+    required int startSlot,
+    String? pickupAddressText,
+    int? addressId,
+    bool sameAsPickup = true,
+    int? dropAddress,
+    String? couponCode,
+    String paymentStatus = 'pending',
+  }) async {
+    try {
+      return await _api.createManualBooking(
+        customerId: customerId,
+        car: car,
+        shopId: shopId,
+        serviceId: serviceId,
+        vehicleType: vehicleType,
+        appointmentDate: appointmentDate,
+        startSlot: startSlot,
+        pickupAddressText: pickupAddressText,
+        addressId: addressId,
+        sameAsPickup: sameAsPickup,
+        dropAddress: dropAddress,
+        couponCode: couponCode,
+        paymentStatus: paymentStatus,
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ ERROR creating manual booking: $e');
+      debugPrint('StackTrace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<List<SlotOption>> getAvailableSlots({
+    required int shopId,
+    required String date,
+    String? vehicleType,
+  }) async {
+    try {
+      return await _api.getAvailableSlots(
+        shopId: shopId,
+        date: date,
+        vehicleType: vehicleType,
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ ERROR fetching available slots: $e');
+      debugPrint('StackTrace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<CouponPreview> validateCoupon({
+    required String code,
+    required int orderAmount,
+  }) async {
+    try {
+      return await _api.validateCoupon(code: code, orderAmount: orderAmount);
+    } catch (e, stackTrace) {
+      debugPrint('❌ ERROR validating coupon: $e');
+      debugPrint('StackTrace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  @override
+  Future<CreatedVehicle> createVehicle({
+    required int userId,
+    required String brandModel,
+    required String registration,
+    String? carType,
+  }) async {
+    try {
+      return await _carsApi.createVehicle(
+        userId: userId,
+        brandModel: brandModel,
+        registration: registration,
+        carType: carType,
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ ERROR creating vehicle: $e');
       debugPrint('StackTrace: $stackTrace');
       rethrow;
     }

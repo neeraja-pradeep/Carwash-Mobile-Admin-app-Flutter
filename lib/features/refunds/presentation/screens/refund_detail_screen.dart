@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
@@ -25,6 +26,7 @@ import '../../domain/entities/refund.dart';
 class RefundDetailScreen extends ConsumerStatefulWidget {
   const RefundDetailScreen({required this.refundId, super.key});
 
+  /// Numeric refund id or `RF-…` reference (the detail key).
   final String refundId;
 
   @override
@@ -32,15 +34,7 @@ class RefundDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
-  /// Local mutable status (demo only — not persisted).
-  String? _localStatus;
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
-  String _statusFor(Refund r) => _localStatus ?? r.status;
+  bool _busy = false;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +49,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
           error: (_, __) => _ErrorState(),
           data: (refund) {
             if (refund == null) return _ErrorState();
-            final status = _statusFor(refund);
+            final status = refund.status;
             final declined = status == 'declined';
             final tone = _toneFor(status);
             final label = _labelFor(status);
@@ -89,7 +83,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                               children: [
                                 StatusBadge(label: label, tone: tone),
                                 Text(
-                                  refund.id,
+                                  refund.reference ?? refund.id,
                                   style: AppText.figtree(
                                     size: 11.5,
                                     weight: FontWeight.w500,
@@ -136,9 +130,9 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                       ),
                       SizedBox(height: 14.h),
 
-                      // Workflow stepper (only if not declined)
-                      if (!declined) ...[
-                        _WorkflowStepper(status: status),
+                      // Workflow stepper (driven by steps[]), only if not declined
+                      if (!declined && refund.steps.isNotEmpty) ...[
+                        _WorkflowStepper(steps: refund.steps),
                         SizedBox(height: 14.h),
                       ],
 
@@ -208,9 +202,10 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                               ),
                             ),
                             Divider(height: 1.h, color: AppColors.borderSoft),
-                            // Booking row — tappable (with chevron) only when
-                            // the booking exists in the sample set.
-                            _BookingRef(bookingId: refund.bookingId),
+                            _BookingRef(
+                              bookingId: refund.bookingId,
+                              label: refund.bookingLabel,
+                            ),
                           ],
                         ),
                       ),
@@ -232,12 +227,24 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                             ),
                             SizedBox(height: 8.h),
                             Text(
-                              refund.reason,
+                              refund.reasonDisplay,
                               style: AppText.figtree(
                                 size: 14,
                                 weight: FontWeight.w600,
                               ),
                             ),
+                            if ((refund.reasonSubtitle ?? '').isNotEmpty) ...[
+                              SizedBox(height: 6.h),
+                              Text(
+                                refund.reasonSubtitle!,
+                                style: AppText.figtree(
+                                  size: 13,
+                                  weight: FontWeight.w400,
+                                  color: AppColors.fgSecondary,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
                             if (refund.notes.isNotEmpty) ...[
                               SizedBox(height: 6.h),
                               Text(
@@ -255,7 +262,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                       ),
                       SizedBox(height: 14.h),
 
-                      // UTR / proof card
+                      // Payment proof card
                       AppCard(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -278,22 +285,24 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                                   weight: FontWeight.w600,
                                 ),
                               ),
-                              SizedBox(height: 5.h),
-                              Row(
-                                children: [
-                                  Icon(AppIcons.checkCircle,
-                                      size: 14.sp, color: AppColors.greenFg),
-                                  SizedBox(width: 5.w),
-                                  Text(
-                                    'Screenshot on file',
-                                    style: AppText.figtree(
-                                      size: 12,
-                                      weight: FontWeight.w500,
-                                      color: AppColors.greenFg,
+                              if (refund.proof) ...[
+                                SizedBox(height: 5.h),
+                                Row(
+                                  children: [
+                                    Icon(AppIcons.checkCircle,
+                                        size: 14.sp, color: AppColors.greenFg),
+                                    SizedBox(width: 5.w),
+                                    Text(
+                                      'Screenshot on file',
+                                      style: AppText.figtree(
+                                        size: 12,
+                                        weight: FontWeight.w500,
+                                        color: AppColors.greenFg,
+                                      ),
                                     ),
-                                  ),
-                                ],
-                              ),
+                                  ],
+                                ),
+                              ],
                             ] else
                               Text(
                                 'Required before marking Paid',
@@ -310,7 +319,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
 
                       // Timestamps
                       Text(
-                        _buildTimestamps(refund, status),
+                        _buildTimestamps(refund),
                         textAlign: TextAlign.center,
                         style: AppText.figtree(
                           size: 11.5,
@@ -324,7 +333,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                 ),
 
                 // Sticky footer
-                _buildFooter(context, refund, status, declined),
+                _buildFooter(context, refund),
               ],
             );
           },
@@ -333,16 +342,15 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
     );
   }
 
-  String _buildTimestamps(Refund r, String status) {
+  String _buildTimestamps(Refund r) {
     var s = 'Created ${r.createdAt}';
     if (r.approvedAt != null) s += ' · Approved ${r.approvedAt}';
     if (r.paidAt != null) s += ' · Paid ${r.paidAt}';
-    // local overrides
     return s;
   }
 
-  Widget _buildFooter(
-      BuildContext context, Refund refund, String status, bool declined) {
+  Widget _buildFooter(BuildContext context, Refund refund) {
+    final next = refund.nextAction;
     return Container(
       padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
       decoration: const BoxDecoration(
@@ -353,18 +361,12 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
         top: false,
         child: Builder(
           builder: (ctx) {
-            if (status == 'paid') {
+            // Terminal — no next action.
+            if (next == null) {
               return AppButton(
-                label: 'Refund settled',
-                full: true,
-                kind: AppButtonKind.secondary,
-                disabled: true,
-                onPressed: null,
-              );
-            }
-            if (declined) {
-              return AppButton(
-                label: 'Refund declined',
+                label: refund.status == 'declined'
+                    ? 'Refund declined'
+                    : 'Refund settled',
                 full: true,
                 kind: AppButtonKind.secondary,
                 disabled: true,
@@ -375,7 +377,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
               children: [
                 Expanded(
                   child: GestureDetector(
-                    onTap: () => _confirmDecline(context, refund),
+                    onTap: _busy ? null : () => _confirmDecline(refund),
                     child: Container(
                       height: 50.h,
                       alignment: Alignment.center,
@@ -398,19 +400,20 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                 SizedBox(width: 10.w),
                 Expanded(
                   flex: 2,
-                  child: status == 'requested'
+                  child: next == 'approve'
                       ? AppButton(
                           label: 'Approve',
                           full: true,
-                          onPressed: () {
-                            setState(() => _localStatus = 'approved');
-                            AppToast.show(context, 'Refund approved');
-                          },
+                          disabled: _busy,
+                          onPressed: _busy ? null : () => _approve(refund),
                         )
                       : AppButton(
                           label: 'Mark Paid',
                           full: true,
-                          onPressed: () => _showMarkPaidModal(context, refund),
+                          disabled: _busy,
+                          onPressed: _busy
+                              ? null
+                              : () => _showMarkPaidModal(context, refund),
                         ),
                 ),
               ],
@@ -421,7 +424,35 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
     );
   }
 
-  Future<void> _confirmDecline(BuildContext context, Refund refund) async {
+  Future<void> _approve(Refund refund) async {
+    final bookingRef = refund.bookingReference;
+    if (bookingRef == null || bookingRef.isEmpty) {
+      AppToast.show(context, 'Missing booking reference');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await ref.read(refundActionsProvider).approve(
+            bookingReference: bookingRef,
+            percent: refund.percent?.round(),
+            reason: refund.reason.isNotEmpty ? refund.reason : null,
+            comment: refund.notes.isNotEmpty ? refund.notes : null,
+            detailKey: widget.refundId,
+          );
+      if (mounted) AppToast.show(context, 'Refund approved');
+    } catch (e) {
+      if (mounted) AppToast.show(context, _msg(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _confirmDecline(Refund refund) async {
+    final bookingRef = refund.bookingReference;
+    if (bookingRef == null || bookingRef.isEmpty) {
+      AppToast.show(context, 'Missing booking reference');
+      return;
+    }
     final ok = await showConfirmDialog(
       context: context,
       title: 'Decline this refund?',
@@ -429,9 +460,20 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
       confirmLabel: 'Decline',
       destructive: true,
     );
-    if (ok && context.mounted) {
-      setState(() => _localStatus = 'declined');
-      AppToast.show(context, 'Refund declined');
+    if (!ok || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(refundActionsProvider).decline(
+            bookingReference: bookingRef,
+            reason: refund.reason.isNotEmpty ? refund.reason : null,
+            comment: refund.notes.isNotEmpty ? refund.notes : null,
+            detailKey: widget.refundId,
+          );
+      if (mounted) AppToast.show(context, 'Refund declined');
+    } catch (e) {
+      if (mounted) AppToast.show(context, _msg(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -440,14 +482,39 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
       context: context,
       builder: (modalCtx) => _MarkPaidModal(
         amount: refund.amount,
-        onConfirm: (utr) {
+        onConfirm: (reference, screenshotPath) async {
           Navigator.of(modalCtx).pop();
-          setState(() => _localStatus = 'paid');
-          AppToast.show(context, 'Refund marked Paid');
+          await _markPaid(refund, reference, screenshotPath);
         },
         onBack: () => Navigator.of(modalCtx).pop(),
       ),
     );
+  }
+
+  Future<void> _markPaid(
+    Refund refund,
+    String reference,
+    String? screenshotPath,
+  ) async {
+    setState(() => _busy = true);
+    try {
+      await ref.read(refundActionsProvider).markPaid(
+            refundRef: refund.detailKey,
+            paymentProofReference: reference,
+            screenshotPath: screenshotPath,
+            detailKey: widget.refundId,
+          );
+      if (mounted) AppToast.show(context, 'Refund marked Paid');
+    } catch (e) {
+      if (mounted) AppToast.show(context, _msg(e));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _msg(Object e) {
+    final s = e.toString();
+    return s.startsWith('Exception: ') ? s.substring(11) : s;
   }
 
   BadgeTone _toneFor(String status) => switch (status) {
@@ -467,25 +534,14 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
 
 // ─── Sub-widgets ──────────────────────────────────────────────────────────────
 
+/// Workflow stepper driven by the server `steps[]` payload.
 class _WorkflowStepper extends StatelessWidget {
-  const _WorkflowStepper({required this.status});
+  const _WorkflowStepper({required this.steps});
 
-  final String status;
-
-  static const List<(String, String)> _steps = [
-    ('requested', 'Requested'),
-    ('approved', 'Approved'),
-    ('paid', 'Paid'),
-  ];
-
-  int get _currentIndex {
-    final idx = _steps.indexWhere((s) => s.$1 == status);
-    return idx < 0 ? 0 : idx;
-  }
+  final List<RefundStep> steps;
 
   @override
   Widget build(BuildContext context) {
-    final ci = _currentIndex;
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -502,17 +558,16 @@ class _WorkflowStepper extends StatelessWidget {
           SizedBox(height: 14.h),
           Row(
             children: [
-              for (var i = 0; i < _steps.length; i++) ...[
-                _StepDot(
-                  label: _steps[i].$2,
-                  active: i <= ci,
-                ),
-                if (i < _steps.length - 1)
+              for (var i = 0; i < steps.length; i++) ...[
+                _StepDot(label: steps[i].label, active: steps[i].done),
+                if (i < steps.length - 1)
                   Expanded(
                     child: Container(
                       height: 2.h,
                       margin: EdgeInsets.only(bottom: 18.h),
-                      color: i < ci ? AppColors.greenFg : AppColors.borderSoft,
+                      color: steps[i].done
+                          ? AppColors.greenFg
+                          : AppColors.borderSoft,
                     ),
                   ),
               ],
@@ -569,12 +624,13 @@ class _StepDot extends StatelessWidget {
 }
 
 /// Booking reference row. Tappable (with a chevron) only when the referenced
-/// booking exists in the sample set — mirrors the existence check in
-/// `screen_refunds.jsx` so refunds for archived bookings don't dead-link.
+/// booking exists in the bookings cache so refunds for archived bookings don't
+/// dead-link.
 class _BookingRef extends ConsumerWidget {
-  const _BookingRef({required this.bookingId});
+  const _BookingRef({required this.bookingId, required this.label});
 
   final String bookingId;
+  final String label;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -600,7 +656,7 @@ class _BookingRef extends ConsumerWidget {
           ),
           Expanded(
             child: Text(
-              bookingId,
+              label,
               style: AppText.figtree(size: 12.5, weight: FontWeight.w600),
             ),
           ),
@@ -627,7 +683,7 @@ class _MarkPaidModal extends StatefulWidget {
   });
 
   final int amount;
-  final void Function(String utr) onConfirm;
+  final void Function(String reference, String? screenshotPath) onConfirm;
   final VoidCallback onBack;
 
   @override
@@ -635,17 +691,36 @@ class _MarkPaidModal extends StatefulWidget {
 }
 
 class _MarkPaidModalState extends State<_MarkPaidModal> {
-  final _utr = TextEditingController();
-  bool _proof = false;
+  final _ref = TextEditingController();
+  String? _screenshotPath;
+  bool _picking = false;
 
   @override
   void dispose() {
-    _utr.dispose();
+    _ref.dispose();
     super.dispose();
   }
 
+  Future<void> _pickScreenshot() async {
+    setState(() => _picking = true);
+    try {
+      final file =
+          await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (file != null && mounted) {
+        setState(() => _screenshotPath = file.path);
+      }
+    } catch (e) {
+      if (mounted) AppToast.show(context, 'Could not pick image');
+    } finally {
+      if (mounted) setState(() => _picking = false);
+    }
+  }
+
+  bool get _hasProof => _ref.text.trim().isNotEmpty;
+
   @override
   Widget build(BuildContext context) {
+    final attached = _screenshotPath != null;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -656,7 +731,8 @@ class _MarkPaidModalState extends State<_MarkPaidModal> {
         ),
         SizedBox(height: 6.h),
         Text(
-          'Process ${Formatters.money(widget.amount)} externally, then log the reference here.',
+          'Process ${Formatters.money(widget.amount)} externally, then log the '
+          'payment proof reference here. Proof is required before marking Paid.',
           style: AppText.figtree(
             size: 13.5,
             weight: FontWeight.w400,
@@ -666,43 +742,51 @@ class _MarkPaidModalState extends State<_MarkPaidModal> {
         ),
         SizedBox(height: 18.h),
         _LabeledInput(
-          label: 'UTR / reference',
-          controller: _utr,
-          placeholder: 'e.g. UPI/HDFC/889201144',
+          label: 'Payment proof reference',
+          controller: _ref,
+          placeholder: 'e.g. UPI/AXIS/552210034',
           onChanged: (_) => setState(() {}),
         ),
         SizedBox(height: 14.h),
         GestureDetector(
-          onTap: () => setState(() => _proof = !_proof),
+          onTap: _picking ? null : _pickScreenshot,
           child: Container(
             width: double.infinity,
             padding: EdgeInsets.all(13.r),
             decoration: BoxDecoration(
-              color: _proof ? AppColors.greenBg : AppColors.bgCard,
+              color: attached ? AppColors.greenBg : AppColors.bgCard,
               borderRadius: BorderRadius.circular(12.r),
               border: Border.all(
-                color: _proof ? AppColors.greenFg : AppColors.borderDefault,
-                style: BorderStyle.solid,
+                color: attached ? AppColors.greenFg : AppColors.borderDefault,
               ),
             ),
             child: Row(
               children: [
                 Icon(
-                  _proof ? AppIcons.checkCircle : AppIcons.plus,
+                  attached ? AppIcons.checkCircle : AppIcons.plus,
                   size: 20.sp,
-                  color: _proof ? AppColors.greenFg : AppColors.fgTertiary,
+                  color: attached ? AppColors.greenFg : AppColors.fgTertiary,
                 ),
                 SizedBox(width: 10.w),
-                Text(
-                  _proof
-                      ? 'Screenshot attached'
-                      : 'Attach screenshot (optional)',
-                  style: AppText.figtree(
-                    size: 13,
-                    weight: FontWeight.w600,
-                    color: _proof ? AppColors.greenFg : AppColors.fgSecondary,
+                Expanded(
+                  child: Text(
+                    attached
+                        ? 'Screenshot attached'
+                        : 'Attach screenshot (optional)',
+                    style: AppText.figtree(
+                      size: 13,
+                      weight: FontWeight.w600,
+                      color:
+                          attached ? AppColors.greenFg : AppColors.fgSecondary,
+                    ),
                   ),
                 ),
+                if (_picking)
+                  SizedBox(
+                    width: 16.w,
+                    height: 16.w,
+                    child: const CircularProgressIndicator(strokeWidth: 2),
+                  ),
               ],
             ),
           ),
@@ -723,10 +807,10 @@ class _MarkPaidModalState extends State<_MarkPaidModal> {
               child: AppButton(
                 label: 'Mark Paid',
                 full: true,
-                disabled: _utr.text.trim().isEmpty,
-                onPressed: _utr.text.trim().isEmpty
+                disabled: !_hasProof,
+                onPressed: !_hasProof
                     ? null
-                    : () => widget.onConfirm(_utr.text.trim()),
+                    : () => widget.onConfirm(_ref.text.trim(), _screenshotPath),
               ),
             ),
           ],

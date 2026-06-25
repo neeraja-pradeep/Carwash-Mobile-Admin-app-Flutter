@@ -44,7 +44,8 @@ class _ReviewsFilterBody extends ConsumerWidget {
     final shops = ref
             .watch(reviewsProvider)
             .value
-            ?.map((r) => r.shop)
+            ?.reviews
+            .map((r) => r.shop)
             .toSet()
             .toList() ??
         const <String>[];

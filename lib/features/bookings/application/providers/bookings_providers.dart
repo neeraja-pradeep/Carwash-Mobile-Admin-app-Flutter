@@ -8,6 +8,7 @@ import '../../infrastructure/data_sources/local/bookings_local_ds.dart';
 import '../../infrastructure/repositories/bookings_repository_impl.dart';
 import '../../infrastructure/models/booking_detail_response_model.dart' as detail_models;
 import '../../infrastructure/models/refund_response_model.dart';
+import '../../infrastructure/models/manual_booking_models.dart';
 import '../../../../core/status/booking_status.dart';
 import '../../../../core/status/payment_status.dart';
 import '../states/bookings_filter_state.dart';
@@ -167,6 +168,7 @@ Booking _bookingFromDetail(detail_models.BookingDetailResponse detail) {
 
   return Booking(
     id: detail.id.toString(),
+    reference: detail.reference,
     status: status,
     customer: BookingParty(
       name: detail.customerName ?? 'Unknown',
@@ -293,6 +295,21 @@ final createRefundProvider =
           amount: amount,
           reason: reason,
           comment: comment,
+        );
+  },
+);
+
+// ── New Booking (manual carwash) providers ────────────────────────────────────
+
+/// Available slots for a (shopId, date, vehicleType) tuple — resolves a typed
+/// time to a `start_slot` id. autoDispose so it refreshes per booking attempt.
+final availableSlotsProvider = FutureProvider.autoDispose
+    .family<List<SlotOption>, ({int shopId, String date, String? vehicleType})>(
+  (ref, args) {
+    return ref.watch(bookingsRepositoryProvider).getAvailableSlots(
+          shopId: args.shopId,
+          date: args.date,
+          vehicleType: args.vehicleType,
         );
   },
 );

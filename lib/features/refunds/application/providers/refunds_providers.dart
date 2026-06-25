@@ -15,15 +15,11 @@ final refundsProvider = FutureProvider.autoDispose<List<Refund>>(
   (ref) => ref.watch(refundsRepositoryProvider).fetchRefunds(),
 );
 
-/// Single refund by id — searches cached refunds list (no extra API call).
+/// Single refund by id or `RF-…` reference — hits the detail endpoint.
+/// `.family` keyed by the detail key (reference preferred over numeric id).
 final refundByIdProvider =
-    FutureProvider.autoDispose.family<Refund?, String>((ref, id) async {
-  final refunds = await ref.watch(refundsProvider.future);
-  try {
-    return refunds.firstWhere((r) => r.id == id);
-  } catch (_) {
-    return null;
-  }
+    FutureProvider.autoDispose.family<Refund?, String>((ref, idOrReference) {
+  return ref.watch(refundsRepositoryProvider).getRefundDetail(idOrReference);
 });
 
 /// Temporary UI filter/sort/search state (autoDispose).
@@ -51,3 +47,98 @@ class RefundsFilterController extends StateNotifier<RefundsFilterState> {
   void removeStatus() => state = state.copyWith(status: null);
   void removeReason() => state = state.copyWith(reason: null);
 }
+
+/// Mutations (approve / mark-paid / create / decline) live on the repository.
+/// These helpers run the call then invalidate the list (and the affected
+/// detail entry) so screens refetch fresh data. Errors propagate to the caller.
+class RefundActions {
+  RefundActions(this._ref);
+
+  final Ref _ref;
+
+  RefundsRepository get _repo => _ref.read(refundsRepositoryProvider);
+
+  void _refresh([String? detailKey]) {
+    _ref.invalidate(refundsProvider);
+    if (detailKey != null && detailKey.isNotEmpty) {
+      _ref.invalidate(refundByIdProvider(detailKey));
+    }
+  }
+
+  Future<Refund> approve({
+    required String bookingReference,
+    int? percent,
+    int? amount,
+    String? reason,
+    String? comment,
+    String? detailKey,
+  }) async {
+    final r = await _repo.approve(
+      bookingReference: bookingReference,
+      percent: percent,
+      amount: amount,
+      reason: reason,
+      comment: comment,
+    );
+    _refresh(detailKey ?? r.detailKey);
+    return r;
+  }
+
+  Future<Refund> markPaid({
+    required String refundRef,
+    required String paymentProofReference,
+    String? screenshotPath,
+    bool manual = false,
+    String? detailKey,
+  }) async {
+    final r = await _repo.markPaid(
+      refundRef: refundRef,
+      paymentProofReference: paymentProofReference,
+      screenshotPath: screenshotPath,
+      manual: manual,
+    );
+    _refresh(detailKey ?? r.detailKey);
+    return r;
+  }
+
+  Future<Refund> createStandalone({
+    required String bookingReference,
+    int? percent,
+    int? amount,
+    String? reason,
+    String? comment,
+    bool manual = false,
+    String? paymentKind,
+  }) async {
+    final r = await _repo.createStandalone(
+      bookingReference: bookingReference,
+      percent: percent,
+      amount: amount,
+      reason: reason,
+      comment: comment,
+      manual: manual,
+      paymentKind: paymentKind,
+    );
+    _refresh(r.detailKey);
+    return r;
+  }
+
+  Future<Refund> decline({
+    required String bookingReference,
+    String? reason,
+    String? comment,
+    String? detailKey,
+  }) async {
+    final r = await _repo.decline(
+      bookingReference: bookingReference,
+      reason: reason,
+      comment: comment,
+    );
+    _refresh(detailKey ?? r.detailKey);
+    return r;
+  }
+}
+
+/// Action helpers for refund mutations.
+final refundActionsProvider =
+    Provider<RefundActions>((ref) => RefundActions(ref));

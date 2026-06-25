@@ -31,6 +31,32 @@ class CustomersFilterState {
       (joined != 'any' ? 1 : 0) +
       (volume != 'any' ? 1 : 0);
 
+  // ── Server-param mappings (UI value → API enum) ──────────────────────────
+
+  /// `?joined=` value for the list call (`any` → null).
+  String? get joinedParam => switch (joined) {
+        '30' => '30d',
+        '90' => '90d',
+        'year' => 'year',
+        _ => null,
+      };
+
+  /// `?booking_count=` value for the list call (`any` → null).
+  String? get bookingCountParam => switch (volume) {
+        'lo' => '1-5',
+        'mid' => '6-20',
+        'hi' => '20plus',
+        _ => null,
+      };
+
+  /// `?sort=` value for the list call.
+  String get sortParam => switch (sort) {
+        'spend_hi' => 'spend',
+        'bookings_hi' => 'bookings',
+        'recent' => 'recent',
+        _ => 'name',
+      };
+
   CustomersFilterState copyWith({
     Object? status = _sentinel,
     String? joined,

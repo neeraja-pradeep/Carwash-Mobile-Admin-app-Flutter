@@ -9,41 +9,46 @@ import '../states/drivers_filter_state.dart';
 
 // ── Data layer providers ─────────────────────────────────────────────────────
 
-/// Local data source (swapped for a remote+cache source in the API phase).
+/// Local data source (founders fallback only).
 final driversLocalDsProvider = Provider<DriversLocalDs>(
   (ref) => const DriversLocalDs(),
 );
 
 /// The drivers repository (domain contract → infrastructure impl).
 final driversRepositoryProvider = Provider<DriversRepository>(
-  (ref) => DriversRepositoryImpl(ref.watch(driversLocalDsProvider)),
+  (ref) => DriversRepositoryImpl(local: ref.watch(driversLocalDsProvider)),
 );
+
+/// API status string for a [DriverStatus] filter (`null` = all).
+String? driverStatusParam(DriverStatus? status) => switch (status) {
+      DriverStatus.active => 'active',
+      DriverStatus.invited => 'invited',
+      DriverStatus.suspended => 'suspended',
+      null => null,
+    };
 
 // ── Entity providers ─────────────────────────────────────────────────────────
 
-/// All four hired field drivers. Kept alive so navigation back is instant.
-final fieldDriversProvider = FutureProvider<List<FieldDriver>>(
-  (ref) => ref.watch(driversRepositoryProvider).fetchFieldDrivers(),
-);
-
-/// A single field driver by id (autoDispose — resets when the detail screen
-/// is gone).
-final fieldDriverByIdProvider =
-    FutureProvider.autoDispose.family<FieldDriver?, String>((ref, id) async {
-  final drivers = await ref.watch(fieldDriversProvider.future);
-  try {
-    return drivers.firstWhere((d) => d.id == id);
-  } on StateError {
-    return null;
-  }
+/// All drivers, filtered server-side by the committed status filter.
+final fieldDriversProvider = FutureProvider<List<FieldDriver>>((ref) {
+  final filter = ref.watch(driversFilterProvider);
+  return ref
+      .watch(driversRepositoryProvider)
+      .fetchFieldDrivers(status: driverStatusParam(filter.status));
 });
 
-/// The two founders (Anand, Vishnu).
+/// A single driver by id — hits the detail endpoint (rich blocks populated).
+final fieldDriverByIdProvider =
+    FutureProvider.autoDispose.family<FieldDriver?, String>((ref, id) {
+  return ref.watch(driversRepositoryProvider).getDriverDetail(id);
+});
+
+/// The founders (Anand, Vishnu) — local fallback for the assignee resolver.
 final foundersProvider = FutureProvider<List<TeamMember>>(
   (ref) => ref.watch(driversRepositoryProvider).fetchFounders(),
 );
 
-/// The two inspectors (Ravi Menon, Salim K).
+/// The inspectors (list-only tab).
 final inspectorsProvider = FutureProvider<List<TeamMember>>(
   (ref) => ref.watch(driversRepositoryProvider).fetchInspectors(),
 );
@@ -72,6 +77,157 @@ final assigneeByIdProvider = FutureProvider.autoDispose
   },
 );
 
+// ── Mutations ─────────────────────────────────────────────────────────────────
+
+/// Coordinates write operations and refreshes the relevant providers.
+final driverMutationsProvider = Provider<DriverMutations>(
+  (ref) => DriverMutations(ref),
+);
+
+class DriverMutations {
+  DriverMutations(this._ref);
+
+  final Ref _ref;
+
+  DriversRepository get _repo => _ref.read(driversRepositoryProvider);
+
+  void _invalidateLists() {
+    _ref.invalidate(fieldDriversProvider);
+    _ref.invalidate(inspectorsProvider);
+  }
+
+  Future<FieldDriver> hireDriver({
+    required String fullName,
+    required String phone,
+    String? email,
+    String? subRole,
+    required List<String> vehicleClasses,
+    required String licenseNumber,
+    required String licenseExpiry,
+    required bool licenseVerified,
+  }) async {
+    final created = await _repo.hireDriver(
+      fullName: fullName,
+      phone: phone,
+      email: email,
+      subRole: subRole,
+      vehicleClasses: vehicleClasses,
+      licenseNumber: licenseNumber,
+      licenseExpiry: licenseExpiry,
+      licenseVerified: licenseVerified,
+    );
+    _invalidateLists();
+    return created;
+  }
+
+  Future<FieldDriver> hireInspector({
+    required String fullName,
+    required String phone,
+    String? email,
+    required List<String> vehicleClasses,
+    required String licenseNumber,
+    required String licenseExpiry,
+    required bool licenseVerified,
+  }) async {
+    final created = await _repo.hireInspector(
+      fullName: fullName,
+      phone: phone,
+      email: email,
+      vehicleClasses: vehicleClasses,
+      licenseNumber: licenseNumber,
+      licenseExpiry: licenseExpiry,
+      licenseVerified: licenseVerified,
+    );
+    _invalidateLists();
+    return created;
+  }
+
+  Future<FieldDriver> updateDriver(
+    String id, {
+    String? fullName,
+    String? email,
+    String? status,
+    String? subRole,
+    List<String>? vehicleClasses,
+    String? licenseNumber,
+    String? licenseExpiry,
+    bool? licenseVerified,
+    String? phone,
+  }) async {
+    final updated = await _repo.updateDriver(
+      id,
+      fullName: fullName,
+      email: email,
+      status: status,
+      subRole: subRole,
+      vehicleClasses: vehicleClasses,
+      licenseNumber: licenseNumber,
+      licenseExpiry: licenseExpiry,
+      licenseVerified: licenseVerified,
+      phone: phone,
+    );
+    _invalidateLists();
+    _ref.invalidate(fieldDriverByIdProvider(id));
+    return updated;
+  }
+
+  Future<void> deleteDriver(String id) async {
+    await _repo.deleteDriver(id);
+    _invalidateLists();
+    _ref.invalidate(fieldDriverByIdProvider(id));
+  }
+
+  Future<void> uploadDocument(
+    String id, {
+    required bool isInspector,
+    required String filePath,
+    required String kind,
+    String side = 'front',
+    String? name,
+  }) async {
+    await _repo.uploadDocument(
+      id,
+      isInspector: isInspector,
+      filePath: filePath,
+      kind: kind,
+      side: side,
+      name: name,
+    );
+    if (!isInspector) _ref.invalidate(fieldDriverByIdProvider(id));
+    _invalidateLists();
+  }
+
+  Future<void> patchDocument(
+    String id,
+    String docId, {
+    required bool isInspector,
+    bool? frontVerified,
+    bool? backVerified,
+    bool? verified,
+    String? name,
+  }) async {
+    await _repo.patchDocument(
+      id,
+      docId,
+      isInspector: isInspector,
+      frontVerified: frontVerified,
+      backVerified: backVerified,
+      verified: verified,
+      name: name,
+    );
+    if (!isInspector) _ref.invalidate(fieldDriverByIdProvider(id));
+  }
+
+  Future<void> deleteDocument(
+    String id,
+    String docId, {
+    required bool isInspector,
+  }) async {
+    await _repo.deleteDocument(id, docId, isInspector: isInspector);
+    if (!isInspector) _ref.invalidate(fieldDriverByIdProvider(id));
+  }
+}
+
 // ── UI state providers (autoDispose — reset on navigation) ───────────────────
 
 /// Active segment: `'drivers'` | `'inspectors'`.
@@ -81,7 +237,7 @@ final driversSegmentProvider = StateProvider.autoDispose<String>(
 
 /// Committed filter state for the Drivers list.
 final driversFilterProvider =
-    StateNotifierProvider.autoDispose<DriversFilterController, DriversFilterState>(
+    StateNotifierProvider<DriversFilterController, DriversFilterState>(
   (ref) => DriversFilterController(),
 );
 
@@ -91,15 +247,11 @@ final driversFilterDraftProvider =
   (ref) => ref.read(driversFilterProvider),
 );
 
-/// Derived, filtered field drivers.
+/// Derived field drivers — server already filters by status, so this just
+/// passes the async value through (kept for the screen's existing call site).
 final filteredFieldDriversProvider =
     Provider.autoDispose<AsyncValue<List<FieldDriver>>>((ref) {
-  final drivers = ref.watch(fieldDriversProvider);
-  final filter = ref.watch(driversFilterProvider);
-  return drivers.whenData((list) {
-    if (filter.status == null) return list;
-    return list.where((d) => d.status == filter.status).toList();
-  });
+  return ref.watch(fieldDriversProvider);
 });
 
 /// Owns the drivers filter state.

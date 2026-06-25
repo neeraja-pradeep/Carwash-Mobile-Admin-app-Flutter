@@ -44,6 +44,9 @@ dependencies:
   intl: ^0.19.0
   url_launcher: ^6.2.4
 
+  # Media picker (document & payment-proof uploads — API-integration phase)
+  image_picker: ^1.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

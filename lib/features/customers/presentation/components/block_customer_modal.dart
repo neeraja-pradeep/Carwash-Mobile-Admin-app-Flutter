@@ -7,10 +7,41 @@ import '../../../../core/constants/app_options.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_dialog.dart';
 
-/// Opens the Block Customer modal. Resolves with the selected block reason
+/// The result of a confirmed Block dialog: the server reason [enumValue]
+/// (one of the API's block-reason enums), the human [label] shown in the UI,
+/// and the optional free-text [notes].
+class BlockResult {
+  const BlockResult({
+    required this.enumValue,
+    required this.label,
+    required this.notes,
+  });
+
+  final String enumValue;
+  final String label;
+  final String notes;
+}
+
+/// Maps a human block-reason label (`kBlockReasons`) to the API enum value.
+String blockReasonEnum(String label) {
+  switch (label) {
+    case 'Frequent no-shows':
+      return 'frequent_no_shows';
+    case 'Abusive behavior':
+      return 'abusive_behavior';
+    case 'Payment issues':
+      return 'payment_issues';
+    case 'Fake bookings':
+      return 'fake_bookings';
+    default:
+      return 'other';
+  }
+}
+
+/// Opens the Block Customer modal. Resolves with the selected [BlockResult]
 /// when the user confirms, or `null` when they cancel.
-Future<String?> showBlockCustomerModal(BuildContext context) {
-  return showAppModal<String?>(
+Future<BlockResult?> showBlockCustomerModal(BuildContext context) {
+  return showAppModal<BlockResult?>(
     context: context,
     builder: (dialogContext) => _BlockModalBody(dialogContext: dialogContext),
   );
@@ -130,8 +161,13 @@ class _BlockModalBodyState extends State<_BlockModalBody> {
             SizedBox(width: 12.w),
             Expanded(
               child: GestureDetector(
-                onTap: () =>
-                    Navigator.of(widget.dialogContext).pop(_reason),
+                onTap: () => Navigator.of(widget.dialogContext).pop(
+                  BlockResult(
+                    enumValue: blockReasonEnum(_reason),
+                    label: _reason,
+                    notes: _noteCtrl.text.trim(),
+                  ),
+                ),
                 child: Container(
                   height: 54.h,
                   alignment: Alignment.center,

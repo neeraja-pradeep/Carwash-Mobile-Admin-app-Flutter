@@ -40,18 +40,36 @@ class DriverPeriodStat {
 }
 
 /// An uploaded document with optional front/back sides.
+///
+/// `front`/`back` are the per-side "present" flags the UI toggles render.
+/// The API-backed fields (`kind`, file URLs, per-side verified) are optional
+/// so local/mock construction stays valid.
 class DriverDocument {
   const DriverDocument({
     required this.id,
     required this.type,
     required this.front,
     required this.back,
+    this.kind,
+    this.name,
+    this.frontFileUrl,
+    this.backFileUrl,
+    this.frontVerified = false,
+    this.backVerified = false,
   });
 
   final String id;
   final String type;
   final bool front;
   final bool back;
+
+  /// Canonical kind: `license` | `aadhaar` | `police_verification` | `other`.
+  final String? kind;
+  final String? name;
+  final String? frontFileUrl;
+  final String? backFileUrl;
+  final bool frontVerified;
+  final bool backVerified;
 }
 
 /// Live location of a driver who is currently on a job.
@@ -100,6 +118,9 @@ class FieldDriver {
     required this.today,
     required this.week,
     required this.documents,
+    this.subRole,
+    this.documentsCount,
+    this.onJobFlag = false,
     this.rating,
     this.currentJob,
   });
@@ -109,7 +130,12 @@ class FieldDriver {
   final String phone;
   final String email;
   final DriverStatus status;
+
+  /// Human role label (e.g. "Wash + hire driver" / "Inspector").
   final String role;
+
+  /// Canonical sub-role: `wash` | `wash_hire` | `hire` (drivers only, else null).
+  final String? subRole;
   final String joined;
   final DriverLicense license;
   final double? rating;
@@ -118,7 +144,11 @@ class FieldDriver {
   final DriverPeriodStat today;
   final DriverPeriodStat week;
   final List<DriverDocument> documents;
+  final int? documentsCount;
+
+  /// API `on_job` flag (the list endpoint sets this without a [currentJob]).
+  final bool onJobFlag;
   final DriverCurrentJob? currentJob;
 
-  bool get onJob => currentJob != null;
+  bool get onJob => currentJob != null || onJobFlag;
 }

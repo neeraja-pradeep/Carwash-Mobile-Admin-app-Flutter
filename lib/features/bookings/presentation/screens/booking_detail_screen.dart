@@ -859,6 +859,9 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                               Routes.refunds,
                               extra: RefundPrefill(
                                 bookingId: booking.id,
+                                bookingReference: booking.reference.isNotEmpty
+                                    ? booking.reference
+                                    : null,
                                 customerName: booking.customer.name,
                                 total: booking.total,
                                 status: status.key,

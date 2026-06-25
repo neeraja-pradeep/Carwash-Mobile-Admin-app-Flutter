@@ -6,7 +6,8 @@ class OffersFilterState {
     this.sort = 'recent',
   });
 
-  /// Null = all statuses.
+  /// Null = all statuses. One of the lifecycle keys:
+  /// `active` · `scheduled` · `paused` · `expired`.
   final String? status;
   final String query;
 
@@ -14,6 +15,12 @@ class OffersFilterState {
   final String sort;
 
   int get activeFilterCount => status != null ? 1 : 0;
+
+  /// Maps [sort] to the API `ordering` param.
+  String get ordering => sort == 'az' ? 'name' : '-created_at';
+
+  /// Maps [status] to the API `lifecycle` param (csv); null when "all".
+  String? get lifecycle => status;
 
   OffersFilterState copyWith({
     Object? status = _sentinel,

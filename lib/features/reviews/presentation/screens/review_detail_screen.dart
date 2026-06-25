@@ -1,24 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_chip.dart';
 import '../../../../core/widgets/app_icon_button.dart';
 import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/top_bar.dart';
+import '../../application/providers/reviews_providers.dart';
 import '../../domain/entities/review.dart';
 import '../components/stars.dart';
 
 /// Read-only review detail (pushed from the Reviews list). No moderation in v0.1.
-class ReviewDetailScreen extends StatelessWidget {
+/// Fetches the full record from the detail endpoint, using the list summary as
+/// an instant fallback while it loads.
+class ReviewDetailScreen extends ConsumerWidget {
   const ReviewDetailScreen({required this.review, super.key});
 
+  /// The list-card summary used to render immediately (detail enriches it).
   final Review review;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final detail = ref.watch(reviewDetailProvider(review.id));
+    final r = detail.valueOrNull ?? review;
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       body: SafeArea(
@@ -41,11 +49,19 @@ class ReviewDetailScreen extends StatelessWidget {
               child: ListView(
                 padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
                 children: [
-                  _ScoreCard(review: review),
+                  _ScoreCard(review: r),
                   SizedBox(height: 14.h),
-                  _BodyCard(review: review),
+                  if (r.isFlagged) ...[
+                    const _FlaggedBanner(),
+                    SizedBox(height: 14.h),
+                  ],
+                  _BodyCard(review: r),
+                  if (r.tags.isNotEmpty) ...[
+                    SizedBox(height: 14.h),
+                    _TagsCard(tags: r.tags),
+                  ],
                   SizedBox(height: 14.h),
-                  _MetaCard(review: review),
+                  _MetaCard(review: r),
                   SizedBox(height: 14.h),
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: 12.w),
@@ -225,6 +241,65 @@ class _MetaCard extends StatelessWidget {
                 ],
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Tag chips (detail-only) — free-form tokens like "Quick", "Friendly".
+class _TagsCard extends StatelessWidget {
+  const _TagsCard({required this.tags});
+
+  final List<String> tags;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      padding: EdgeInsets.all(18.r),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('TAGS', style: AppText.eyebrow),
+          SizedBox(height: 12.h),
+          Wrap(
+            spacing: 9.w,
+            runSpacing: 9.h,
+            children: [for (final tag in tags) AppChip(label: tag)],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Informational flag banner (no moderation action in v0.1).
+class _FlaggedBanner extends StatelessWidget {
+  const _FlaggedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
+      decoration: BoxDecoration(
+        color: AppColors.redBg,
+        borderRadius: BorderRadius.circular(12.r),
+        border: Border.all(color: AppColors.redDot),
+      ),
+      child: Row(
+        children: [
+          Icon(AppIcons.alert, size: 18.sp, color: AppColors.redFg),
+          SizedBox(width: 10.w),
+          Expanded(
+            child: Text(
+              'Flagged for review (informational only).',
+              style: AppText.figtree(
+                size: 13,
+                weight: FontWeight.w600,
+                color: AppColors.redFg,
+              ),
+            ),
+          ),
         ],
       ),
     );

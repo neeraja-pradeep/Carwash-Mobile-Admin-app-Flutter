@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
@@ -11,7 +12,9 @@ import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
 
+import '../../application/providers/drivers_providers.dart';
 import '../../domain/entities/field_driver.dart';
+import '../../infrastructure/models/driver_response_model.dart';
 import '../components/documents_section.dart';
 
 /// "Hire Driver" / "Edit Driver" full-screen form.
@@ -24,17 +27,20 @@ import '../components/documents_section.dart';
 /// Driving License (number/expiry/verified toggle), Documents.
 /// Footer: primary CTA, disabled until name + phone + licenseNo are filled.
 /// Back: shows a discard confirm dialog if the form is dirty.
-class HireDriverScreen extends StatefulWidget {
-  const HireDriverScreen({this.driver, super.key});
+class HireDriverScreen extends ConsumerStatefulWidget {
+  const HireDriverScreen({this.driver, this.isInspector = false, super.key});
 
   /// When non-null the form is in edit mode and prefilled from this driver.
   final FieldDriver? driver;
 
+  /// When true (add mode) the form creates an inspector instead of a driver.
+  final bool isInspector;
+
   @override
-  State<HireDriverScreen> createState() => _HireDriverScreenState();
+  ConsumerState<HireDriverScreen> createState() => _HireDriverScreenState();
 }
 
-class _HireDriverScreenState extends State<HireDriverScreen> {
+class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
   // Form state
   late String _name;
   late String _phone;
@@ -45,8 +51,20 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
   late bool _verified;
   late List<String> _classes;
   late List<DriverDocument> _docs;
+  bool _submitting = false;
 
   bool get _isEdit => widget.driver != null;
+
+  /// Drivers tab edits/creates drivers; the inspector flag is set on add and
+  /// inferred on edit from the worker's role label.
+  bool get _isInspector => _isEdit
+      ? (widget.driver!.subRole == null &&
+          widget.driver!.role.toLowerCase().contains('inspector'))
+      : widget.isInspector;
+
+  /// Role labels offered for drivers (excludes the "Inspector" pseudo-role).
+  List<String> get _roleOptions =>
+      kDriverRoles.where((r) => r != 'Inspector').toList();
 
   @override
   void initState() {
@@ -55,7 +73,9 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
     _name = d?.name ?? '';
     _phone = d?.phone ?? '';
     _email = d?.email ?? '';
-    _role = d?.role ?? kDriverRoles.first;
+    _role = d != null
+        ? roleLabelFromSubRole(d.subRole)
+        : _roleOptions.first;
     _licenseNo = d?.license.number ?? '';
     _licenseExpiry = d?.license.expiry ?? '';
     _verified = d?.license.verified ?? false;
@@ -99,6 +119,76 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
     }
   }
 
+  /// Converts the form's `MM-YYYY` expiry to an ISO `YYYY-MM-DD` date (assumes
+  /// the 1st of the month) — required by PATCH. Returns the raw value if it is
+  /// not in `MM-YYYY` form (e.g. already ISO or empty).
+  String? _expiryForPatch(String raw) {
+    final v = raw.trim();
+    if (v.isEmpty) return null;
+    final m = RegExp(r'^(\d{1,2})-(\d{4})$').firstMatch(v);
+    if (m != null) {
+      final month = m.group(1)!.padLeft(2, '0');
+      return '${m.group(2)}-$month-01';
+    }
+    return v;
+  }
+
+  Future<void> _submit() async {
+    if (!_valid || _submitting) return;
+    setState(() => _submitting = true);
+    final mutations = ref.read(driverMutationsProvider);
+    final isInspector = _isInspector;
+    try {
+      if (_isEdit) {
+        // Edit is reachable from the driver detail only (inspectors are
+        // list-only), so this always patches a driver.
+        await mutations.updateDriver(
+          widget.driver!.id,
+          fullName: _name.trim(),
+          email: _email.trim(),
+          subRole: subRoleFromLabel(_role),
+          vehicleClasses: _classes,
+          licenseNumber: _licenseNo.trim(),
+          licenseExpiry: _expiryForPatch(_licenseExpiry),
+          licenseVerified: _verified,
+          phone: _phone.trim(),
+        );
+        if (!mounted) return;
+        AppToast.show(context, 'Driver updated');
+      } else if (isInspector) {
+        await mutations.hireInspector(
+          fullName: _name.trim(),
+          phone: _phone.trim(),
+          email: _email.trim().isEmpty ? null : _email.trim(),
+          vehicleClasses: _classes,
+          licenseNumber: _licenseNo.trim(),
+          licenseExpiry: _licenseExpiry.trim(),
+          licenseVerified: _verified,
+        );
+        if (!mounted) return;
+        AppToast.show(context, 'Inspector added');
+      } else {
+        await mutations.hireDriver(
+          fullName: _name.trim(),
+          phone: _phone.trim(),
+          email: _email.trim().isEmpty ? null : _email.trim(),
+          subRole: subRoleFromLabel(_role),
+          vehicleClasses: _classes,
+          licenseNumber: _licenseNo.trim(),
+          licenseExpiry: _licenseExpiry.trim(),
+          licenseVerified: _verified,
+        );
+        if (!mounted) return;
+        AppToast.show(context, 'Driver added');
+      }
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -108,7 +198,9 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
         child: Column(
           children: [
             TopBar(
-              title: _isEdit ? 'Edit Driver' : 'Hire Driver',
+              title: _isEdit
+                  ? 'Edit Driver'
+                  : (_isInspector ? 'Add Inspector' : 'Hire Driver'),
               subtitle: _isEdit ? widget.driver!.name : 'New team member',
               onBack: _handleBack,
             ),
@@ -155,22 +247,25 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
                   _FormCard(
                     label: 'Role',
                     children: [
-                      // Role segmented chips
-                      Wrap(
-                        spacing: 8.w,
-                        runSpacing: 8.h,
-                        children: [
-                          for (final r in kDriverRoles)
-                            AppChip(
-                              label: r
-                                  .replaceAll(' driver', '')
-                                  .replaceAll('Wash + hire', 'Wash+Hire'),
-                              active: _role == r,
-                              onTap: () => setState(() => _role = r),
-                            ),
-                        ],
-                      ),
-                      SizedBox(height: 4.h),
+                      // Role segmented chips (drivers only — inspectors have
+                      // no sub_role).
+                      if (!_isInspector) ...[
+                        Wrap(
+                          spacing: 8.w,
+                          runSpacing: 8.h,
+                          children: [
+                            for (final r in _roleOptions)
+                              AppChip(
+                                label: r
+                                    .replaceAll(' driver', '')
+                                    .replaceAll('Wash + hire', 'Wash+Hire'),
+                                active: _role == r,
+                                onTap: () => setState(() => _role = r),
+                              ),
+                          ],
+                        ),
+                        SizedBox(height: 8.h),
+                      ],
                       Text(
                         'Vehicle classes they can handle',
                         style: AppText.figtree(
@@ -247,10 +342,13 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
                   ),
                   SizedBox(height: 14.h),
 
-                  // Documents
+                  // Documents — real uploads in edit mode (worker exists);
+                  // local-only in add mode (no id yet).
                   DocumentsSection(
                     documents: _docs,
                     onChanged: (updated) => setState(() => _docs = updated),
+                    workerId: _isEdit ? widget.driver!.id : null,
+                    isInspector: _isInspector,
                   ),
                 ],
               ),
@@ -266,20 +364,14 @@ class _HireDriverScreenState extends State<HireDriverScreen> {
                 ),
               ),
               child: AppButton(
-                label: _isEdit ? 'Save Changes' : 'Add Driver & Send Invite',
+                label: _isEdit
+                    ? 'Save Changes'
+                    : (_isInspector
+                        ? 'Add Inspector'
+                        : 'Add Driver & Send Invite'),
                 full: true,
-                disabled: !_valid,
-                onPressed: _valid
-                    ? () {
-                        AppToast.show(
-                          context,
-                          _isEdit
-                              ? 'Driver updated'
-                              : 'Driver added · invite sent to $_phone',
-                        );
-                        Navigator.of(context).pop();
-                      }
-                    : null,
+                disabled: !_valid || _submitting,
+                onPressed: (_valid && !_submitting) ? _submit : null,
               ),
             ),
           ],
