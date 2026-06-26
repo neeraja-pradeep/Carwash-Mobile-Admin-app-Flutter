@@ -7,29 +7,115 @@ import '../../../../../core/widgets/app_bottom_sheet.dart';
 import '../../../../../core/widgets/app_button.dart';
 import '../../domain/entities/app_settings.dart';
 
+/// Values collected by the hiring-rates sheet — only the screen-editable subset
+/// that maps to backend fields (see §13.2). Travel allowance maps to the
+/// driver's tiered "base per km"; night/workday/holiday have no backend field.
+class HiringRatesInput {
+  const HiringRatesInput({
+    required this.driverFirstHour,
+    required this.driverPerExtraHour,
+    required this.driverMinHours,
+    required this.driverNightSurcharge,
+    required this.driverTravelBasePerKm,
+    required this.inspectorBaseFee,
+    required this.inspectorWrittenReport,
+  });
+
+  final int driverFirstHour;
+  final int driverPerExtraHour;
+  final int driverMinHours;
+  final int driverNightSurcharge;
+  final int driverTravelBasePerKm;
+  final int inspectorBaseFee;
+  final int inspectorWrittenReport;
+}
+
 /// Shows the Hiring Rates bottom sheet with Driver / Inspector segments.
 ///
-/// Mirrors `BottomSheet open={ratesSheet}` in `screen_settings.jsx`.
-/// UI-only: saves are toasted but not persisted in the static prototype.
+/// [onSaved] persists the entered values (PATCH); it may throw to keep the
+/// sheet open (the caller shows the error toast). Closes only on success.
 Future<void> showHiringRatesSheet(
   BuildContext context, {
   required HiringRates rates,
-  required VoidCallback onSaved,
+  required Future<void> Function(HiringRatesInput input) onSaved,
 }) {
+  final d = rates.driver;
+  final i = rates.inspector;
+  final firstHour = TextEditingController(text: '${d.firstHour}');
+  final hourly = TextEditingController(text: '${d.hourly}');
+  final minHours = TextEditingController(text: '${d.minHours}');
+  final nightSurcharge = TextEditingController(text: '${d.nightSurcharge}');
+  final travelBasePerKm = TextEditingController(text: '${d.travelDay}');
+  final baseFee = TextEditingController(text: '${i.baseFee}');
+  final reportFee = TextEditingController(text: '${i.reportFee}');
+
+  final controllers = [
+    firstHour,
+    hourly,
+    minHours,
+    nightSurcharge,
+    travelBasePerKm,
+    baseFee,
+    reportFee,
+  ];
+
   return showAppBottomSheet<void>(
     context: context,
     title: 'Hiring rates',
-    footer: _RatesFooter(onSaved: onSaved),
-    builder: (sheetContext) => _RatesBody(rates: rates),
-  );
+    footer: _RatesFooter(
+      onSaved: () => onSaved(HiringRatesInput(
+        driverFirstHour: _parse(firstHour),
+        driverPerExtraHour: _parse(hourly),
+        driverMinHours: _parse(minHours),
+        driverNightSurcharge: _parse(nightSurcharge),
+        driverTravelBasePerKm: _parse(travelBasePerKm),
+        inspectorBaseFee: _parse(baseFee),
+        inspectorWrittenReport: _parse(reportFee),
+      )),
+    ),
+    builder: (sheetContext) => _RatesBody(
+      firstHour: firstHour,
+      hourly: hourly,
+      minHours: minHours,
+      nightSurcharge: nightSurcharge,
+      travelBasePerKm: travelBasePerKm,
+      baseFee: baseFee,
+      reportFee: reportFee,
+    ),
+  ).whenComplete(() {
+    for (final c in controllers) {
+      c.dispose();
+    }
+  });
 }
+
+int _parse(TextEditingController c) =>
+    double.tryParse(c.text.trim())?.round() ?? 0;
 
 // ── Footer ────────────────────────────────────────────────────────────────────
 
-class _RatesFooter extends StatelessWidget {
+class _RatesFooter extends StatefulWidget {
   const _RatesFooter({required this.onSaved});
 
-  final VoidCallback onSaved;
+  final Future<void> Function() onSaved;
+
+  @override
+  State<_RatesFooter> createState() => _RatesFooterState();
+}
+
+class _RatesFooterState extends State<_RatesFooter> {
+  bool _saving = false;
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onSaved();
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,18 +126,16 @@ class _RatesFooter extends StatelessWidget {
             label: 'Cancel',
             kind: AppButtonKind.secondary,
             full: true,
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _saving ? null : () => Navigator.of(context).pop(),
           ),
         ),
         SizedBox(width: 12.w),
         Expanded(
           child: AppButton(
-            label: 'Save',
+            label: _saving ? 'Saving…' : 'Save',
             full: true,
-            onPressed: () {
-              Navigator.of(context).pop();
-              onSaved();
-            },
+            disabled: _saving,
+            onPressed: _saving ? null : _save,
           ),
         ),
       ],
@@ -62,9 +146,23 @@ class _RatesFooter extends StatelessWidget {
 // ── Body ──────────────────────────────────────────────────────────────────────
 
 class _RatesBody extends StatefulWidget {
-  const _RatesBody({required this.rates});
+  const _RatesBody({
+    required this.firstHour,
+    required this.hourly,
+    required this.minHours,
+    required this.nightSurcharge,
+    required this.travelBasePerKm,
+    required this.baseFee,
+    required this.reportFee,
+  });
 
-  final HiringRates rates;
+  final TextEditingController firstHour;
+  final TextEditingController hourly;
+  final TextEditingController minHours;
+  final TextEditingController nightSurcharge;
+  final TextEditingController travelBasePerKm;
+  final TextEditingController baseFee;
+  final TextEditingController reportFee;
 
   @override
   State<_RatesBody> createState() => _RatesBodyState();
@@ -72,48 +170,6 @@ class _RatesBody extends StatefulWidget {
 
 class _RatesBodyState extends State<_RatesBody> {
   String _seg = 'driver'; // 'driver' | 'inspector'
-
-  // Driver controllers
-  late final TextEditingController _firstHour;
-  late final TextEditingController _hourly;
-  late final TextEditingController _minHours;
-  late final TextEditingController _nightSurcharge;
-  late final TextEditingController _travelDay;
-  late final TextEditingController _travelNight;
-
-  // Inspector controllers
-  late final TextEditingController _baseFee;
-  late final TextEditingController _reportFee;
-  late final TextEditingController _travelWorkday;
-  late final TextEditingController _travelHoliday;
-
-  @override
-  void initState() {
-    super.initState();
-    final d = widget.rates.driver;
-    final i = widget.rates.inspector;
-    _firstHour = TextEditingController(text: '${d.firstHour}');
-    _hourly = TextEditingController(text: '${d.hourly}');
-    _minHours = TextEditingController(text: '${d.minHours}');
-    _nightSurcharge = TextEditingController(text: '${d.nightSurcharge}');
-    _travelDay = TextEditingController(text: '${d.travelDay}');
-    _travelNight = TextEditingController(text: '${d.travelNight}');
-    _baseFee = TextEditingController(text: '${i.baseFee}');
-    _reportFee = TextEditingController(text: '${i.reportFee}');
-    _travelWorkday = TextEditingController(text: '${i.travelWorkday}');
-    _travelHoliday = TextEditingController(text: '${i.travelHoliday}');
-  }
-
-  @override
-  void dispose() {
-    for (final c in [
-      _firstHour, _hourly, _minHours, _nightSurcharge, _travelDay, _travelNight,
-      _baseFee, _reportFee, _travelWorkday, _travelHoliday,
-    ]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -152,25 +208,25 @@ class _RatesBodyState extends State<_RatesBody> {
       children: [
         Row(
           children: [
-            Expanded(child: _RateField(label: 'First hour', controller: _firstHour, prefix: '₹')),
+            Expanded(child: _RateField(label: 'First hour', controller: widget.firstHour, prefix: '₹')),
             SizedBox(width: 12.w),
-            Expanded(child: _RateField(label: 'Per extra hour', controller: _hourly, prefix: '₹')),
+            Expanded(child: _RateField(label: 'Per extra hour', controller: widget.hourly, prefix: '₹')),
           ],
         ),
         SizedBox(height: 14.h),
         Row(
           children: [
-            Expanded(child: _RateField(label: 'Min hours', controller: _minHours, suffix: 'hrs')),
+            Expanded(child: _RateField(label: 'Min hours', controller: widget.minHours, suffix: 'hrs')),
             SizedBox(width: 12.w),
-            Expanded(child: _RateField(label: 'Night surcharge', controller: _nightSurcharge, prefix: '₹')),
+            Expanded(child: _RateField(label: 'Night surcharge', controller: widget.nightSurcharge, prefix: '₹')),
           ],
         ),
         SizedBox(height: 14.h),
         Row(
           children: [
-            Expanded(child: _RateField(label: 'Travel allowance · day', controller: _travelDay, prefix: '₹')),
+            Expanded(child: _RateField(label: 'Travel · base per km', controller: widget.travelBasePerKm, prefix: '₹')),
             SizedBox(width: 12.w),
-            Expanded(child: _RateField(label: 'Travel allowance · night', controller: _travelNight, prefix: '₹')),
+            const Expanded(child: SizedBox()),
           ],
         ),
       ],
@@ -183,17 +239,9 @@ class _RatesBodyState extends State<_RatesBody> {
       children: [
         Row(
           children: [
-            Expanded(child: _RateField(label: 'Base fee', controller: _baseFee, prefix: '₹')),
+            Expanded(child: _RateField(label: 'Base fee', controller: widget.baseFee, prefix: '₹')),
             SizedBox(width: 12.w),
-            Expanded(child: _RateField(label: 'Written report', controller: _reportFee, prefix: '₹')),
-          ],
-        ),
-        SizedBox(height: 14.h),
-        Row(
-          children: [
-            Expanded(child: _RateField(label: 'Travel allowance · working day', controller: _travelWorkday, prefix: '₹')),
-            SizedBox(width: 12.w),
-            Expanded(child: _RateField(label: 'Travel allowance · holiday', controller: _travelHoliday, prefix: '₹')),
+            Expanded(child: _RateField(label: 'Written report', controller: widget.reportFee, prefix: '₹')),
           ],
         ),
       ],
@@ -324,4 +372,3 @@ class _RateField extends StatelessWidget {
     );
   }
 }
-

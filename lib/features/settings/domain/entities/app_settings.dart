@@ -26,12 +26,20 @@ class ServiceArea {
     required this.name,
     required this.pincode,
     required this.radiusKm,
+    required this.latitude,
+    required this.longitude,
+    required this.types,
+    this.active = true,
   });
 
-  final String id;
+  final int id;
   final String name;
   final String pincode;
   final int radiusKm;
+  final double latitude;
+  final double longitude;
+  final List<String> types;
+  final bool active;
 }
 
 class ServiceAreas {
@@ -123,29 +131,21 @@ class NotificationToggles {
     required this.newBooking,
     required this.refundRequest,
     required this.lowRating,
-    required this.dailySummary,
-    required this.payoutDue,
   });
 
   final bool newBooking;
   final bool refundRequest;
   final bool lowRating;
-  final bool dailySummary;
-  final bool payoutDue;
 
   NotificationToggles copyWith({
     bool? newBooking,
     bool? refundRequest,
     bool? lowRating,
-    bool? dailySummary,
-    bool? payoutDue,
   }) {
     return NotificationToggles(
       newBooking: newBooking ?? this.newBooking,
       refundRequest: refundRequest ?? this.refundRequest,
       lowRating: lowRating ?? this.lowRating,
-      dailySummary: dailySummary ?? this.dailySummary,
-      payoutDue: payoutDue ?? this.payoutDue,
     );
   }
 }

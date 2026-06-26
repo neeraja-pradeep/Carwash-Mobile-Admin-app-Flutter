@@ -17,9 +17,8 @@ import '../../domain/entities/app_settings.dart';
 
 /// Service Areas sub-screen: Carwash & Hire coverage areas.
 ///
-/// Mirrors `ServiceAreasScreen` in `screen_settings.jsx` (lines 106–154).
-/// State is local (mutable copy seeded from settings); in the API phase
-/// mutations go through the repository.
+/// Reads the areas from [appSettingsProvider] and persists add/edit/delete
+/// through [SettingsActions] (which invalidate the provider to refresh).
 class ServiceAreasScreen extends ConsumerStatefulWidget {
   const ServiceAreasScreen({super.key});
 
@@ -29,16 +28,6 @@ class ServiceAreasScreen extends ConsumerStatefulWidget {
 
 class _ServiceAreasScreenState extends ConsumerState<ServiceAreasScreen> {
   String _seg = 'carwash'; // 'carwash' | 'hire'
-  List<ServiceArea>? _carwash;
-  List<ServiceArea>? _hire;
-
-  List<ServiceArea> get _currentList =>
-      _seg == 'carwash' ? (_carwash ?? []) : (_hire ?? []);
-
-  void _init(AppSettings settings) {
-    _carwash ??= List<ServiceArea>.from(settings.serviceAreas.carwash);
-    _hire ??= List<ServiceArea>.from(settings.serviceAreas.hire);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +61,9 @@ class _ServiceAreasScreenState extends ConsumerState<ServiceAreasScreen> {
                   child: Text('Failed to load service areas'),
                 ),
                 data: (settings) {
-                  _init(settings);
+                  final areas = _seg == 'carwash'
+                      ? settings.serviceAreas.carwash
+                      : settings.serviceAreas.hire;
                   return Column(
                     children: [
                       _SegmentBar(
@@ -81,10 +72,10 @@ class _ServiceAreasScreenState extends ConsumerState<ServiceAreasScreen> {
                       ),
                       Expanded(
                         child: _AreaList(
-                          areas: _currentList,
+                          areas: areas,
                           seg: _seg,
-                          onEdit: (area) => _openSheet(context, area: area),
-                          onAdd: () => _openSheet(context, area: null),
+                          onEdit: (area) => _openSheet(area: area),
+                          onAdd: () => _openSheet(area: null),
                         ),
                       ),
                     ],
@@ -98,44 +89,58 @@ class _ServiceAreasScreenState extends ConsumerState<ServiceAreasScreen> {
     );
   }
 
-  Future<void> _openSheet(BuildContext context,
-      {required ServiceArea? area}) async {
+  Future<void> _openSheet({required ServiceArea? area}) async {
+    final actions = ref.read(settingsActionsProvider);
     await _AreaSheet.show(
       context,
       area: area,
       kind: _seg,
-      onSave: (name, pincode, radius) {
-        setState(() {
-          final list = _currentList;
+      onSave: (name, pincode, radius, lat, lng) async {
+        try {
           if (area != null) {
-            final idx = list.indexWhere((a) => a.id == area.id);
-            if (idx >= 0) {
-              list[idx] = ServiceArea(
-                id: area.id,
-                name: name,
-                pincode: pincode,
-                radiusKm: radius,
-              );
-            }
-          } else {
-            list.add(ServiceArea(
-              id: 'a${DateTime.now().millisecondsSinceEpoch}',
+            await actions.updateArea(
+              area.id,
               name: name,
               pincode: pincode,
               radiusKm: radius,
-            ));
+              latitude: lat,
+              longitude: lng,
+            );
+          } else {
+            await actions.createArea(
+              name: name,
+              pincode: pincode,
+              radiusKm: radius,
+              latitude: lat,
+              longitude: lng,
+              types: _seg == 'carwash'
+                  ? const ['carwash']
+                  : const ['driver', 'inspector'],
+            );
           }
-        });
-        AppToast.show(context, area != null ? 'Area updated' : 'Area added');
+          if (mounted) {
+            AppToast.show(context, area != null ? 'Area updated' : 'Area added');
+          }
+        } catch (e) {
+          if (mounted) AppToast.show(context, _errMsg(e));
+          rethrow;
+        }
       },
       onDelete: area != null
-          ? () {
-              setState(() => _currentList.removeWhere((a) => a.id == area.id));
-              AppToast.show(context, 'Area removed');
+          ? () async {
+              try {
+                await actions.deleteArea(area.id);
+                if (mounted) AppToast.show(context, 'Area removed');
+              } catch (e) {
+                if (mounted) AppToast.show(context, _errMsg(e));
+                rethrow;
+              }
             }
           : null,
     );
   }
+
+  String _errMsg(Object e) => e.toString().replaceFirst('Exception: ', '');
 }
 
 // ── Segment bar ───────────────────────────────────────────────────────────────
@@ -386,15 +391,27 @@ class _AreaSheet extends StatefulWidget {
 
   final ServiceArea? area;
   final String kind;
-  final void Function(String name, String pincode, int radius) onSave;
-  final VoidCallback? onDelete;
+  final Future<void> Function(
+    String name,
+    String pincode,
+    int radius,
+    double latitude,
+    double longitude,
+  ) onSave;
+  final Future<void> Function()? onDelete;
 
   static Future<void> show(
     BuildContext context, {
     ServiceArea? area,
     required String kind,
-    required void Function(String name, String pincode, int radius) onSave,
-    VoidCallback? onDelete,
+    required Future<void> Function(
+      String name,
+      String pincode,
+      int radius,
+      double latitude,
+      double longitude,
+    ) onSave,
+    Future<void> Function()? onDelete,
   }) {
     return showModalBottomSheet<void>(
       context: context,
@@ -417,13 +434,20 @@ class _AreaSheet extends StatefulWidget {
 class _AreaSheetState extends State<_AreaSheet> {
   late final TextEditingController _name;
   late final TextEditingController _pincode;
+  late final TextEditingController _lat;
+  late final TextEditingController _lng;
   late double _radius;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
     _name = TextEditingController(text: widget.area?.name ?? '');
     _pincode = TextEditingController(text: widget.area?.pincode ?? '');
+    _lat = TextEditingController(
+        text: widget.area != null ? '${widget.area!.latitude}' : '');
+    _lng = TextEditingController(
+        text: widget.area != null ? '${widget.area!.longitude}' : '');
     _radius = (widget.area?.radiusKm ?? 5).toDouble();
   }
 
@@ -431,20 +455,36 @@ class _AreaSheetState extends State<_AreaSheet> {
   void dispose() {
     _name.dispose();
     _pincode.dispose();
+    _lat.dispose();
+    _lng.dispose();
     super.dispose();
   }
 
-  bool get _valid =>
-      _name.text.trim().isNotEmpty && _pincode.text.trim().length >= 4;
+  double? get _latValue => double.tryParse(_lat.text.trim());
+  double? get _lngValue => double.tryParse(_lng.text.trim());
 
-  void _save() {
-    if (!_valid) return;
-    Navigator.of(context).pop();
-    widget.onSave(
-      _name.text.trim(),
-      _pincode.text.trim(),
-      _radius.round(),
-    );
+  bool get _valid =>
+      _name.text.trim().isNotEmpty &&
+      _pincode.text.trim().length >= 4 &&
+      _latValue != null &&
+      _lngValue != null;
+
+  Future<void> _save() async {
+    if (!_valid || _saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onSave(
+        _name.text.trim(),
+        _pincode.text.trim(),
+        _radius.round(),
+        _latValue!,
+        _lngValue!,
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      // Caller surfaces the error toast; keep the sheet open to retry.
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   Future<void> _delete() async {
@@ -459,8 +499,13 @@ class _AreaSheetState extends State<_AreaSheet> {
       destructive: true,
     );
     if (!confirmed) return;
-    if (mounted) Navigator.of(context).pop();
-    widget.onDelete?.call();
+    if (mounted) setState(() => _saving = true);
+    try {
+      await widget.onDelete?.call();
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -547,7 +592,8 @@ class _AreaSheetState extends State<_AreaSheet> {
                       label: 'Delete',
                       kind: AppButtonKind.secondary,
                       full: true,
-                      onPressed: _delete,
+                      disabled: _saving,
+                      onPressed: _saving ? null : _delete,
                     ),
                   ),
                   SizedBox(width: 12.w),
@@ -555,12 +601,12 @@ class _AreaSheetState extends State<_AreaSheet> {
                 Expanded(
                   flex: widget.onDelete != null ? 2 : 1,
                   child: ListenableBuilder(
-                    listenable: Listenable.merge([_name, _pincode]),
+                    listenable: Listenable.merge([_name, _pincode, _lat, _lng]),
                     builder: (_, __) => AppButton(
-                      label: 'Save area',
+                      label: _saving ? 'Saving…' : 'Save area',
                       full: true,
-                      disabled: !_valid,
-                      onPressed: _valid ? _save : null,
+                      disabled: !_valid || _saving,
+                      onPressed: (_valid && !_saving) ? _save : null,
                     ),
                   ),
                 ),
@@ -581,7 +627,7 @@ class _AreaSheetState extends State<_AreaSheet> {
         GestureDetector(
           onTap: () => AppToast.show(
             context,
-            'Google Maps search — pin the service-area center',
+            'Enter the pin\'s latitude & longitude below',
           ),
           child: Container(
             width: double.infinity,
@@ -605,42 +651,6 @@ class _AreaSheetState extends State<_AreaSheet> {
                     child: const SizedBox.expand(),
                   ),
                 ),
-                // Search bar placeholder
-                Positioned(
-                  top: 12.h,
-                  left: 12.w,
-                  right: 12.w,
-                  child: Container(
-                    height: 40.h,
-                    padding: EdgeInsets.symmetric(horizontal: 12.w),
-                    decoration: BoxDecoration(
-                      color: AppColors.bgCard.withOpacity(0.85),
-                      borderRadius: BorderRadius.circular(10.r),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0x33000000),
-                          blurRadius: 8.r,
-                          offset: Offset(0, 2.h),
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(AppIcons.search,
-                            size: 16.sp, color: AppColors.fgSecondary),
-                        SizedBox(width: 8.w),
-                        Text(
-                          'Search location on map…',
-                          style: AppText.figtree(
-                            size: 13,
-                            weight: FontWeight.w500,
-                            color: AppColors.fgTertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
                 // Pin icon
                 Center(
                   child: Padding(
@@ -658,6 +668,42 @@ class _AreaSheetState extends State<_AreaSheet> {
         _FieldLabel('Area / locality name'),
         SizedBox(height: 7.h),
         _FormField(controller: _name, hint: 'e.g. Mullackal'),
+        SizedBox(height: 14.h),
+
+        // Latitude + longitude row
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _FieldLabel('Latitude'),
+                  SizedBox(height: 7.h),
+                  _FormField(
+                    controller: _lat,
+                    hint: '9.4981',
+                    numeric: true,
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _FieldLabel('Longitude'),
+                  SizedBox(height: 7.h),
+                  _FormField(
+                    controller: _lng,
+                    hint: '76.3388',
+                    numeric: true,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
         SizedBox(height: 14.h),
 
         // Pincode + radius row
@@ -797,7 +843,9 @@ class _FormField extends StatelessWidget {
       ),
       child: TextField(
         controller: controller,
-        keyboardType: numeric ? TextInputType.number : TextInputType.text,
+        keyboardType: numeric
+            ? const TextInputType.numberWithOptions(decimal: true, signed: true)
+            : TextInputType.text,
         maxLength: maxLength,
         style: AppText.figtree(size: 14, weight: FontWeight.w500),
         decoration: InputDecoration(

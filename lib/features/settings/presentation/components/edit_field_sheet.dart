@@ -10,7 +10,11 @@ import '../../../../../core/widgets/app_button.dart';
 ///
 /// Mirrors `BottomSheet open={!!edit}` in `screen_settings.jsx`. When [info]
 /// is non-null it renders an info paragraph. When [label] is non-null it
-/// renders a text/numeric input. Both can coexist (refund tiers: info only).
+/// renders a text/numeric input.
+///
+/// [onSaved] receives the entered value and should perform the persistence
+/// (PATCH) — it may throw to keep the sheet open (the caller shows the error
+/// toast). The sheet closes only on success.
 Future<void> showEditFieldSheet(
   BuildContext context, {
   required String title,
@@ -19,31 +23,52 @@ Future<void> showEditFieldSheet(
   String? info,
   bool numeric = false,
   String? suffix,
-  required VoidCallback onSaved,
+  Future<void> Function(String value)? onSaved,
 }) {
+  final controller = TextEditingController(text: initialValue ?? '');
   return showAppBottomSheet<void>(
     context: context,
     title: title,
     maxHeightFactor: 0.6,
-    footer: label != null
-        ? _EditFooter(onSaved: onSaved)
+    footer: label != null && onSaved != null
+        ? _EditFooter(controller: controller, onSaved: onSaved)
         : const _InfoFooter(),
     builder: (ctx) => _EditBody(
+      controller: controller,
       info: info,
       label: label,
-      initialValue: initialValue,
       numeric: numeric,
       suffix: suffix,
     ),
-  );
+  ).whenComplete(controller.dispose);
 }
 
 // ── Footer variants ────────────────────────────────────────────────────────────
 
-class _EditFooter extends StatelessWidget {
-  const _EditFooter({required this.onSaved});
+class _EditFooter extends StatefulWidget {
+  const _EditFooter({required this.controller, required this.onSaved});
 
-  final VoidCallback onSaved;
+  final TextEditingController controller;
+  final Future<void> Function(String value) onSaved;
+
+  @override
+  State<_EditFooter> createState() => _EditFooterState();
+}
+
+class _EditFooterState extends State<_EditFooter> {
+  bool _saving = false;
+
+  Future<void> _save() async {
+    if (_saving) return;
+    setState(() => _saving = true);
+    try {
+      await widget.onSaved(widget.controller.text.trim());
+      if (mounted) Navigator.of(context).pop();
+    } catch (_) {
+      // Caller surfaces the error toast; keep the sheet open to retry.
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,18 +79,16 @@ class _EditFooter extends StatelessWidget {
             label: 'Cancel',
             kind: AppButtonKind.secondary,
             full: true,
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: _saving ? null : () => Navigator.of(context).pop(),
           ),
         ),
         SizedBox(width: 12.w),
         Expanded(
           child: AppButton(
-            label: 'Save',
+            label: _saving ? 'Saving…' : 'Save',
             full: true,
-            onPressed: () {
-              Navigator.of(context).pop();
-              onSaved();
-            },
+            disabled: _saving,
+            onPressed: _saving ? null : _save,
           ),
         ),
       ],
@@ -88,39 +111,20 @@ class _InfoFooter extends StatelessWidget {
 
 // ── Body ──────────────────────────────────────────────────────────────────────
 
-class _EditBody extends StatefulWidget {
+class _EditBody extends StatelessWidget {
   const _EditBody({
+    required this.controller,
     this.info,
     this.label,
-    this.initialValue,
     this.numeric = false,
     this.suffix,
   });
 
+  final TextEditingController controller;
   final String? info;
   final String? label;
-  final String? initialValue;
   final bool numeric;
   final String? suffix;
-
-  @override
-  State<_EditBody> createState() => _EditBodyState();
-}
-
-class _EditBodyState extends State<_EditBody> {
-  late final TextEditingController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.initialValue ?? '');
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -128,11 +132,11 @@ class _EditBodyState extends State<_EditBody> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (widget.info != null)
+        if (info != null)
           Padding(
-            padding: EdgeInsets.only(bottom: widget.label != null ? 16.h : 0),
+            padding: EdgeInsets.only(bottom: label != null ? 16.h : 0),
             child: Text(
-              widget.info!,
+              info!,
               style: AppText.figtree(
                 size: 13.5,
                 weight: FontWeight.w400,
@@ -141,9 +145,9 @@ class _EditBodyState extends State<_EditBody> {
               ),
             ),
           ),
-        if (widget.label != null) ...[
+        if (label != null) ...[
           Text(
-            widget.label!,
+            label!,
             style: AppText.figtree(
               size: 12.5,
               weight: FontWeight.w600,
@@ -162,17 +166,16 @@ class _EditBodyState extends State<_EditBody> {
               children: [
                 Expanded(
                   child: TextField(
-                    controller: _ctrl,
-                    keyboardType: widget.numeric
-                        ? TextInputType.number
-                        : TextInputType.text,
+                    controller: controller,
+                    keyboardType:
+                        numeric ? TextInputType.number : TextInputType.text,
                     style: AppText.figtree(size: 14, weight: FontWeight.w500),
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       contentPadding:
                           EdgeInsets.symmetric(horizontal: 12.w, vertical: 0),
                       isDense: true,
-                      suffixText: widget.suffix,
+                      suffixText: suffix,
                       suffixStyle: AppText.figtree(
                         size: 13,
                         weight: FontWeight.w500,

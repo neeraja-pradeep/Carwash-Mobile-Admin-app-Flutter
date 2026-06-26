@@ -58,12 +58,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 data: (settings) => _Body(
                   settings: settings,
                   notif: _notif ?? settings.notifications,
-                  onToggle: (key) {
-                    setState(() {
-                      final n = _notif ?? settings.notifications;
-                      _notif = _toggleKey(n, key);
-                    });
-                  },
+                  onToggle: (key) =>
+                      _handleToggle(_notif ?? settings.notifications, key),
                 ),
               ),
             ),
@@ -71,6 +67,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ),
       ),
     );
+  }
+
+  /// Optimistically flips the toggle, persists via the API and reverts on error.
+  Future<void> _handleToggle(NotificationToggles base, String key) async {
+    final updated = _toggleKey(base, key);
+    setState(() => _notif = updated);
+
+    try {
+      await ref.read(settingsActionsProvider).updateNotifications(
+            newBooking: key == 'newBooking' ? updated.newBooking : null,
+            refundRequest: key == 'refundRequest' ? updated.refundRequest : null,
+            lowRating: key == 'lowRating' ? updated.lowRating : null,
+          );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _notif = base);
+      AppToast.show(context, 'Could not update notifications');
+    }
   }
 
   NotificationToggles _toggleKey(NotificationToggles n, String key) {
@@ -81,10 +95,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return n.copyWith(refundRequest: !n.refundRequest);
       case 'lowRating':
         return n.copyWith(lowRating: !n.lowRating);
-      case 'dailySummary':
-        return n.copyWith(dailySummary: !n.dailySummary);
-      case 'payoutDue':
-        return n.copyWith(payoutDue: !n.payoutDue);
       default:
         return n;
     }
@@ -108,13 +118,30 @@ class _Body extends ConsumerWidget {
     ('newBooking', 'New booking'),
     ('refundRequest', 'Refund requests'),
     ('lowRating', 'Low ratings (≤3★)'),
-    ('dailySummary', 'Daily summary'),
-    ('payoutDue', 'Payout due reminders'),
   ];
+
+  /// Runs a persistence [action], toasting success or the error message.
+  /// Rethrows on failure so the edit sheet stays open for a retry.
+  Future<void> _persist(
+    BuildContext context,
+    Future<void> Function() action,
+    String success,
+  ) async {
+    try {
+      await action();
+      if (context.mounted) AppToast.show(context, success);
+    } catch (e) {
+      if (context.mounted) {
+        AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+      rethrow;
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final s = settings;
+    final actions = ref.read(settingsActionsProvider);
 
     return ListView(
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 28.h),
@@ -178,7 +205,11 @@ class _Body extends ConsumerWidget {
                 title: 'Business name',
                 label: 'Business name',
                 initialValue: s.business.name,
-                onSaved: () => AppToast.show(context, 'Business name saved'),
+                onSaved: (v) => _persist(
+                  context,
+                  () => actions.updateOrgInfo(legalName: v),
+                  'Business name saved',
+                ),
               ),
             ),
             SettingsItem(
@@ -190,7 +221,11 @@ class _Body extends ConsumerWidget {
                 title: 'GSTIN',
                 label: 'GSTIN',
                 initialValue: s.business.gstin,
-                onSaved: () => AppToast.show(context, 'GSTIN saved'),
+                onSaved: (v) => _persist(
+                  context,
+                  () => actions.updateOrgInfo(gstin: v),
+                  'GSTIN saved',
+                ),
               ),
             ),
             SettingsItem(
@@ -203,7 +238,11 @@ class _Body extends ConsumerWidget {
                 title: 'Support phone',
                 label: 'Support phone',
                 initialValue: s.business.support,
-                onSaved: () => AppToast.show(context, 'Support phone saved'),
+                onSaved: (v) => _persist(
+                  context,
+                  () => actions.updateOrgInfo(supportPhone: v),
+                  'Support phone saved',
+                ),
               ),
             ),
           ],
@@ -214,6 +253,7 @@ class _Body extends ConsumerWidget {
         SettingsGroupSection(
           label: 'Operations',
           children: [
+            // Platform slot grid is fixed at 30-minute blocks — read-only (§13).
             SettingsItem(
               icon: AppIcons.clock,
               title: 'Default slot interval',
@@ -224,14 +264,6 @@ class _Body extends ConsumerWidget {
                   weight: FontWeight.w600,
                   color: AppColors.fgSecondary,
                 ),
-              ),
-              onTap: () => showEditFieldSheet(
-                context,
-                title: 'Slot interval (min)',
-                label: 'Minutes',
-                initialValue: '${s.slotInterval}',
-                numeric: true,
-                onSaved: () => AppToast.show(context, 'Slot interval saved'),
               ),
             ),
             SettingsItem(
@@ -245,8 +277,13 @@ class _Body extends ConsumerWidget {
                 initialValue: '${s.defaultCommission.pct}',
                 numeric: true,
                 suffix: '%',
-                onSaved: () =>
-                    AppToast.show(context, 'Default commission % saved'),
+                onSaved: (v) => _persist(
+                  context,
+                  () => actions.updateOrgInfo(
+                    defaultCommissionPercent: int.tryParse(v) ?? 0,
+                  ),
+                  'Default commission % saved',
+                ),
               ),
             ),
             SettingsItem(
@@ -257,7 +294,19 @@ class _Body extends ConsumerWidget {
               onTap: () => showHiringRatesSheet(
                 context,
                 rates: s.rates,
-                onSaved: () => AppToast.show(context, 'Hiring rates saved'),
+                onSaved: (input) => _persist(
+                  context,
+                  () => actions.updateHiringRates(
+                    driverFirstHour: input.driverFirstHour,
+                    driverPerExtraHour: input.driverPerExtraHour,
+                    driverMinHours: input.driverMinHours,
+                    driverNightSurcharge: input.driverNightSurcharge,
+                    driverTravelBasePerKm: input.driverTravelBasePerKm,
+                    inspectorBaseFee: input.inspectorBaseFee,
+                    inspectorWrittenReport: input.inspectorWrittenReport,
+                  ),
+                  'Hiring rates saved',
+                ),
               ),
             ),
             SettingsItem(
@@ -277,9 +326,8 @@ class _Body extends ConsumerWidget {
                 title: 'Refund tiers',
                 info:
                     'Full = before assignment · Partial (70%) = after assignment, '
-                    'before pickup · None = after pickup. Editing the % rules is a '
-                    'later-pass feature.',
-                onSaved: () {},
+                    'before pickup · None = after pickup. Refunds are set manually '
+                    'per request — there are no configurable tier rules.',
               ),
             ),
           ],
@@ -358,10 +406,6 @@ class _Body extends ConsumerWidget {
         return n.refundRequest;
       case 'lowRating':
         return n.lowRating;
-      case 'dailySummary':
-        return n.dailySummary;
-      case 'payoutDue':
-        return n.payoutDue;
       default:
         return false;
     }
