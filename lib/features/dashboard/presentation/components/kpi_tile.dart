@@ -92,13 +92,21 @@ class KpiTile extends StatelessWidget {
                   ),
                 ),
                 SizedBox(height: 8.h),
-                Text(
-                  sub,
-                  style: AppText.figtree(
-                    size: 12,
-                    weight: FontWeight.w500,
-                    color: resolvedSubColor,
-                    height: 1.35,
+                // Flexible so a longer sub line (or a larger system font scale)
+                // ellipsises within the fixed-height grid cell instead of
+                // overflowing the tile — see the Bookings Today tile, whose
+                // "N waiting · N active · N done" is the tallest sub.
+                Flexible(
+                  child: Text(
+                    sub,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppText.figtree(
+                      size: 12,
+                      weight: FontWeight.w500,
+                      color: resolvedSubColor,
+                      height: 1.35,
+                    ),
                   ),
                 ),
               ],

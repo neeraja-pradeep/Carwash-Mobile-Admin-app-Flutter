@@ -63,6 +63,9 @@ class HttpClient {
 
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
+      // On web, send browser-managed cookies (sessionid/csrftoken) cross-origin.
+      // The manual `Cookie` header below is stripped by browsers; this is ignored on mobile.
+      extra: const {'withCredentials': true},
       contentType: 'application/json',
       responseType: ResponseType.json,
       connectTimeout: const Duration(seconds: 30),

@@ -47,6 +47,10 @@ dependencies:
   # Media picker (document & payment-proof uploads — API-integration phase)
   image_picker: ^1.1.2
 
+  # Report CSV export (download bytes → temp file → share sheet)
+  path_provider: ^2.1.4
+  share_plus: ^10.1.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

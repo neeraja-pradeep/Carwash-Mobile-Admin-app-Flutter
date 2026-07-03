@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/customer.dart';
@@ -120,9 +121,16 @@ Future<void> unblockCustomer(WidgetRef ref, String id) async {
 }
 
 void _refreshCustomer(WidgetRef ref, String id) {
-  ref.invalidate(customerByIdProvider(id));
-  // The list shows the active/blocked badge + stats, so refresh it too.
-  ref.invalidate(customersProvider);
+  // Defer invalidation until after the current frame. Invalidating a watched
+  // provider synchronously while the note/confirmation modal route is tearing
+  // down throws a `_dependents.isEmpty` assertion (the red flash) and aborts the
+  // detail refetch, which then surfaces as "Customer not found". Running it in a
+  // post-frame callback lets the modal fully unmount first.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    ref.invalidate(customerByIdProvider(id));
+    // The list shows the active/blocked badge + stats, so refresh it too.
+    ref.invalidate(customersProvider);
+  });
 }
 
 // ─── Controller ──────────────────────────────────────────────────────────────

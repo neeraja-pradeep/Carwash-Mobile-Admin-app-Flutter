@@ -89,7 +89,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                                 : null,
                             color: b == null
                                 ? AppColors.bgCard
-                                : AppColors.fgPrimary.withOpacity(0.1),
+                                : AppColors.fgPrimary.withValues(alpha: 0.1),
                             image: b != null
                                 ? DecorationImage(
                                     image: AssetImage(b.image),

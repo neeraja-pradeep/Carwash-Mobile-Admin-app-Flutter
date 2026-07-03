@@ -13,6 +13,7 @@ import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/features/customers/application/providers/customers_providers.dart';
 import 'package:new_flutter_project/features/customers/domain/entities/customer.dart';
+import 'package:new_flutter_project/features/shops/application/providers/shop_services_providers.dart';
 import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
 import 'package:new_flutter_project/features/shops/domain/entities/shop.dart';
 
@@ -165,6 +166,11 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
   @override
   Widget build(BuildContext context) {
     final shopsAsync = ref.watch(shopsProvider);
+    // Services aren't included in the shop list/detail payloads, so fetch them
+    // for the selected shop from the dedicated shop-services endpoint.
+    final servicesAsync = _shopId != null
+        ? ref.watch(shopServicesProvider(_shopId!))
+        : const AsyncValue<List<ShopService>>.data(<ShopService>[]);
 
     return shopsAsync.when(
       loading: () => const Scaffold(
@@ -179,8 +185,9 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
             ? allShops.firstWhereOrNull((s) => s.id == _shopId)
             : null;
 
+        final shopServices = servicesAsync.asData?.value ?? <ShopService>[];
         final availServices = shop != null
-            ? shop.services
+            ? shopServices
                 .where((sv) => sv.active && _svcPrice(sv) != null)
                 .toList()
             : <ShopService>[];
@@ -332,7 +339,16 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                                 ),
                               ),
                               SizedBox(height: 8.h),
-                              if (availServices.isEmpty)
+                              if (servicesAsync.isLoading)
+                                Text(
+                                  'Loading services…',
+                                  style: AppText.figtree(
+                                    size: 13,
+                                    weight: FontWeight.w500,
+                                    color: AppColors.fgMuted,
+                                  ),
+                                )
+                              else if (availServices.isEmpty)
                                 Text(
                                   'No services for $_vehicleType at this shop.',
                                   style: AppText.figtree(

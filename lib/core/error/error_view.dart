@@ -12,9 +12,18 @@ enum ErrorKind { network, server }
 /// Generic error state with a retry action (and Contact Support for server
 /// errors). Mirrors `ErrorState` in `ui.jsx`.
 class ErrorView extends StatelessWidget {
-  const ErrorView({this.kind = ErrorKind.network, this.onRetry, super.key});
+  const ErrorView({
+    this.kind = ErrorKind.network,
+    this.message,
+    this.onRetry,
+    super.key,
+  });
 
   final ErrorKind kind;
+
+  /// Optional detail shown beneath the heading (e.g. the real server error),
+  /// so failures aren't all generically reported as "No internet".
+  final String? message;
   final VoidCallback? onRetry;
 
   @override
@@ -47,9 +56,10 @@ class ErrorView extends StatelessWidget {
             ),
             SizedBox(height: 6.h),
             Text(
-              isNetwork
-                  ? 'Check your connection and try again.'
-                  : "We couldn't load this. Please retry.",
+              message ??
+                  (isNetwork
+                      ? 'Check your connection and try again.'
+                      : "We couldn't load this. Please retry."),
               textAlign: TextAlign.center,
               style: AppText.figtree(
                 size: 14,

@@ -60,7 +60,7 @@ class AppChip extends StatelessWidget {
                 child: Icon(
                   AppIcons.close,
                   size: 15.sp,
-                  color: AppColors.fgPrimary.withOpacity(0.55),
+                  color: AppColors.fgPrimary.withValues(alpha: 0.55),
                 ),
               ),
             ],

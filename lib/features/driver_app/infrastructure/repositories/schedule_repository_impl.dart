@@ -21,7 +21,7 @@ class ScheduleRepositoryImpl implements ScheduleRepository {
       page: page,
       pageSize: pageSize,
     );
-    return model.toEntity() as ScheduleResponse;
+    return model.toEntity();
   }
 
   @override

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/utils/formatters.dart';
-import '../../domain/entities/daily_summary.dart';
+import '../../../../core/widgets/skeleton_card.dart';
+import '../../application/providers/reports_providers.dart';
+import '../../domain/entities/report_data.dart';
+import '../../domain/repositories/reports_repository.dart';
 import 'metric_tile.dart';
 import 'row_list.dart';
 
@@ -31,34 +35,70 @@ class _Lbl extends StatelessWidget {
   }
 }
 
-/// The 6 per-report metric layouts sourced from [DailySummary].
-/// Mirrors `ReportBody` in `screen_reports.jsx`.
-class ReportBody extends StatelessWidget {
-  const ReportBody({required this.reportId, required this.summary, super.key});
+/// Picks the matching per-report provider for [reportId], fetches it for the
+/// selected [query], and renders the typed body (with loading / error states).
+class ReportBody extends ConsumerWidget {
+  const ReportBody({required this.reportId, required this.query, super.key});
 
   final String reportId;
-  final DailySummary summary;
+  final ReportQuery query;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return switch (reportId) {
-      'revenue' => _RevenueBody(d: summary),
-      'drivers' => _DriversBody(d: summary),
-      'shops' => _ShopsBody(d: summary),
-      'commission' => _CommissionBody(d: summary),
-      'cancellation' => _CancellationBody(d: summary),
-      'inspection' => _InspectionBody(d: summary),
+      'revenue' => _async(ref.watch(revenueReportProvider(query)),
+          (d) => _RevenueBody(r: d)),
+      'drivers' => _async(ref.watch(driversReportProvider(query)),
+          (d) => _DriversBody(r: d)),
+      'shops' => _async(ref.watch(shopPerformanceReportProvider(query)),
+          (d) => _ShopsBody(r: d)),
+      'commission' => _async(ref.watch(commissionReportProvider(query)),
+          (d) => _CommissionBody(r: d)),
+      'cancellation' => _async(ref.watch(cancellationsReportProvider(query)),
+          (d) => _CancellationBody(r: d)),
+      'inspection' => _async(ref.watch(inspectionsReportProvider(query)),
+          (d) => _InspectionBody(r: d)),
       _ => const SizedBox.shrink(),
     };
   }
+
+  Widget _async<T>(AsyncValue<T> value, Widget Function(T) data) {
+    return value.when(
+      data: data,
+      loading: () => Column(
+        children: [
+          for (var i = 0; i < 3; i++) ...[
+            const SkeletonCard(),
+            SizedBox(height: 12.h),
+          ],
+        ],
+      ),
+      error: (e, _) => Padding(
+        padding: EdgeInsets.symmetric(vertical: 24.h),
+        child: Text(
+          'Could not load this report.\n${e.toString().replaceFirst('Exception: ', '')}',
+          textAlign: TextAlign.center,
+          style: AppText.figtree(
+            size: 13,
+            weight: FontWeight.w500,
+            color: AppColors.fgTertiary,
+          ),
+        ),
+      ),
+    );
+  }
 }
+
+/// Indian-rupee rating/percent helper — trims a trailing `.0`.
+String _trimNum(num v) =>
+    v % 1 == 0 ? v.toInt().toString() : v.toString();
 
 // ─── Revenue ──────────────────────────────────────────────────────────────────
 
 class _RevenueBody extends StatelessWidget {
-  const _RevenueBody({required this.d});
+  const _RevenueBody({required this.r});
 
-  final DailySummary d;
+  final RevenueReport r;
 
   @override
   Widget build(BuildContext context) {
@@ -68,20 +108,20 @@ class _RevenueBody extends StatelessWidget {
         _MetricGrid(tiles: [
           MetricTile(
             label: 'Net revenue',
-            value: Formatters.money(d.revenue.net),
+            value: Formatters.money(r.kpis.net),
           ),
           MetricTile(
             label: 'Gross',
-            value: Formatters.money(d.revenue.gross),
+            value: Formatters.money(r.kpis.gross),
           ),
           MetricTile(
             label: 'Commission',
-            value: Formatters.money(d.revenue.commission),
+            value: Formatters.money(r.kpis.commission),
             color: AppColors.amberFg,
           ),
           MetricTile(
             label: 'Refunds',
-            value: Formatters.money(d.revenue.refunds),
+            value: Formatters.money(r.kpis.refunds),
             color: AppColors.redFg,
           ),
         ]),
@@ -89,7 +129,7 @@ class _RevenueBody extends StatelessWidget {
         const _Lbl('By service'),
         SizedBox(height: 6.h),
         RowList(
-          rows: d.byService
+          rows: r.byService
               .map((s) => RowItem(
                     name: s.name,
                     sub: '${s.count}×',
@@ -105,9 +145,9 @@ class _RevenueBody extends StatelessWidget {
 // ─── Drivers & Inspectors ─────────────────────────────────────────────────────
 
 class _DriversBody extends StatelessWidget {
-  const _DriversBody({required this.d});
+  const _DriversBody({required this.r});
 
-  final DailySummary d;
+  final DriversReport r;
 
   @override
   Widget build(BuildContext context) {
@@ -117,30 +157,30 @@ class _DriversBody extends StatelessWidget {
         _MetricGrid(tiles: [
           MetricTile(
             label: 'Active drivers',
-            value: '${d.teamTotals.activeDrivers}',
+            value: '${r.activeDrivers}',
           ),
           MetricTile(
             label: 'Hire jobs',
-            value: '${d.teamTotals.hireJobs}',
+            value: '${r.hireJobs}',
           ),
           MetricTile(
             label: 'Driver payout',
-            value: Formatters.money(d.teamTotals.driverPayout),
+            value: Formatters.money(r.driverPayout),
           ),
           MetricTile(
             label: 'Inspector payout',
-            value: Formatters.money(d.teamTotals.inspectorPayout),
+            value: Formatters.money(r.inspectorPayout),
           ),
         ]),
         SizedBox(height: 10.h),
         const _Lbl('Driver performance'),
         SizedBox(height: 6.h),
         RowList(
-          rows: d.byDriver
+          rows: r.drivers
               .map((p) => RowItem(
                     name: p.name,
                     sub:
-                        '${p.jobs} wash · ${p.hireJobs} hire${p.rating != null ? " · ★ ${p.rating}" : ""}',
+                        '${p.wash} wash · ${p.hire} hire${p.rating != null ? " · ★ ${_trimNum(p.rating!)}" : ""}',
                     value: Formatters.money(p.earnings),
                   ))
               .toList(),
@@ -149,12 +189,12 @@ class _DriversBody extends StatelessWidget {
         const _Lbl('Inspector performance'),
         SizedBox(height: 6.h),
         RowList(
-          rows: d.byInspector
+          rows: r.inspectors
               .map((p) => RowItem(
                     name: p.name,
                     sub:
-                        '${p.inspections} inspection${p.inspections == 1 ? "" : "s"}${p.rating != null ? " · ★ ${p.rating}" : ""}',
-                    value: Formatters.money(p.earnings),
+                        '${p.inspections} inspection${p.inspections == 1 ? "" : "s"}${p.rating != null ? " · ★ ${_trimNum(p.rating!)}" : ""}',
+                    value: Formatters.money(p.payout),
                   ))
               .toList(),
         ),
@@ -166,39 +206,34 @@ class _DriversBody extends StatelessWidget {
 // ─── Shop Performance ─────────────────────────────────────────────────────────
 
 class _ShopsBody extends StatelessWidget {
-  const _ShopsBody({required this.d});
+  const _ShopsBody({required this.r});
 
-  final DailySummary d;
+  final ShopPerformanceReport r;
 
   @override
   Widget build(BuildContext context) {
-    final activeShops = d.byShop.where((s) => s.bookings > 0).length;
-    final totalBookings =
-        d.byShop.fold(0, (sum, s) => sum + s.bookings);
-    final totalRevenue =
-        d.byShop.fold<num>(0, (sum, s) => sum + s.revenue);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _MetricGrid(tiles: [
           MetricTile(
             label: 'Shops active',
-            value: '$activeShops',
+            value: '${r.shopsActive}',
           ),
           MetricTile(
             label: 'Total bookings',
-            value: '$totalBookings',
+            value: '${r.totalBookings}',
           ),
           MetricTile(
             label: 'Total revenue',
-            value: Formatters.money(totalRevenue),
+            value: Formatters.money(r.totalRevenue),
           ),
         ]),
         SizedBox(height: 10.h),
         const _Lbl('Revenue by shop'),
         SizedBox(height: 6.h),
         RowList(
-          rows: d.byShop
+          rows: r.byShop
               .map((s) => RowItem(
                     name: s.shop,
                     sub: '${s.bookings} bookings',
@@ -214,50 +249,44 @@ class _ShopsBody extends StatelessWidget {
 // ─── Commission / Settlement ──────────────────────────────────────────────────
 
 class _CommissionBody extends StatelessWidget {
-  const _CommissionBody({required this.d});
+  const _CommissionBody({required this.r});
 
-  final DailySummary d;
+  final CommissionReport r;
 
   @override
   Widget build(BuildContext context) {
-    final comm = d.revenue.commission;
-    final net = d.revenue.net;
-    final shopShare =
-        d.revenue.gross - comm - d.revenue.refunds;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _MetricGrid(tiles: [
           MetricTile(
             label: 'Platform commission',
-            value: Formatters.money(comm),
+            value: Formatters.money(r.platformCommission),
             color: AppColors.amberFg,
           ),
           MetricTile(
             label: 'Shop earnings',
-            value: Formatters.money(shopShare),
+            value: Formatters.money(r.shopEarnings),
           ),
           MetricTile(
             label: 'Refunds deducted',
-            value: Formatters.money(d.revenue.refunds),
+            value: Formatters.money(r.refundsDeducted),
             color: AppColors.redFg,
           ),
           MetricTile(
             label: 'Net settled',
-            value: Formatters.money(net),
+            value: Formatters.money(r.netSettled),
           ),
         ]),
         SizedBox(height: 10.h),
         const _Lbl('Commission by shop'),
         SizedBox(height: 6.h),
         RowList(
-          rows: d.byShop
-              .where((s) => s.revenue > 0)
+          rows: r.byShop
               .map((s) => RowItem(
                     name: s.shop,
-                    sub: '${Formatters.money(s.revenue)} gross',
-                    value: Formatters.money(
-                        (s.revenue * 0.15).round()),
+                    sub: '${Formatters.money(s.gross)} gross',
+                    value: Formatters.money(s.commission),
                   ))
               .toList(),
         ),
@@ -269,53 +298,46 @@ class _CommissionBody extends StatelessWidget {
 // ─── Cancellations ────────────────────────────────────────────────────────────
 
 class _CancellationBody extends StatelessWidget {
-  const _CancellationBody({required this.d});
+  const _CancellationBody({required this.r});
 
-  final DailySummary d;
+  final CancellationsReport r;
 
   @override
   Widget build(BuildContext context) {
-    final c = d.bookings;
-    final rate = c.total == 0
-        ? 0
-        : (c.cancelled / c.total * 100).round();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _MetricGrid(tiles: [
           MetricTile(
             label: 'Cancelled',
-            value: '${c.cancelled}',
+            value: '${r.cancelled}',
             color: AppColors.redFg,
           ),
           MetricTile(
             label: 'Cancel rate',
-            value: '$rate%',
+            value: '${_trimNum(r.cancelRatePercent)}%',
           ),
           MetricTile(
             label: 'Refunds issued',
-            value: Formatters.money(d.revenue.refunds),
+            value: Formatters.money(r.refundsIssued),
             color: AppColors.redFg,
           ),
           MetricTile(
             label: 'Total bookings',
-            value: '${c.total}',
+            value: '${r.totalBookings}',
           ),
         ]),
         SizedBox(height: 10.h),
         const _Lbl('Reasons'),
         SizedBox(height: 6.h),
-        const RowList(
-          rows: [
-            RowItem(
-              name: 'Cancelled by customer',
-              sub: 'before assignment',
-              value: '1',
-            ),
-            RowItem(name: 'Damage during wash', value: '0'),
-            RowItem(name: 'No driver available', value: '0'),
-          ],
-        ),
+        if (r.reasons.isEmpty)
+          _EmptyRows(text: 'No cancellations in this period.')
+        else
+          RowList(
+            rows: r.reasons
+                .map((x) => RowItem(name: x.reason, value: '${x.count}'))
+                .toList(),
+          ),
       ],
     );
   }
@@ -324,45 +346,43 @@ class _CancellationBody extends StatelessWidget {
 // ─── Inspections ──────────────────────────────────────────────────────────────
 
 class _InspectionBody extends StatelessWidget {
-  const _InspectionBody({required this.d});
+  const _InspectionBody({required this.r});
 
-  final DailySummary d;
+  final InspectionsReport r;
 
   @override
   Widget build(BuildContext context) {
-    final activeInspectors =
-        d.byInspector.where((p) => p.online).length;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _MetricGrid(tiles: [
           MetricTile(
             label: 'Inspections',
-            value: '${d.teamTotals.inspections}',
+            value: '${r.inspections}',
           ),
           MetricTile(
             label: 'Inspector payout',
-            value: Formatters.money(d.teamTotals.inspectorPayout),
+            value: Formatters.money(r.inspectorPayout),
           ),
           MetricTile(
             label: 'Avg fee',
-            value: Formatters.money(800),
+            value: Formatters.money(r.avgFee),
           ),
           MetricTile(
             label: 'Active inspectors',
-            value: '$activeInspectors',
+            value: '${r.activeInspectors}',
           ),
         ]),
         SizedBox(height: 10.h),
         const _Lbl('By inspector'),
         SizedBox(height: 6.h),
         RowList(
-          rows: d.byInspector
+          rows: r.rows
               .map((p) => RowItem(
                     name: p.name,
                     sub:
                         '${p.inspections} inspection${p.inspections == 1 ? "" : "s"}',
-                    value: Formatters.money(p.earnings),
+                    value: Formatters.money(p.payout),
                   ))
               .toList(),
         ),
@@ -371,7 +391,34 @@ class _InspectionBody extends StatelessWidget {
   }
 }
 
-// ─── Shared metric grid ───────────────────────────────────────────────────────
+// ─── Shared ───────────────────────────────────────────────────────────────────
+
+class _EmptyRows extends StatelessWidget {
+  const _EmptyRows({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(14.r),
+        border: Border.all(color: AppColors.borderSoft),
+      ),
+      child: Text(
+        text,
+        style: AppText.figtree(
+          size: 13,
+          weight: FontWeight.w500,
+          color: AppColors.fgMuted,
+        ),
+      ),
+    );
+  }
+}
 
 class _MetricGrid extends StatelessWidget {
   const _MetricGrid({required this.tiles});

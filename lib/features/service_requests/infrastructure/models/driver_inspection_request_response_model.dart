@@ -141,7 +141,9 @@ class DriverInspectionRequestModel {
       otp: '',
       note: '',
       timeline: const [],
-      assigneeId: assigneeName != null ? 'unknown' : null,
+      // `needs_assignee` is the authoritative flag from the API; a request can
+      // be assigned even when the display name is momentarily empty.
+      assigneeId: needsAssignee ? null : (assigneeName ?? 'assigned'),
       fee: _parseFee(amount),
     );
   }

@@ -422,7 +422,9 @@ class _CarwashKpis extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 12.w,
       mainAxisSpacing: 12.h,
-      childAspectRatio: 1.35,
+      // Slightly taller cells (was 1.2) so the two-line sub — e.g. Bookings
+      // Today's "N waiting · N active · N done" — fits on larger font scales.
+      childAspectRatio: 1.13,
       children: [
         // Overdue FIRST — alert when overdue > 0
         KpiTile(

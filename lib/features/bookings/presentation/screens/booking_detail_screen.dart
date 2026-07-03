@@ -22,6 +22,7 @@ import 'package:new_flutter_project/core/widgets/skeleton_card.dart';
 import 'package:new_flutter_project/core/widgets/status_badge.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
+import 'package:new_flutter_project/features/shops/domain/entities/shop.dart';
 import 'package:new_flutter_project/features/drivers/application/providers/drivers_providers.dart';
 import 'package:new_flutter_project/features/refunds/presentation/screens/new_refund_screen.dart'
     show RefundPrefill;
@@ -74,7 +75,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
       _assigneeName = b.assigneeName;
       debugPrint('🔄 Updated assigneeName: $_assigneeName');
     }
-    if (_timeline == null) _timeline = List.from(b.timeline);
+    _timeline ??= List.from(b.timeline);
     if (_notes != b.notes) _notes = b.notes;
   }
 
@@ -119,23 +120,15 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
     }
   }
 
-  Future<void> _openMaps(double? latitude, double? longitude) async {
-    if (latitude == null || longitude == null) return;
-    final uri = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri);
-    }
-  }
-
   Future<void> _assignMeCarwash(BuildContext context, WidgetRef ref, int bookingId) async {
     try {
       await ref.read(bookingsRepositoryProvider).assignMe(bookingId);
       if (context.mounted) {
         AppToast.show(context, 'Assigned to you');
-        // Only invalidate detail provider (what detail screen is watching)
-        // List will refetch when user navigates back to it naturally
+        // Invalidate both the detail provider and the list so the bookings
+        // list reflects the new assignee immediately.
         ref.invalidate(bookingByIdProvider(bookingId.toString()));
+        ref.invalidate(bookingsProvider);
       }
     } catch (e) {
       if (context.mounted) {
@@ -839,9 +832,10 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                                   .cancelBooking(intId);
                               if (context.mounted) {
                                 AppToast.show(context, 'Booking cancelled');
-                                // Only invalidate detail provider (what detail screen is watching)
-                                // List will refetch when user navigates back to it naturally
+                                // Invalidate both the detail provider and the
+                                // list so the cancellation shows immediately.
                                 ref.invalidate(bookingByIdProvider(booking.id));
+                                ref.invalidate(bookingsProvider);
                               }
                             } catch (e) {
                               if (context.mounted) {
@@ -978,6 +972,49 @@ class _JourneyCard extends ConsumerWidget {
   final Booking booking;
   final void Function(String) onToast;
 
+  Future<void> _launchMaps(Uri uri) async {
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      onToast('Cannot open maps');
+    }
+  }
+
+  Future<void> _navigateToAddress(String address) async {
+    if (address.trim().isEmpty) {
+      onToast('No address available');
+      return;
+    }
+    await _launchMaps(Uri.parse(
+      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}',
+    ));
+  }
+
+  Future<void> _navigateToShop(Shop shop) async {
+    if (shop.latitude != 0.0 || shop.longitude != 0.0) {
+      await _launchMaps(Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=${shop.latitude},${shop.longitude}',
+      ));
+    } else {
+      await _navigateToAddress(shop.address.isNotEmpty ? shop.address : shop.area);
+    }
+  }
+
+  Future<void> _callShop(Shop shop) async {
+    final phone =
+        shop.shopPhone.trim().isNotEmpty ? shop.shopPhone : shop.ownerPhone;
+    if (phone.trim().isEmpty) {
+      onToast('No phone number for this shop');
+      return;
+    }
+    final uri = Uri(scheme: 'tel', path: phone);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+    } else {
+      onToast('Cannot open dialer for $phone');
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shopAsync = ref.watch(shopByIdProvider(booking.shopId));
@@ -1082,7 +1119,7 @@ class _JourneyCard extends ConsumerWidget {
                       _ActionPill(
                         icon: AppIcons.nav,
                         label: 'Navigate',
-                        onTap: () => AppToast.show(context, 'Opening Maps…'),
+                        onTap: () => _navigateToAddress(booking.pickup.address),
                       ),
                     ],
                   ),
@@ -1135,13 +1172,27 @@ class _JourneyCard extends ConsumerWidget {
                           _ActionPill(
                             icon: AppIcons.phone,
                             label: 'Call shop',
-                            onTap: () => AppToast.show(context, 'Opening dialer…'),
+                            onTap: () {
+                              final shop = shopAsync.asData?.value;
+                              if (shop == null) {
+                                onToast('Shop not loaded yet');
+                                return;
+                              }
+                              _callShop(shop);
+                            },
                           ),
                           SizedBox(width: 7.w),
                           _ActionPill(
                             icon: AppIcons.nav,
                             label: 'Navigate',
-                            onTap: () => AppToast.show(context, 'Opening Maps…'),
+                            onTap: () {
+                              final shop = shopAsync.asData?.value;
+                              if (shop == null) {
+                                onToast('Shop not loaded yet');
+                                return;
+                              }
+                              _navigateToShop(shop);
+                            },
                           ),
                         ],
                       ),
@@ -2190,10 +2241,11 @@ class _CarwashAssignDriverBodyState
                                 context,
                                 'Assigned to ${driver.name}',
                               );
-                              // Only invalidate detail provider (what detail screen is watching)
-                              // List will refetch when user navigates back to it naturally
+                              // Invalidate both the detail provider and the
+                              // list so the new assignee shows immediately.
                               ref.invalidate(
                                   bookingByIdProvider(widget.bookingId.toString()));
+                              ref.invalidate(bookingsProvider);
                               Navigator.pop(context);
                             }
                           } catch (e) {

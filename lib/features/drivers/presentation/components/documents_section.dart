@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_picker/image_picker.dart';
@@ -52,6 +53,39 @@ class _DocumentsSectionState extends ConsumerState<DocumentsSection> {
   bool _busy = false;
 
   bool get _remote => widget.workerId != null;
+
+  /// Resolve a possibly-relative document URL to an absolute one using the
+  /// configured API base host.
+  String _resolveUrl(String url) {
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    final base = dotenv.env['API_BASE_URL'] ?? '';
+    if (base.isEmpty) return url;
+    final b = base.endsWith('/') ? base.substring(0, base.length - 1) : base;
+    final u = url.startsWith('/') ? url : '/$url';
+    return '$b$u';
+  }
+
+  /// Open a full-screen in-app preview of a document's uploaded sides.
+  void _openDocPreview(BuildContext context, DriverDocument doc) {
+    final sides = <({String label, String url})>[];
+    final front = doc.frontFileUrl;
+    final back = doc.backFileUrl;
+    if (front != null && front.trim().isNotEmpty) {
+      sides.add((label: 'Front', url: _resolveUrl(front)));
+    }
+    if (back != null && back.trim().isNotEmpty) {
+      sides.add((label: 'Back', url: _resolveUrl(back)));
+    }
+    if (sides.isEmpty) {
+      AppToast.show(context, 'No file uploaded for ${doc.type}');
+      return;
+    }
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.88),
+      builder: (_) => _DocPreviewDialog(title: doc.type, sides: sides),
+    );
+  }
 
   // ── Remote helpers ───────────────────────────────────────────────────────
 
@@ -405,8 +439,7 @@ class _DocumentsSectionState extends ConsumerState<DocumentsSection> {
                   _DocRow(
                     doc: docs[i],
                     remote: _remote,
-                    onView: () =>
-                        AppToast.show(context, 'Viewing ${docs[i].type}'),
+                    onView: () => _openDocPreview(context, docs[i]),
                     onEdit: () => _openSheet(context, docs[i]),
                     onVerifyFront:
                         _remote ? () => _toggleVerify(docs[i], front: true) : null,
@@ -515,16 +548,19 @@ class _DocRow extends StatelessWidget {
                 SizedBox(height: 4.h),
                 Row(
                   children: [
-                    // In remote mode the side badges double as verify toggles.
+                    // Badges reflect whether each side has been uploaded.
+                    // In remote mode they also act as verify toggles (onTap).
                     _SideBadge(
                       label: 'Front',
-                      on: remote ? doc.frontVerified : doc.front,
+                      on: doc.front,
+                      verified: doc.frontVerified,
                       onTap: onVerifyFront,
                     ),
                     SizedBox(width: 6.w),
                     _SideBadge(
                       label: 'Back',
-                      on: remote ? doc.backVerified : doc.back,
+                      on: doc.back,
+                      verified: doc.backVerified,
                       onTap: onVerifyBack,
                     ),
                   ],
@@ -558,28 +594,56 @@ class _DocRow extends StatelessWidget {
 }
 
 class _SideBadge extends StatelessWidget {
-  const _SideBadge({required this.label, required this.on, this.onTap});
+  const _SideBadge({
+    required this.label,
+    required this.on,
+    this.verified = false,
+    this.onTap,
+  });
 
   final String label;
+
+  /// Whether the side has been uploaded.
   final bool on;
+
+  /// Whether the uploaded side has also been verified/approved.
+  final bool verified;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    // Three states: verified (green ✓), uploaded-not-verified (neutral •),
+    // and missing (muted —).
+    final Color bg;
+    final Color fg;
+    final String suffix;
+    if (on && verified) {
+      bg = AppColors.greenBg;
+      fg = AppColors.greenFg;
+      suffix = '✓';
+    } else if (on) {
+      bg = AppColors.bgPage;
+      fg = AppColors.fgSecondary;
+      suffix = '•';
+    } else {
+      bg = AppColors.bgPage;
+      fg = AppColors.fgMuted;
+      suffix = '—';
+    }
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: 7.w, vertical: 2.h),
         decoration: BoxDecoration(
-          color: on ? AppColors.greenBg : AppColors.bgPage,
+          color: bg,
           borderRadius: BorderRadius.circular(5.r),
         ),
         child: Text(
-          on ? '$label ✓' : '$label —',
+          '$label $suffix',
           style: AppText.figtree(
             size: 10,
             weight: FontWeight.w600,
-            color: on ? AppColors.greenFg : AppColors.fgMuted,
+            color: fg,
             letterSpacing: 0.3,
           ),
         ),
@@ -888,6 +952,111 @@ class _SheetTextFieldState extends State<_SheetTextField> {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Full-screen in-app preview of a document's uploaded sides (front/back).
+class _DocPreviewDialog extends StatelessWidget {
+  const _DocPreviewDialog({required this.title, required this.sides});
+
+  final String title;
+  final List<({String label, String url})> sides;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.zero,
+      child: SafeArea(
+        child: Column(
+          children: [
+            // Header with title + close.
+            Padding(
+              padding: EdgeInsets.fromLTRB(16.w, 12.h, 8.w, 12.h),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.figtree(
+                        size: 16,
+                        weight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: Icon(AppIcons.close, color: Colors.white, size: 22.sp),
+                    tooltip: 'Close',
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.separated(
+                padding: EdgeInsets.fromLTRB(16.w, 4.h, 16.w, 24.h),
+                itemCount: sides.length,
+                separatorBuilder: (_, __) => SizedBox(height: 16.h),
+                itemBuilder: (_, i) {
+                  final side = sides[i];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        side.label,
+                        style: AppText.figtree(
+                          size: 12,
+                          weight: FontWeight.w600,
+                          color: Colors.white70,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                      SizedBox(height: 8.h),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12.r),
+                        child: InteractiveViewer(
+                          minScale: 1,
+                          maxScale: 4,
+                          child: Image.network(
+                            side.url,
+                            fit: BoxFit.contain,
+                            loadingBuilder: (_, child, progress) {
+                              if (progress == null) return child;
+                              return SizedBox(
+                                height: 220.h,
+                                child: const Center(
+                                  child: CircularProgressIndicator.adaptive(),
+                                ),
+                              );
+                            },
+                            errorBuilder: (_, __, ___) => Container(
+                              height: 160.h,
+                              alignment: Alignment.center,
+                              color: Colors.white10,
+                              child: Text(
+                                'Could not load image',
+                                style: AppText.figtree(
+                                  size: 13,
+                                  weight: FontWeight.w500,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

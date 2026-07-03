@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
@@ -10,15 +14,13 @@ import '../../../../core/widgets/app_chip.dart';
 import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/app_icon_button.dart';
 import '../../../../core/widgets/app_toast.dart';
-import '../../../../core/widgets/skeleton_card.dart';
 import '../../../../core/widgets/top_bar.dart';
 import '../../application/providers/reports_providers.dart';
-import '../../domain/entities/daily_summary.dart';
 import '../../domain/entities/report_kind.dart';
+import '../../domain/repositories/reports_repository.dart';
 import '../components/report_body.dart';
 
 /// Reports module screen — pick a report, choose a period, see metrics, export.
-/// Mirrors `ReportsScreen` + `ReportDetail` in `screen_reports.jsx`.
 class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
 
@@ -37,12 +39,6 @@ class ReportsScreen extends ConsumerWidget {
 class _ReportPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final summaryAsync = ref.watch(dailySummaryProvider);
-    final date = summaryAsync.maybeWhen(
-      data: (d) => d.date,
-      orElse: () => '',
-    );
-
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       body: SafeArea(
@@ -51,7 +47,7 @@ class _ReportPicker extends ConsumerWidget {
           children: [
             TopBar(
               title: 'Reports',
-              subtitle: date,
+              subtitle: 'Analytics',
               onBack: () => context.pop(),
             ),
             Expanded(
@@ -192,7 +188,7 @@ class _ReportDetailState extends ConsumerState<_ReportDetail> {
   String _period = 'today';
   String _customFrom = '2026-05-01';
   String _customTo = '2026-05-29';
-  bool _exportOpen = false;
+  bool _exporting = false;
 
   String get _periodLabel {
     if (_period == 'custom') return '$_customFrom → $_customTo';
@@ -202,10 +198,52 @@ class _ReportDetailState extends ConsumerState<_ReportDetail> {
   ReportKind get _kind =>
       ReportKind.values.firstWhere((k) => k.name == widget.reportId);
 
+  /// The selected window translated to API params.
+  ReportQuery get _query => switch (_period) {
+        '7' => const ReportQuery(period: 'last_7'),
+        '30' => const ReportQuery(period: 'last_30'),
+        'month' => const ReportQuery(period: 'this_month'),
+        'custom' => ReportQuery(from: _customFrom, to: _customTo),
+        _ => const ReportQuery(period: 'today'),
+      };
+
+  /// UI report id → backend report slug.
+  String get _reportSlug => switch (widget.reportId) {
+        'drivers' => 'drivers-inspectors',
+        'shops' => 'shop-performance',
+        'cancellation' => 'cancellations',
+        'inspection' => 'inspections',
+        _ => widget.reportId, // revenue, commission
+      };
+
+  Future<void> _exportCsv() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      final export =
+          await ref.read(reportsRepositoryProvider).exportCsv(_reportSlug, _query);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/${export.filename}');
+      await file.writeAsBytes(export.bytes);
+      if (!mounted) return;
+      await Share.shareXFiles(
+        [XFile(file.path, mimeType: 'text/csv')],
+        subject: '${_kind.label} report · $_periodLabel',
+      );
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(
+          context,
+          'Export failed: ${e.toString().replaceFirst('Exception: ', '')}',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final summaryAsync = ref.watch(dailySummaryProvider);
-
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       body: SafeArea(
@@ -221,7 +259,7 @@ class _ReportDetailState extends ConsumerState<_ReportDetail> {
                 AppIconButton(
                   icon: AppIcons.share,
                   semanticLabel: 'Export',
-                  onTap: () => setState(() => _exportOpen = true),
+                  onTap: _exporting ? null : _exportCsv,
                 ),
               ],
             ),
@@ -242,8 +280,7 @@ class _ReportDetailState extends ConsumerState<_ReportDetail> {
                       AppChip(
                         label: label,
                         active: _period == key,
-                        onTap: () =>
-                            setState(() => _period = key),
+                        onTap: () => setState(() => _period = key),
                       ),
                       SizedBox(width: 8.w),
                     ],
@@ -261,179 +298,47 @@ class _ReportDetailState extends ConsumerState<_ReportDetail> {
                     Expanded(
                       child: _DateInput(
                         value: _customFrom,
-                        onChanged: (v) =>
-                            setState(() => _customFrom = v),
+                        onChanged: (v) => setState(() => _customFrom = v),
                       ),
                     ),
                     SizedBox(width: 12.w),
                     Expanded(
                       child: _DateInput(
                         value: _customTo,
-                        onChanged: (v) =>
-                            setState(() => _customTo = v),
+                        onChanged: (v) => setState(() => _customTo = v),
                       ),
                     ),
                   ],
                 ),
               ),
-            // Scrollable body
+            // Scrollable body — each report manages its own loading/error.
             Expanded(
-              child: summaryAsync.when(
-                loading: () => ListView.separated(
-                  padding: EdgeInsets.all(16.r),
-                  itemCount: 4,
-                  separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                  itemBuilder: (_, __) => const SkeletonCard(),
-                ),
-                error: (_, __) => const SizedBox.shrink(),
-                data: (summary) => _buildBody(context, summary),
-              ),
-            ),
-          ],
-        ),
-      ),
-      // Export modal overlay
-      floatingActionButton: null,
-    );
-  }
-
-  Widget _buildBody(BuildContext context, DailySummary summary) {
-    return Stack(
-      children: [
-        ListView(
-          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 28.h),
-          children: [
-            Text(
-              '$_periodLabel · ${summary.date}',
-              style: AppText.figtree(
-                size: 12,
-                color: AppColors.fgTertiary,
-                weight: FontWeight.w500,
-              ),
-            ),
-            SizedBox(height: 14.h),
-            ReportBody(reportId: widget.reportId, summary: summary),
-            SizedBox(height: 14.h),
-            AppButton(
-              label: 'Export this report',
-              kind: AppButtonKind.secondary,
-              full: true,
-              icon: AppIcons.share,
-              onPressed: () => setState(() => _exportOpen = true),
-            ),
-            SizedBox(height: 20.h),
-          ],
-        ),
-        if (_exportOpen) _ExportModal(
-          reportName: _kind.label,
-          onClose: () => setState(() => _exportOpen = false),
-          onExport: (fmt) {
-            setState(() => _exportOpen = false);
-            AppToast.show(
-              context,
-              'Exporting ${_kind.label} · $fmt…',
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-// ─── Export modal ─────────────────────────────────────────────────────────────
-
-class _ExportModal extends StatelessWidget {
-  const _ExportModal({
-    required this.reportName,
-    required this.onClose,
-    required this.onExport,
-  });
-
-  final String reportName;
-  final VoidCallback onClose;
-  final ValueChanged<String> onExport;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onClose,
-      child: Container(
-        color: AppColors.bgOverlay,
-        child: Center(
-          child: GestureDetector(
-            onTap: () {}, // prevent tap-through
-            child: Container(
-              margin: EdgeInsets.symmetric(horizontal: 28.w),
-              padding: EdgeInsets.all(22.r),
-              decoration: BoxDecoration(
-                color: AppColors.bgCard,
-                borderRadius: BorderRadius.circular(20.r),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: ListView(
+                padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 28.h),
                 children: [
                   Text(
-                    'Export $reportName',
+                    _periodLabel,
                     style: AppText.figtree(
-                      size: 19,
-                      weight: FontWeight.w700,
+                      size: 12,
+                      color: AppColors.fgTertiary,
+                      weight: FontWeight.w500,
                     ),
                   ),
-                  SizedBox(height: 6.h),
-                  Text(
-                    'Download as PDF or CSV for the selected period.',
-                    style: AppText.figtree(
-                      size: 13,
-                      color: AppColors.fgSecondary,
-                      height: 1.5,
-                    ),
+                  SizedBox(height: 14.h),
+                  ReportBody(reportId: widget.reportId, query: _query),
+                  SizedBox(height: 14.h),
+                  AppButton(
+                    label: _exporting ? 'Exporting…' : 'Export this report',
+                    kind: AppButtonKind.secondary,
+                    full: true,
+                    icon: AppIcons.share,
+                    onPressed: _exporting ? null : _exportCsv,
                   ),
                   SizedBox(height: 20.h),
-                  Row(
-                    children: [
-                      for (final (fmt, icon) in [
-                        ('PDF', AppIcons.note),
-                        ('CSV', AppIcons.receipt),
-                      ]) ...[
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => onExport(fmt),
-                            child: Container(
-                              height: 54.h,
-                              decoration: BoxDecoration(
-                                color: AppColors.bgCard,
-                                borderRadius:
-                                    BorderRadius.circular(12.r),
-                                border: Border.all(
-                                    color: AppColors.borderDefault),
-                              ),
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.center,
-                                children: [
-                                  Icon(icon, size: 17.sp),
-                                  SizedBox(width: 8.w),
-                                  Text(
-                                    fmt,
-                                    style: AppText.figtree(
-                                      size: 14,
-                                      weight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (fmt == 'PDF') SizedBox(width: 10.w),
-                      ],
-                    ],
-                  ),
                 ],
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -442,61 +347,52 @@ class _ExportModal extends StatelessWidget {
 
 // ─── Date input ───────────────────────────────────────────────────────────────
 
-class _DateInput extends StatefulWidget {
+/// A tappable date field that opens the native date picker and emits a
+/// `YYYY-MM-DD` string.
+class _DateInput extends StatelessWidget {
   const _DateInput({required this.value, required this.onChanged});
 
   final String value;
   final ValueChanged<String> onChanged;
 
-  @override
-  State<_DateInput> createState() => _DateInputState();
-}
-
-class _DateInputState extends State<_DateInput> {
-  late TextEditingController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.value);
-  }
-
-  @override
-  void didUpdateWidget(_DateInput old) {
-    super.didUpdateWidget(old);
-    if (old.value != widget.value && _ctrl.text != widget.value) {
-      _ctrl.text = widget.value;
+  Future<void> _pick(BuildContext context) async {
+    final initial = DateTime.tryParse(value) ?? DateTime(2026);
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) {
+      final m = picked.month.toString().padLeft(2, '0');
+      final d = picked.day.toString().padLeft(2, '0');
+      onChanged('${picked.year}-$m-$d');
     }
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 44.h,
-      decoration: BoxDecoration(
-        color: AppColors.bgCard,
-        borderRadius: BorderRadius.circular(11.r),
-        border: Border.all(color: AppColors.borderDefault),
-      ),
-      padding: EdgeInsets.symmetric(horizontal: 12.w),
-      child: TextField(
-        controller: _ctrl,
-        keyboardType: TextInputType.datetime,
-        onChanged: widget.onChanged,
-        style: AppText.figtree(
-          size: 13,
-          weight: FontWeight.w500,
+    return GestureDetector(
+      onTap: () => _pick(context),
+      child: Container(
+        height: 44.h,
+        decoration: BoxDecoration(
+          color: AppColors.bgCard,
+          borderRadius: BorderRadius.circular(11.r),
+          border: Border.all(color: AppColors.borderDefault),
         ),
-        decoration: const InputDecoration(
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: EdgeInsets.zero,
+        padding: EdgeInsets.symmetric(horizontal: 12.w),
+        child: Row(
+          children: [
+            Icon(AppIcons.calendar, size: 15.sp, color: AppColors.fgTertiary),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Text(
+                value,
+                style: AppText.figtree(size: 13, weight: FontWeight.w500),
+              ),
+            ),
+          ],
         ),
       ),
     );

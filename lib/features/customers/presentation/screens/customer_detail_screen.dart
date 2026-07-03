@@ -87,16 +87,13 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
   // ── Note edit modal ────────────────────────────────────────────────────────
 
   Future<void> _openNoteModal(Customer c) async {
-    final ctrl = TextEditingController(text: c.notes);
     final saved = await showAppModal<String?>(
       context: context,
       builder: (dialogContext) => _NoteModalBody(
         initialNotes: c.notes,
-        controller: ctrl,
         dialogContext: dialogContext,
       ),
     );
-    ctrl.dispose();
     if (saved == null || _busy) return; // cancelled
     setState(() => _busy = true);
     try {
@@ -617,12 +614,10 @@ class _MenuItem extends StatelessWidget {
 class _NoteModalBody extends StatefulWidget {
   const _NoteModalBody({
     required this.initialNotes,
-    required this.controller,
     required this.dialogContext,
   });
 
   final String initialNotes;
-  final TextEditingController controller;
   final BuildContext dialogContext;
 
   @override
@@ -630,6 +625,49 @@ class _NoteModalBody extends StatefulWidget {
 }
 
 class _NoteModalBodyState extends State<_NoteModalBody> {
+  // The controller and focus node are owned by this State (created here,
+  // disposed in [dispose]) so their lifecycle is tied to the field's element.
+  // The previous version created the controller in the caller and disposed it
+  // right after `showAppModal` returned — that, together with the focused
+  // multiline field being torn down as the dialog route pops, tripped
+  // `InheritedElement.debugDeactivated`'s `_dependents.isEmpty` assertion
+  // (framework.dart:6268) and flashed the red error screen.
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.initialNotes);
+
+  // NOTE: the field is intentionally NOT auto-focused. Summoning the soft
+  // keyboard while the dialog's entrance transition is still running trips
+  // `InheritedElement.debugDeactivated`'s `_dependents.isEmpty` assertion
+  // (framework.dart:6268) — the red flash seen when opening the note modal.
+  // The user taps the field to start typing, which focuses it safely.
+
+  @override
+  void deactivate() {
+    // Covers dismissal via the barrier (tap outside), which pops the route
+    // without going through [_close]: drop focus before this subtree tears down.
+    FocusManager.instance.primaryFocus?.unfocus();
+    super.deactivate();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Dismisses the keyboard/selection, then pops on the *next* frame so the
+  /// focused field, its selection overlay, and the keyboard inset animation are
+  /// fully unwound before the route's elements deactivate. Popping in the same
+  /// frame as the unfocus races that teardown and can trip
+  /// `InheritedElement.debugDeactivated`'s `_dependents.isEmpty` (framework.dart).
+  void _close(String? result) {
+    final navigator = Navigator.of(widget.dialogContext);
+    FocusManager.instance.primaryFocus?.unfocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      navigator.pop(result);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.initialNotes.isNotEmpty;
@@ -658,9 +696,8 @@ class _NoteModalBodyState extends State<_NoteModalBody> {
             border: Border.all(color: AppColors.borderDefault),
           ),
           child: TextField(
-            controller: widget.controller,
+            controller: _controller,
             maxLines: 4,
-            autofocus: true,
             style: AppText.figtree(size: 14, weight: FontWeight.w400),
             decoration: InputDecoration(
               hintText: 'Type a note…',
@@ -681,15 +718,14 @@ class _NoteModalBodyState extends State<_NoteModalBody> {
               child: _ModalButton(
                 label: 'Cancel',
                 secondary: true,
-                onTap: () => Navigator.of(widget.dialogContext).pop(null),
+                onTap: () => _close(null),
               ),
             ),
             SizedBox(width: 12.w),
             Expanded(
               child: _ModalButton(
                 label: 'Save',
-                onTap: () => Navigator.of(widget.dialogContext)
-                    .pop(widget.controller.text.trim()),
+                onTap: () => _close(_controller.text.trim()),
               ),
             ),
           ],

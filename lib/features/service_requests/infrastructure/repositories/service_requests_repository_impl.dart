@@ -24,6 +24,20 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
   String _lastAssignableWorkersKey = '';
   Future<AssignableWorkersResponse>? _lastAssignableWorkersFuture;
 
+  /// Clears every in-memory cache so the next read hits the API.
+  ///
+  /// Called after any mutation (assign / status / OTP / cancel) — the list,
+  /// detail and assignable-workers results are all stale once the request
+  /// changes, so we drop them and let Riverpod's invalidation re-fetch fresh.
+  void _invalidateCaches() {
+    _lastQueryKey = '';
+    _lastFuture = null;
+    _lastDetailKey = '';
+    _lastDetailFuture = null;
+    _lastAssignableWorkersKey = '';
+    _lastAssignableWorkersFuture = null;
+  }
+
   /// Creates a cache key from the query parameters.
   String _getCacheKey({
     required int page,
@@ -107,6 +121,7 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
   }
 
   /// Get detail for single request (cached)
+  @override
   Future<DriverInspectionDetailResponse> getDetail(int id) async {
     final detailKey = id.toString();
 
@@ -131,6 +146,7 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
   }
 
   /// Get assignable workers (cached)
+  @override
   Future<AssignableWorkersResponse> getAssignableWorkers(
     int id, {
     int? slotId,
@@ -163,6 +179,7 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
   }
 
   /// Assign worker to request (NO caching)
+  @override
   Future<void> assignWorker({
     required int id,
     required int workerId,
@@ -176,9 +193,9 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
         slotId: slotId,
         workerType: workerType,
       );
-      // Invalidate detail cache
-      _lastDetailKey = '';
-      _lastDetailFuture = null;
+      // The request changed — drop the list, detail and workers caches so the
+      // list card and detail screen both re-fetch fresh state.
+      _invalidateCaches();
     } catch (e, stackTrace) {
       debugPrint('❌ ERROR assigning worker: $e');
       debugPrint('StackTrace: $stackTrace');
@@ -187,6 +204,7 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
   }
 
   /// Update request status (NO caching)
+  @override
   Future<void> updateStatus({
     required int id,
     required String status,
@@ -200,9 +218,9 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
         note: note,
         quotedFee: quotedFee,
       );
-      // Invalidate detail cache
-      _lastDetailKey = '';
-      _lastDetailFuture = null;
+      // The request changed — drop the list, detail and workers caches so the
+      // list card and detail screen both re-fetch fresh state.
+      _invalidateCaches();
     } catch (e, stackTrace) {
       debugPrint('❌ ERROR updating status: $e');
       debugPrint('StackTrace: $stackTrace');
@@ -211,12 +229,13 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
   }
 
   /// Mark request as arrived (NO caching)
+  @override
   Future<void> markArrived(int id) async {
     try {
       await _api.markArrived(id);
-      // Invalidate detail cache
-      _lastDetailKey = '';
-      _lastDetailFuture = null;
+      // The request changed — drop the list, detail and workers caches so the
+      // list card and detail screen both re-fetch fresh state.
+      _invalidateCaches();
     } catch (e, stackTrace) {
       debugPrint('❌ ERROR marking arrived: $e');
       debugPrint('StackTrace: $stackTrace');
@@ -225,6 +244,7 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
   }
 
   /// Verify start OTP (NO caching)
+  @override
   Future<void> verifyStartOtp({
     required int id,
     required String otp,
@@ -240,9 +260,9 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
         longitude: longitude,
         locationText: locationText,
       );
-      // Invalidate detail cache
-      _lastDetailKey = '';
-      _lastDetailFuture = null;
+      // The request changed — drop the list, detail and workers caches so the
+      // list card and detail screen both re-fetch fresh state.
+      _invalidateCaches();
     } catch (e, stackTrace) {
       debugPrint('❌ ERROR verifying start OTP: $e');
       debugPrint('StackTrace: $stackTrace');
@@ -251,6 +271,7 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
   }
 
   /// Verify end OTP (NO caching)
+  @override
   Future<void> verifyEndOtp({
     required int id,
     required String otp,
@@ -266,9 +287,9 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
         longitude: longitude,
         locationText: locationText,
       );
-      // Invalidate detail cache
-      _lastDetailKey = '';
-      _lastDetailFuture = null;
+      // The request changed — drop the list, detail and workers caches so the
+      // list card and detail screen both re-fetch fresh state.
+      _invalidateCaches();
     } catch (e, stackTrace) {
       debugPrint('❌ ERROR verifying end OTP: $e');
       debugPrint('StackTrace: $stackTrace');
@@ -281,9 +302,9 @@ class ServiceRequestsRepositoryImpl implements ServiceRequestsRepository {
   Future<void> cancelRequest(int id) async {
     try {
       await _api.cancelRequest(id);
-      // Invalidate detail cache
-      _lastDetailKey = '';
-      _lastDetailFuture = null;
+      // The request changed — drop the list, detail and workers caches so the
+      // list card and detail screen both re-fetch fresh state.
+      _invalidateCaches();
     } catch (e, stackTrace) {
       debugPrint('❌ ERROR cancelling request: $e');
       debugPrint('StackTrace: $stackTrace');

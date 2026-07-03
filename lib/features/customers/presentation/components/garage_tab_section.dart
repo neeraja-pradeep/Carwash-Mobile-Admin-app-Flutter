@@ -72,31 +72,43 @@ class _VehicleCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text(
-                      vehicle.title,
-                      style: AppText.figtree(
-                        size: 15,
-                        weight: FontWeight.w700,
+                    Flexible(
+                      child: Text(
+                        vehicle.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppText.figtree(
+                          size: 15,
+                          weight: FontWeight.w700,
+                        ),
                       ),
                     ),
                     if (vehicle.isDefault) ...[
                       SizedBox(width: 7.w),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 6.w,
-                          vertical: 2.h,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.blueBg,
-                          borderRadius: BorderRadius.circular(5.r),
-                        ),
-                        child: Text(
-                          'Default'.toUpperCase(),
-                          style: AppText.figtree(
-                            size: 9,
-                            weight: FontWeight.w600,
-                            color: AppColors.blueFg,
-                            letterSpacing: 0.4,
+                      // Flexible so the pill can ellipsise instead of pushing
+                      // the row past its width when the column is squeezed
+                      // (long name / plate + large system font scale).
+                      Flexible(
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 6.w,
+                            vertical: 2.h,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.blueBg,
+                            borderRadius: BorderRadius.circular(5.r),
+                          ),
+                          child: Text(
+                            'Default'.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            softWrap: false,
+                            style: AppText.figtree(
+                              size: 9,
+                              weight: FontWeight.w600,
+                              color: AppColors.blueFg,
+                              letterSpacing: 0.4,
+                            ),
                           ),
                         ),
                       ),
@@ -116,19 +128,28 @@ class _VehicleCard extends StatelessWidget {
             ),
           ),
           SizedBox(width: 8.w),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
-            decoration: BoxDecoration(
-              color: AppColors.bgPage,
-              borderRadius: BorderRadius.circular(8.r),
-              border: Border.all(color: AppColors.borderSoft),
-            ),
-            child: Text(
-              vehicle.plate,
-              style: AppText.figtree(
-                size: 12,
-                weight: FontWeight.w700,
-                letterSpacing: 0.4,
+          // Cap the plate width so it keeps its natural size normally (the
+          // greedy middle column is undisturbed) but ellipsises instead of
+          // overflowing under a large system font scale.
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: 0.42.sw),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 6.h),
+              decoration: BoxDecoration(
+                color: AppColors.bgPage,
+                borderRadius: BorderRadius.circular(8.r),
+                border: Border.all(color: AppColors.borderSoft),
+              ),
+              child: Text(
+                vehicle.plate,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+                style: AppText.figtree(
+                  size: 12,
+                  weight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                ),
               ),
             ),
           ),

@@ -1,4 +1,5 @@
 /// Detail response models for driver/inspection requests
+library;
 
 class DriverInspectionDetailResponse {
   final int id;

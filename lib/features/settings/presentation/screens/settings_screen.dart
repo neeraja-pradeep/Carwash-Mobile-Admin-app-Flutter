@@ -346,7 +346,7 @@ class _Body extends ConsumerWidget {
                 right: Switch(
                   value: _notifValue(notif, _notifItems[i].$1),
                   onChanged: (_) => onToggle(_notifItems[i].$1),
-                  activeColor: AppColors.brandYellowDeep,
+                  activeThumbColor: AppColors.brandYellowDeep,
                   activeTrackColor: AppColors.brandYellow,
                 ),
               ),

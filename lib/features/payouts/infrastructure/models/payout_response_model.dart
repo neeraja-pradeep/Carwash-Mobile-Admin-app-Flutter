@@ -1,4 +1,5 @@
 /// Payout Log API response models
+library;
 
 class PayoutsListResponse {
   final int count;

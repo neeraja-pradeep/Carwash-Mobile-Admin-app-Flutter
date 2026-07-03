@@ -250,7 +250,7 @@ class _CarwashBookingsList extends ConsumerWidget {
         ))
           Positioned(
             right: 18.w,
-            bottom: 96.h,
+            bottom: 14.h,
             child: AppFab(
               onPressed: () => context.push(Routes.newBooking),
               icon: AppIcons.plus,

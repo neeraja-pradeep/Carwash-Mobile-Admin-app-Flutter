@@ -1,4 +1,5 @@
 /// Settlement API response models
+library;
 
 class SettlementPendingResponse {
   final int shopId;

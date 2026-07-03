@@ -42,9 +42,14 @@ class CouponCard extends StatelessWidget {
           ],
         ),
         clipBehavior: Clip.antiAlias,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        // IntrinsicHeight bounds the row to its content height. Without it the
+        // stretched dashed separator (CustomPaint) resolves to an infinite
+        // height inside a scrolling list, which sends _DashedLinePainter into
+        // an unbounded draw loop and freezes the coupons page.
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             // Left stub — brand yellow when active, page grey otherwise
             Container(
               width: 86.w,
@@ -70,7 +75,7 @@ class CouponCard extends StatelessWidget {
                     style: AppText.figtree(
                       size: 9,
                       weight: FontWeight.w600,
-                      color: AppColors.fgPrimary.withOpacity(0.55),
+                      color: AppColors.fgPrimary.withValues(alpha: 0.55),
                       letterSpacing: 0.9,
                     ),
                   ),
@@ -153,7 +158,8 @@ class CouponCard extends StatelessWidget {
                 ),
               ),
             ),
-          ],
+            ],
+          ),
         ),
       ),
     );

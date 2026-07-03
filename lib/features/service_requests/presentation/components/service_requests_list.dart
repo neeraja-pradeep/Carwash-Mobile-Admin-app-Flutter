@@ -154,11 +154,11 @@ class ServiceRequestsList extends ConsumerWidget {
           ],
         ),
 
-        // Create FAB — bottom-right, clearing the bottom nav (matches the
-        // Carwash segment's FAB offset).
+        // Create FAB — bottom-right, sitting just above the bottom nav
+        // (matches the Carwash segment's FAB offset).
         Positioned(
           right: 18.w,
-          bottom: 96.h,
+          bottom: 28.h,
           child: AppFab(
             semanticLabel: 'New service request',
             onPressed: () => _openCreateSheet(context),

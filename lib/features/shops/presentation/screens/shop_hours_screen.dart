@@ -1240,7 +1240,7 @@ class _AppToggle extends StatelessWidget {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.25),
+                  color: Colors.black.withValues(alpha: 0.25),
                   blurRadius: 3.r,
                   offset: Offset(0, 1.h),
                 ),

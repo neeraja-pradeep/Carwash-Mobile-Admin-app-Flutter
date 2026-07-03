@@ -37,9 +37,21 @@ class RefundsApi {
 
       final response = await _dio.get(_refundsPath, queryParameters: params);
 
-      return RefundListResponse.fromJson(
-        response.data as Map<String, dynamic>,
-      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return RefundListResponse.fromJson(data);
+      }
+      // Some endpoints return a bare list when pagination is disabled.
+      if (data is List) {
+        return RefundListResponse(
+          results: data
+              .whereType<Map<String, dynamic>>()
+              .map(RefundModel.fromJson)
+              .toList(),
+          count: data.length,
+        );
+      }
+      return RefundListResponse(results: const [], count: 0);
     } on DioException catch (e) {
       throw _handleError(e);
     }

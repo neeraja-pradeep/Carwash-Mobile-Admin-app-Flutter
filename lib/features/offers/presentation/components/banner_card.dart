@@ -58,7 +58,7 @@ class BannerCard extends StatelessWidget {
                   // Background image or colour placeholder
                   Container(
                     decoration: BoxDecoration(
-                      color: AppColors.fgSecondary.withOpacity(0.25),
+                      color: AppColors.fgSecondary.withValues(alpha: 0.25),
                       image: DecorationImage(
                         image: AssetImage(banner.image),
                         fit: BoxFit.cover,
@@ -132,7 +132,7 @@ class BannerCard extends StatelessWidget {
                           style: AppText.figtree(
                             size: 12,
                             weight: FontWeight.w500,
-                            color: AppColors.fgOnDark.withOpacity(0.85),
+                            color: AppColors.fgOnDark.withValues(alpha: 0.85),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,

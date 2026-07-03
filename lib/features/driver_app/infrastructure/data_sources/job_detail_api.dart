@@ -15,6 +15,7 @@ class JobDetailApi {
   JobDetailApi() {
     _dio = Dio(BaseOptions(
       baseUrl: _baseUrl,
+      extra: const {'withCredentials': true}, // web: send cookies cross-origin (no-op on mobile)
       contentType: 'application/json',
       responseType: ResponseType.json,
       connectTimeout: const Duration(seconds: 30),

@@ -98,9 +98,24 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> {
                       separatorBuilder: (_, __) => SizedBox(height: 12.h),
                       itemBuilder: (_, __) => const SkeletonCard(),
                     ),
-                    error: (_, __) => ErrorView(
-                      onRetry: () => ref.invalidate(refundsProvider),
-                    ),
+                    error: (err, __) {
+                      // Only show "No internet" for genuine connectivity
+                      // failures; surface the real message otherwise.
+                      final msg =
+                          err.toString().replaceFirst('Exception: ', '');
+                      final lower = msg.toLowerCase();
+                      final isConnectivity = lower.contains('internet') ||
+                          lower.contains('connection') ||
+                          lower.contains('timeout') ||
+                          lower.contains('socket');
+                      return ErrorView(
+                        kind: isConnectivity
+                            ? ErrorKind.network
+                            : ErrorKind.server,
+                        message: isConnectivity ? null : msg,
+                        onRetry: () => ref.invalidate(refundsProvider),
+                      );
+                    },
                     data: (refunds) {
                       if (refunds.isEmpty) {
                         return EmptyState(

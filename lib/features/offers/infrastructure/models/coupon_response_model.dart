@@ -18,22 +18,24 @@ class CouponListResponse {
   });
 
   factory CouponListResponse.fromJson(Map<String, dynamic> json) {
-    try {
-      final resultsList = (json['results'] as List?)
-              ?.map((e) => CouponModel.fromJson(e as Map<String, dynamic>))
-              .toList() ??
-          [];
-
-      return CouponListResponse(
-        results: resultsList,
-        count: _toInt(json['count']),
-        next: _toString(json['next']),
-        previous: _toString(json['previous']),
-      );
-    } catch (e) {
-      debugPrint('Error parsing CouponListResponse: $e');
-      return CouponListResponse(results: [], count: 0);
+    // Parse each coupon independently so one malformed entry can't collapse the
+    // whole page to empty — skip (and log) the bad item, keep the good ones.
+    final rawResults = (json['results'] as List?) ?? const [];
+    final resultsList = <CouponModel>[];
+    for (final e in rawResults) {
+      try {
+        resultsList.add(CouponModel.fromJson(e as Map<String, dynamic>));
+      } catch (err) {
+        debugPrint('Skipping malformed coupon in list: $err — raw: $e');
+      }
     }
+
+    return CouponListResponse(
+      results: resultsList,
+      count: _toInt(json['count']),
+      next: _toString(json['next']),
+      previous: _toString(json['previous']),
+    );
   }
 }
 

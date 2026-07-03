@@ -188,8 +188,9 @@ class DetailActionController extends StateNotifier<DetailActionState> {
             workerType: workerType,
           );
       state = state.copyWith(isLoading: false, success: true);
-      // Invalidate detail to force refresh
+      // Invalidate detail + list so the assignee status refreshes everywhere.
       _ref.invalidate(serviceRequestDetailProvider(id));
+      _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -212,8 +213,9 @@ class DetailActionController extends StateNotifier<DetailActionState> {
             quotedFee: quotedFee,
           );
       state = state.copyWith(isLoading: false, success: true);
-      // Invalidate detail to force refresh
+      // Invalidate detail + list so the status refreshes everywhere.
       _ref.invalidate(serviceRequestDetailProvider(id));
+      _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -224,8 +226,9 @@ class DetailActionController extends StateNotifier<DetailActionState> {
     try {
       await _ref.read(serviceRequestsRepositoryProvider).markArrived(id);
       state = state.copyWith(isLoading: false, success: true);
-      // Invalidate detail to force refresh
+      // Invalidate detail + list so the status refreshes everywhere.
       _ref.invalidate(serviceRequestDetailProvider(id));
+      _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -250,8 +253,9 @@ class DetailActionController extends StateNotifier<DetailActionState> {
             locationText: locationText,
           );
       state = state.copyWith(isLoading: false, success: true);
-      // Invalidate detail to force refresh
+      // Invalidate detail + list so the status refreshes everywhere.
       _ref.invalidate(serviceRequestDetailProvider(id));
+      _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -276,8 +280,9 @@ class DetailActionController extends StateNotifier<DetailActionState> {
             locationText: locationText,
           );
       state = state.copyWith(isLoading: false, success: true);
-      // Invalidate detail to force refresh
+      // Invalidate detail + list so the status refreshes everywhere.
       _ref.invalidate(serviceRequestDetailProvider(id));
+      _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -288,8 +293,9 @@ class DetailActionController extends StateNotifier<DetailActionState> {
     try {
       await _ref.read(serviceRequestsRepositoryProvider).cancelRequest(id);
       state = state.copyWith(isLoading: false, success: true);
-      // Invalidate detail to force refresh
+      // Invalidate detail + list so the status refreshes everywhere.
       _ref.invalidate(serviceRequestDetailProvider(id));
+      _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
