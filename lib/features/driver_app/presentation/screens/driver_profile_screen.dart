@@ -36,35 +36,41 @@ class DriverProfileScreen extends ConsumerWidget {
         itemBuilder: (_, __) => const SkeletonCard(),
       ),
       error: (_, __) => const Center(child: Text('Could not load profile.')),
-      data: (profile) => _ProfileBody(
-        profile: profile,
-        onSignOut: () async {
-          final confirmed = await showConfirmDialog(
-            context: context,
-            title: 'Sign out?',
-            body: 'You will be logged out of your account. You can sign in again anytime.',
-            confirmLabel: 'Sign out',
-            destructive: true,
-          );
-
-          if (!confirmed) return;
-
-          final logout = ref.read(logoutProvider);
-          try {
-            await logout();
-            // Reset auth state
-            await ref.read(authStateProvider.notifier).logout();
-            if (context.mounted) {
-              context.go(Routes.login);
-            }
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Sign out failed: $e')),
-              );
-            }
-          }
+      data: (profile) => RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(workerProfileProvider);
+          await ref.read(workerProfileProvider.future);
         },
+        child: _ProfileBody(
+          profile: profile,
+          onSignOut: () async {
+            final confirmed = await showConfirmDialog(
+              context: context,
+              title: 'Sign out?',
+              body: 'You will be logged out of your account. You can sign in again anytime.',
+              confirmLabel: 'Sign out',
+              destructive: true,
+            );
+
+            if (!confirmed) return;
+
+            final logout = ref.read(logoutProvider);
+            try {
+              await logout();
+              // Reset auth state
+              await ref.read(authStateProvider.notifier).logout();
+              if (context.mounted) {
+                context.go(Routes.login);
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Sign out failed: $e')),
+                );
+              }
+            }
+          },
+        ),
       ),
     );
   }
@@ -88,6 +94,7 @@ class _ProfileBody extends StatelessWidget {
     ];
 
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 32.h),
       children: [
         // Profile header card

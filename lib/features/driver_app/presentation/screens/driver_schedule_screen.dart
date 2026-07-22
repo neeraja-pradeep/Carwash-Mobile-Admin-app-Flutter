@@ -71,6 +71,11 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
     }
   }
 
+  Future<void> _refreshAll() async {
+    await _loadSchedule();
+    await _loadAvailableJobs();
+  }
+
   Future<void> _loadAvailableJobs() async {
     if (!mounted) {
       debugPrint('DriverScheduleScreen._loadAvailableJobs - widget not mounted, skipping');
@@ -188,123 +193,138 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
         final completedJobs = schedule.schedule.completed;
 
         if (upcomingJobs.isEmpty && completedJobs.isEmpty) {
-          return EmptyState(
-            icon: AppIcons.cal,
-            title: 'No jobs',
-            body: 'You have no upcoming or completed jobs.',
+          return RefreshIndicator(
+            onRefresh: _refreshAll,
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: EmptyState(
+                    icon: AppIcons.cal,
+                    title: 'No jobs',
+                    body: 'You have no upcoming or completed jobs.',
+                  ),
+                ),
+              ),
+            ),
           );
         }
 
-        return ListView(
-          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 32.h),
-          children: [
-            // Upcoming jobs grouped by day
-            ...upcomingJobs.map((day) => [
-              _SectionLabel(day.label),
-              SizedBox(height: 8.h),
-              ...day.jobs.map((job) => Padding(
-                padding: EdgeInsets.only(bottom: 12.h),
-                child: _JobCard(
-                  job: job,
-                  onTap: () => _navigateToJobDetail(context, job),
-                  onCall: () => _launchPhone(job.customerPhone),
-                  onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
+        return RefreshIndicator(
+          onRefresh: _refreshAll,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 32.h),
+            children: [
+              // Upcoming jobs grouped by day
+              ...upcomingJobs.map((day) => [
+                _SectionLabel(day.label),
+                SizedBox(height: 8.h),
+                ...day.jobs.map((job) => Padding(
+                  padding: EdgeInsets.only(bottom: 12.h),
+                  child: _JobCard(
+                    job: job,
+                    onTap: () => _navigateToJobDetail(context, job),
+                    onCall: () => _launchPhone(job.customerPhone),
+                    onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
+                  ),
+                )),
+              ]).expand((x) => x),
+  
+              // Available jobs to claim section
+              availableJobsState.when(
+                initial: () => const SizedBox.shrink(),
+                loading: () => Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16.h),
+                  child: const Center(child: CircularProgressIndicator()),
                 ),
-              )),
-            ]).expand((x) => x),
-
-            // Available jobs to claim section
-            availableJobsState.when(
-              initial: () => const SizedBox.shrink(),
-              loading: () => Padding(
-                padding: EdgeInsets.symmetric(vertical: 16.h),
-                child: const Center(child: CircularProgressIndicator()),
-              ),
-              success: (jobs) {
-                if (jobs.jobs.isNotEmpty) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: 16.h),
-                      _SectionLabel('Available to Claim'),
-                      SizedBox(height: 8.h),
-                      ...jobs.jobs.map((job) => Padding(
-                        padding: EdgeInsets.only(bottom: 12.h),
-                        child: _AvailableJobCard(
-                          job: job,
-                          onClaim: () => _claimJob(job),
-                          onCall: () => _launchPhone(job.customerPhone),
-                          onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
-                        ),
-                      )),
-                      if (jobs.nextPageUrl != null) ...[
+                success: (jobs) {
+                  if (jobs.jobs.isNotEmpty) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(height: 16.h),
+                        _SectionLabel('Available to Claim'),
                         SizedBox(height: 8.h),
-                        AppButton(
-                          label: 'Load more available jobs',
-                          kind: AppButtonKind.secondary,
-                          onPressed: jobs.isLoadingMore
-                              ? null
-                              : () async {
-                            try {
-                              await ref
-                                  .read(availableJobsStateProvider.notifier)
-                                  .loadNextPage();
-                            } catch (e) {
-                              if (mounted && context.mounted) {
-                                // ignore: use_build_context_synchronously
-                                AppToast.show(context, 'Failed to load more jobs');
+                        ...jobs.jobs.map((job) => Padding(
+                          padding: EdgeInsets.only(bottom: 12.h),
+                          child: _AvailableJobCard(
+                            job: job,
+                            onClaim: () => _claimJob(job),
+                            onCall: () => _launchPhone(job.customerPhone),
+                            onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
+                          ),
+                        )),
+                        if (jobs.nextPageUrl != null) ...[
+                          SizedBox(height: 8.h),
+                          AppButton(
+                            label: 'Load more available jobs',
+                            kind: AppButtonKind.secondary,
+                            onPressed: jobs.isLoadingMore
+                                ? null
+                                : () async {
+                              try {
+                                await ref
+                                    .read(availableJobsStateProvider.notifier)
+                                    .loadNextPage();
+                              } catch (e) {
+                                if (mounted && context.mounted) {
+                                  // ignore: use_build_context_synchronously
+                                  AppToast.show(context, 'Failed to load more jobs');
+                                }
                               }
-                            }
-                          },
-                        ),
+                            },
+                          ),
+                        ],
                       ],
-                    ],
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-              error: (_) => const SizedBox.shrink(),
-            ),
-
-            // Completed jobs section
-            if (completedJobs.isNotEmpty) ...[
-              SizedBox(height: 2.h),
-              _SectionLabel('Completed'),
-              SizedBox(height: 8.h),
-              ...completedJobs.map((job) => Padding(
-                padding: EdgeInsets.only(bottom: 12.h),
-                child: _JobCard(
-                  job: job,
-                  onTap: () => _navigateToJobDetail(context, job),
-                  onCall: () => _launchPhone(job.customerPhone),
-                  onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
-                ),
-              )),
-            ],
-
-            // Load more button for completed jobs
-            if (schedule.schedule.completedPagination.next != null) ...[
-              SizedBox(height: 16.h),
-              AppButton(
-                label: 'Load more completed jobs',
-                kind: AppButtonKind.secondary,
-                onPressed: schedule.isLoadingMore
-                    ? null
-                    : () async {
-                  try {
-                    await ref
-                        .read(scheduleStateProvider.notifier)
-                        .loadNextPage();
-                  } catch (e) {
-                    if (mounted && context.mounted) {
-                      // ignore: use_build_context_synchronously
-                      AppToast.show(context, 'Failed to load more jobs');
-                    }
+                    );
                   }
+                  return const SizedBox.shrink();
                 },
+                error: (_) => const SizedBox.shrink(),
               ),
+  
+              // Completed jobs section
+              if (completedJobs.isNotEmpty) ...[
+                SizedBox(height: 2.h),
+                _SectionLabel('Completed'),
+                SizedBox(height: 8.h),
+                ...completedJobs.map((job) => Padding(
+                  padding: EdgeInsets.only(bottom: 12.h),
+                  child: _JobCard(
+                    job: job,
+                    onTap: () => _navigateToJobDetail(context, job),
+                    onCall: () => _launchPhone(job.customerPhone),
+                    onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
+                  ),
+                )),
+              ],
+  
+              // Load more button for completed jobs
+              if (schedule.schedule.completedPagination.next != null) ...[
+                SizedBox(height: 16.h),
+                AppButton(
+                  label: 'Load more completed jobs',
+                  kind: AppButtonKind.secondary,
+                  onPressed: schedule.isLoadingMore
+                      ? null
+                      : () async {
+                    try {
+                      await ref
+                          .read(scheduleStateProvider.notifier)
+                          .loadNextPage();
+                    } catch (e) {
+                      if (mounted && context.mounted) {
+                        // ignore: use_build_context_synchronously
+                        AppToast.show(context, 'Failed to load more jobs');
+                      }
+                    }
+                  },
+                ),
+              ],
             ],
-          ],
+          ),
         );
       },
       error: (error) => Center(

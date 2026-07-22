@@ -111,6 +111,7 @@ class _CarwashJobDetailScreenState extends ConsumerState<CarwashJobDetailScreen>
       return _CarwashDetailBody(
         booking: state.booking,
         isUpdating: state.isUpdating,
+        onRefresh: _loadBooking,
         onBack: () => Navigator.of(context).pop(),
         onAdvanceStatus: _advanceStatus,
       );
@@ -174,12 +175,14 @@ class _CarwashDetailBody extends StatelessWidget {
   const _CarwashDetailBody({
     required this.booking,
     this.isUpdating = false,
+    required this.onRefresh,
     required this.onBack,
     required this.onAdvanceStatus,
   });
 
   final dynamic booking;
   final bool isUpdating;
+  final Future<void> Function() onRefresh;
   final VoidCallback onBack;
   final VoidCallback onAdvanceStatus;
 
@@ -198,20 +201,24 @@ class _CarwashDetailBody extends StatelessWidget {
           onBack: onBack,
         ),
         Expanded(
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
-            children: [
-              _CustomerCard(booking: booking),
-              SizedBox(height: 14.h),
-              _StatusCard(booking: booking),
-              SizedBox(height: 14.h),
-              _WashingStatusFlow(
-                currentStatus: booking.washingStatus,
-                currentStepIndex: _currentStepIndex,
-              ),
-              SizedBox(height: 14.h),
-              _PayoutCard(booking: booking),
-            ],
+          child: RefreshIndicator(
+            onRefresh: onRefresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
+              children: [
+                _CustomerCard(booking: booking),
+                SizedBox(height: 14.h),
+                _StatusCard(booking: booking),
+                SizedBox(height: 14.h),
+                _WashingStatusFlow(
+                  currentStatus: booking.washingStatus,
+                  currentStepIndex: _currentStepIndex,
+                ),
+                SizedBox(height: 14.h),
+                _PayoutCard(booking: booking),
+              ],
+            ),
           ),
         ),
         // Sticky footer action

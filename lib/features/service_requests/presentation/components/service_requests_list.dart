@@ -89,66 +89,83 @@ class ServiceRequestsList extends ConsumerWidget {
 
             // List content.
             Expanded(
-              child: filteredAsync.when(
-                loading: () => ListView(
-                  padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 96.h),
-                  children: [
-                    const SkeletonCard(),
-                    SizedBox(height: 12.h),
-                    const SkeletonCard(),
-                    SizedBox(height: 12.h),
-                    const SkeletonCard(),
-                  ],
-                ),
-                error: (e, _) => Center(
-                  child: Text(
-                    'Error loading requests',
-                    style: AppText.figtree(
-                      size: 14,
-                      color: AppColors.danger,
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(serviceRequestsProvider);
+                  await ref.read(serviceRequestsProvider.future);
+                },
+                child: filteredAsync.when(
+                  loading: () => ListView(
+                    padding: EdgeInsets.fromLTRB(16.w, 14.h, 16.w, 96.h),
+                    children: [
+                      const SkeletonCard(),
+                      SizedBox(height: 12.h),
+                      const SkeletonCard(),
+                      SizedBox(height: 12.h),
+                      const SkeletonCard(),
+                    ],
+                  ),
+                  error: (e, _) => Center(
+                    child: Text(
+                      'Error loading requests',
+                      style: AppText.figtree(
+                        size: 14,
+                        color: AppColors.danger,
+                      ),
                     ),
                   ),
-                ),
-                data: (list) {
-                  if (list.isEmpty) {
-                    return EmptyState(
-                      icon: AppIcons.inbox,
-                      title: 'No requests match',
-                      body: filter.activeFilterCount > 0 ||
-                              filter.query.isNotEmpty
-                          ? 'Try adjusting your search or filters.'
-                          : 'New driver hire and inspection requests will appear here.',
-                      actionLabel: filter.activeFilterCount > 0 ||
-                              filter.query.isNotEmpty
-                          ? 'Reset filters'
-                          : null,
-                      onAction: () => filterCtrl.reset(),
-                    );
-                  }
-                  return ListView.separated(
-                    padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 96.h),
-                    itemCount: list.length + 1,
-                    separatorBuilder: (_, __) => SizedBox(height: 10.h),
-                    itemBuilder: (ctx, i) {
-                      if (i == 0) {
-                        return Padding(
-                          padding: EdgeInsets.only(bottom: 4.h),
-                          child: ListControls(
-                            count: list.length,
-                            noun: 'request',
-                            onFilter: () => _openFilterSheet(context, ref),
-                            filterCount: filter.activeFilterCount,
-                            sort: filter.sort,
-                            sortOptions: _kSrSortOptions,
-                            onSort: (s) => filterCtrl.setSort(s),
+                  data: (list) {
+                    if (list.isEmpty) {
+                      return LayoutBuilder(
+                        builder: (context, constraints) =>
+                            SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight),
+                            child: EmptyState(
+                              icon: AppIcons.inbox,
+                              title: 'No requests match',
+                              body: filter.activeFilterCount > 0 ||
+                                      filter.query.isNotEmpty
+                                  ? 'Try adjusting your search or filters.'
+                                  : 'New driver hire and inspection requests will appear here.',
+                              actionLabel: filter.activeFilterCount > 0 ||
+                                      filter.query.isNotEmpty
+                                  ? 'Reset filters'
+                                  : null,
+                              onAction: () => filterCtrl.reset(),
+                            ),
                           ),
-                        );
-                      }
-                      final r = list[i - 1];
-                      return _RequestCardWrapper(request: r);
-                    },
-                  );
-                },
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 96.h),
+                      itemCount: list.length + 1,
+                      separatorBuilder: (_, __) => SizedBox(height: 10.h),
+                      itemBuilder: (ctx, i) {
+                        if (i == 0) {
+                          return Padding(
+                            padding: EdgeInsets.only(bottom: 4.h),
+                            child: ListControls(
+                              count: list.length,
+                              noun: 'request',
+                              onFilter: () => _openFilterSheet(context, ref),
+                              filterCount: filter.activeFilterCount,
+                              sort: filter.sort,
+                              sortOptions: _kSrSortOptions,
+                              onSort: (s) => filterCtrl.setSort(s),
+                            ),
+                          );
+                        }
+                        final r = list[i - 1];
+                        return _RequestCardWrapper(request: r);
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           ],

@@ -18,9 +18,10 @@ final dashboardRepositoryProvider = Provider<DashboardRepository>(
   (ref) => DashboardRepositoryImpl(),
 );
 
-/// Raw dashboard response from API (cached, reused for snapshot and hiring data).
+/// Raw dashboard response from API (reused for snapshot and hiring data).
 /// This is the ONLY place we call the dashboard API to avoid duplicate requests.
-final _dashboardResponseProvider = FutureProvider<DashboardResponseModel>(
+/// autoDispose — refetched whenever the dashboard screen is (re)entered.
+final _dashboardResponseProvider = FutureProvider.autoDispose<DashboardResponseModel>(
   (ref) async {
     final api = ref.watch(dashboardApiProvider);
     return api.getDashboardSnapshot();
@@ -28,7 +29,7 @@ final _dashboardResponseProvider = FutureProvider<DashboardResponseModel>(
 );
 
 /// Carwash operational snapshot for today.
-final dashboardSnapshotProvider = FutureProvider<DashboardSnapshot>(
+final dashboardSnapshotProvider = FutureProvider.autoDispose<DashboardSnapshot>(
   (ref) async {
     final response = await ref.watch(_dashboardResponseProvider.future);
     return response.toDomain();
@@ -37,7 +38,7 @@ final dashboardSnapshotProvider = FutureProvider<DashboardSnapshot>(
 
 /// Driver hiring & inspection snapshot - REUSES dashboard response.
 /// Does NOT make a second API call.
-final hiringSnapshotProvider = FutureProvider<HiringSnapshot>(
+final hiringSnapshotProvider = FutureProvider.autoDispose<HiringSnapshot>(
   (ref) async {
     final response = await ref.watch(_dashboardResponseProvider.future);
     return response.driverInspector.toHiringSnapshot();
@@ -45,12 +46,12 @@ final hiringSnapshotProvider = FutureProvider<HiringSnapshot>(
 );
 
 /// Recent activity feed (5 items).
-final activityFeedProvider = FutureProvider<List<ActivityItem>>(
+final activityFeedProvider = FutureProvider.autoDispose<List<ActivityItem>>(
   (ref) => ref.watch(dashboardRepositoryProvider).fetchActivityFeed(),
 );
 
 /// Unread notification count.
-final notificationCountProvider = FutureProvider<int>((ref) async {
+final notificationCountProvider = FutureProvider.autoDispose<int>((ref) async {
   try {
     return await ref.watch(dashboardApiProvider).getNotificationCount();
   } catch (e) {

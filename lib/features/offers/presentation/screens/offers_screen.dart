@@ -70,12 +70,11 @@ class OffersScreen extends ConsumerWidget {
                 ),
                 // Search bar
                 Container(
-                  padding:
-                      EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 10.h),
+                  padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 10.h),
                   decoration: const BoxDecoration(
                     color: AppColors.bgCard,
-                    border: Border(
-                        bottom: BorderSide(color: AppColors.borderSoft)),
+                    border:
+                        Border(bottom: BorderSide(color: AppColors.borderSoft)),
                   ),
                   child: SearchField(
                     value: filter.query,
@@ -108,8 +107,7 @@ class OffersScreen extends ConsumerWidget {
               right: 18.w,
               bottom: 24.h,
               child: AppFab(
-                semanticLabel:
-                    tab == 'coupons' ? 'New Coupon' : 'New Banner',
+                semanticLabel: tab == 'coupons' ? 'New Coupon' : 'New Banner',
                 onPressed: () {
                   if (tab == 'coupons') {
                     Navigator.of(context).push(
@@ -147,8 +145,7 @@ class _TabBar extends StatelessWidget {
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.bgCard,
-        border:
-            Border(bottom: BorderSide(color: AppColors.borderSoft)),
+        border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
       ),
       padding: EdgeInsets.symmetric(horizontal: 16.w),
       child: Row(
@@ -195,11 +192,8 @@ class _TabItem extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: AppText.figtree(
                   size: 14,
-                  weight:
-                      active ? FontWeight.w700 : FontWeight.w600,
-                  color: active
-                      ? AppColors.fgPrimary
-                      : AppColors.fgTertiary,
+                  weight: active ? FontWeight.w700 : FontWeight.w600,
+                  color: active ? AppColors.fgPrimary : AppColors.fgTertiary,
                 ),
               ),
             ),
@@ -256,44 +250,51 @@ class _CouponsList extends ConsumerWidget {
         onRetry: () => ref.invalidate(couponsProvider),
       ),
       data: (coupons) {
-        return ListView.builder(
-          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
-          itemCount: coupons.length + 1,
-          itemBuilder: (context, index) {
-            if (index == 0) {
-              return Column(
-                children: [
-                  ListControls(
-                    count: coupons.length,
-                    noun: 'coupon',
-                    onFilter: () => _showFilterSheet(context),
-                    filterCount: filter.activeFilterCount,
-                    sort: filter.sort,
-                    sortOptions: sortOptions,
-                    onSort: controller.setSort,
-                  ),
-                  if (coupons.isEmpty)
-                    EmptyState(
-                      icon: AppIcons.tag,
-                      title: 'No coupons',
-                      body: 'Create your first coupon.',
+        return RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(couponsProvider);
+            await ref.read(couponsProvider.future);
+          },
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
+            itemCount: coupons.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Column(
+                  children: [
+                    ListControls(
+                      count: coupons.length,
+                      noun: 'coupon',
+                      onFilter: () => _showFilterSheet(context),
+                      filterCount: filter.activeFilterCount,
+                      sort: filter.sort,
+                      sortOptions: sortOptions,
+                      onSort: controller.setSort,
                     ),
-                ],
-              );
-            }
-            final c = coupons[index - 1];
-            return Padding(
-              padding: EdgeInsets.only(bottom: 12.h),
-              child: CouponCard(
-                coupon: c,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => CouponFormScreen(coupon: c),
+                    if (coupons.isEmpty)
+                      EmptyState(
+                        icon: AppIcons.tag,
+                        title: 'No coupons',
+                        body: 'Create your first coupon.',
+                      ),
+                  ],
+                );
+              }
+              final c = coupons[index - 1];
+              return Padding(
+                padding: EdgeInsets.only(bottom: 12.h),
+                child: CouponCard(
+                  coupon: c,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => CouponFormScreen(coupon: c),
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
@@ -340,7 +341,7 @@ class _CouponsList extends ConsumerWidget {
 
 // ─── Banners list ─────────────────────────────────────────────────────────────
 
-class _BannersList extends StatelessWidget {
+class _BannersList extends ConsumerWidget {
   const _BannersList({
     required this.async,
     required this.filter,
@@ -368,7 +369,7 @@ class _BannersList extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return async.when(
       loading: () => ListView.separated(
         padding: EdgeInsets.all(16.r),
@@ -377,48 +378,55 @@ class _BannersList extends StatelessWidget {
         itemBuilder: (_, __) => const SkeletonCard(),
       ),
       error: (_, __) => ErrorView(
-        onRetry: () {},
+        onRetry: () => ref.invalidate(bannersProvider),
       ),
       data: (all) {
         final banners = _apply(all);
-        return ListView.builder(
-          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
-          itemCount: banners.length + 1,
-          itemBuilder: (context, index) {
-            if (index == 0) {
-              return Column(
-                children: [
-                  ListControls(
-                    count: banners.length,
-                    noun: 'banner',
-                    onFilter: () => _showFilterSheet(context),
-                    filterCount: filter.activeFilterCount,
-                    sort: filter.sort,
-                    sortOptions: sortOptions,
-                    onSort: controller.setSort,
-                  ),
-                  if (banners.isEmpty)
-                    EmptyState(
-                      icon: AppIcons.tag,
-                      title: 'No banners',
-                      body: 'Create your first banner.',
+        return RefreshIndicator(
+          onRefresh: () async {
+            ref.invalidate(bannersProvider);
+            await ref.read(bannersProvider.future);
+          },
+          child: ListView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
+            itemCount: banners.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Column(
+                  children: [
+                    ListControls(
+                      count: banners.length,
+                      noun: 'banner',
+                      onFilter: () => _showFilterSheet(context),
+                      filterCount: filter.activeFilterCount,
+                      sort: filter.sort,
+                      sortOptions: sortOptions,
+                      onSort: controller.setSort,
                     ),
-                ],
-              );
-            }
-            final b = banners[index - 1];
-            return Padding(
-              padding: EdgeInsets.only(bottom: 12.h),
-              child: BannerCard(
-                banner: b,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => BannerFormScreen(banner: b),
+                    if (banners.isEmpty)
+                      EmptyState(
+                        icon: AppIcons.tag,
+                        title: 'No banners',
+                        body: 'Create your first banner.',
+                      ),
+                  ],
+                );
+              }
+              final b = banners[index - 1];
+              return Padding(
+                padding: EdgeInsets.only(bottom: 12.h),
+                child: BannerCard(
+                  banner: b,
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => BannerFormScreen(banner: b),
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );

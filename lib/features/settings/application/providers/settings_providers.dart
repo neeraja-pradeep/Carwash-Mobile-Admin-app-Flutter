@@ -9,9 +9,9 @@ final settingsRepositoryProvider = Provider<SettingsRepository>(
   (ref) => SettingsRepositoryImpl(),
 );
 
-/// All settings (read). Aggregates the four backing endpoints. Kept alive so
-/// navigation back is instant; mutations invalidate it via [SettingsActions].
-final appSettingsProvider = FutureProvider<AppSettings>(
+/// All settings (read). Aggregates the four backing endpoints. autoDispose so
+/// re-entering the screen refetches; mutations invalidate it via [SettingsActions].
+final appSettingsProvider = FutureProvider.autoDispose<AppSettings>(
   (ref) => ref.watch(settingsRepositoryProvider).fetchSettings(),
 );
 

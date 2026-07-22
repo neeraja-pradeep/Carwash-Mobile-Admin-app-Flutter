@@ -69,266 +69,277 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
                   ],
                 ),
                 Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
-                    children: [
-                      // Header amount card
-                      AppCard(
-                        padding: EdgeInsets.all(18.r),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                StatusBadge(label: label, tone: tone),
-                                Text(
-                                  refund.reference ?? refund.id,
-                                  style: AppText.figtree(
-                                    size: 11.5,
-                                    weight: FontWeight.w500,
-                                    color: AppColors.fgTertiary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 12.h),
-                            Text(
-                              'REFUND AMOUNT',
-                              style: AppText.figtree(
-                                size: 10.5,
-                                weight: FontWeight.w700,
-                                color: AppColors.fgTertiary,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                            SizedBox(height: 5.h),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(
-                                  Formatters.money(refund.amount),
-                                  style: AppText.figtree(
-                                    size: 32,
-                                    weight: FontWeight.w800,
-                                    letterSpacing: -1,
-                                  ),
-                                ),
-                                Text(
-                                  'Tier: ${refund.tier}',
-                                  style: AppText.figtree(
-                                    size: 12.5,
-                                    weight: FontWeight.w600,
-                                    color: AppColors.fgSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 14.h),
-
-                      // Workflow stepper (driven by steps[]), only if not declined
-                      if (!declined && refund.steps.isNotEmpty) ...[
-                        _WorkflowStepper(steps: refund.steps),
-                        SizedBox(height: 14.h),
-                      ],
-
-                      // Customer + booking ref card
-                      AppCard(
-                        child: Column(
-                          children: [
-                            Padding(
-                              padding: EdgeInsets.only(bottom: 11.h),
-                              child: Row(
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(refundByIdProvider(widget.refundId));
+                      await ref
+                          .read(refundByIdProvider(widget.refundId).future);
+                    },
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
+                      children: [
+                        // Header amount card
+                        AppCard(
+                          padding: EdgeInsets.all(18.r),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'CUSTOMER',
-                                        style: AppText.figtree(
-                                          size: 11,
-                                          weight: FontWeight.w700,
-                                          color: AppColors.fgTertiary,
-                                          letterSpacing: 1.0,
-                                        ),
-                                      ),
-                                      SizedBox(height: 5.h),
-                                      Text(
-                                        refund.customer.name,
-                                        style: AppText.figtree(
-                                          size: 14.5,
-                                          weight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      SizedBox(height: 2.h),
-                                      Text(
-                                        refund.customer.phone,
-                                        style: AppText.figtree(
-                                          size: 12.5,
-                                          weight: FontWeight.w500,
-                                          color: AppColors.fgTertiary,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  GestureDetector(
-                                    onTap: () =>
-                                        AppToast.show(context, 'Calling…'),
-                                    child: Container(
-                                      width: 34.r,
-                                      height: 34.r,
-                                      alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        color: AppColors.bgCard,
-                                        borderRadius:
-                                            BorderRadius.circular(9.r),
-                                        border: Border.all(
-                                            color: AppColors.borderDefault),
-                                      ),
-                                      child: Icon(AppIcons.phone,
-                                          size: 17.sp,
-                                          color: AppColors.fgSecondary),
+                                  StatusBadge(label: label, tone: tone),
+                                  Text(
+                                    refund.reference ?? refund.id,
+                                    style: AppText.figtree(
+                                      size: 11.5,
+                                      weight: FontWeight.w500,
+                                      color: AppColors.fgTertiary,
                                     ),
                                   ),
                                 ],
                               ),
-                            ),
-                            Divider(height: 1.h, color: AppColors.borderSoft),
-                            _BookingRef(
-                              bookingId: refund.bookingId,
-                              label: refund.bookingLabel,
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 14.h),
-
-                      // Reason + notes card
-                      AppCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'REASON',
-                              style: AppText.figtree(
-                                size: 11,
-                                weight: FontWeight.w700,
-                                color: AppColors.fgTertiary,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                            SizedBox(height: 8.h),
-                            Text(
-                              refund.reasonDisplay,
-                              style: AppText.figtree(
-                                size: 14,
-                                weight: FontWeight.w600,
-                              ),
-                            ),
-                            if ((refund.reasonSubtitle ?? '').isNotEmpty) ...[
-                              SizedBox(height: 6.h),
+                              SizedBox(height: 12.h),
                               Text(
-                                refund.reasonSubtitle!,
+                                'REFUND AMOUNT',
                                 style: AppText.figtree(
-                                  size: 13,
-                                  weight: FontWeight.w400,
-                                  color: AppColors.fgSecondary,
-                                  height: 1.5,
+                                  size: 10.5,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.fgTertiary,
+                                  letterSpacing: 1.0,
                                 ),
+                              ),
+                              SizedBox(height: 5.h),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    Formatters.money(refund.amount),
+                                    style: AppText.figtree(
+                                      size: 32,
+                                      weight: FontWeight.w800,
+                                      letterSpacing: -1,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Tier: ${refund.tier}',
+                                    style: AppText.figtree(
+                                      size: 12.5,
+                                      weight: FontWeight.w600,
+                                      color: AppColors.fgSecondary,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
-                            if (refund.notes.isNotEmpty) ...[
-                              SizedBox(height: 6.h),
-                              Text(
-                                refund.notes,
-                                style: AppText.figtree(
-                                  size: 13,
-                                  weight: FontWeight.w400,
-                                  color: AppColors.fgSecondary,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ],
-                          ],
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 14.h),
+                        SizedBox(height: 14.h),
 
-                      // Payment proof card
-                      AppCard(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'PAYMENT PROOF',
-                              style: AppText.figtree(
-                                size: 11,
-                                weight: FontWeight.w700,
-                                color: AppColors.fgTertiary,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                            SizedBox(height: 8.h),
-                            if (refund.utr.isNotEmpty) ...[
-                              Text(
-                                refund.utr,
-                                style: AppText.figtree(
-                                  size: 13,
-                                  weight: FontWeight.w600,
-                                ),
-                              ),
-                              if (refund.proof) ...[
-                                SizedBox(height: 5.h),
-                                Row(
+                        // Workflow stepper (driven by steps[]), only if not declined
+                        if (!declined && refund.steps.isNotEmpty) ...[
+                          _WorkflowStepper(steps: refund.steps),
+                          SizedBox(height: 14.h),
+                        ],
+
+                        // Customer + booking ref card
+                        AppCard(
+                          child: Column(
+                            children: [
+                              Padding(
+                                padding: EdgeInsets.only(bottom: 11.h),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Icon(AppIcons.checkCircle,
-                                        size: 14.sp, color: AppColors.greenFg),
-                                    SizedBox(width: 5.w),
-                                    Text(
-                                      'Screenshot on file',
-                                      style: AppText.figtree(
-                                        size: 12,
-                                        weight: FontWeight.w500,
-                                        color: AppColors.greenFg,
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'CUSTOMER',
+                                          style: AppText.figtree(
+                                            size: 11,
+                                            weight: FontWeight.w700,
+                                            color: AppColors.fgTertiary,
+                                            letterSpacing: 1.0,
+                                          ),
+                                        ),
+                                        SizedBox(height: 5.h),
+                                        Text(
+                                          refund.customer.name,
+                                          style: AppText.figtree(
+                                            size: 14.5,
+                                            weight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        SizedBox(height: 2.h),
+                                        Text(
+                                          refund.customer.phone,
+                                          style: AppText.figtree(
+                                            size: 12.5,
+                                            weight: FontWeight.w500,
+                                            color: AppColors.fgTertiary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    GestureDetector(
+                                      onTap: () =>
+                                          AppToast.show(context, 'Calling…'),
+                                      child: Container(
+                                        width: 34.r,
+                                        height: 34.r,
+                                        alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          color: AppColors.bgCard,
+                                          borderRadius:
+                                              BorderRadius.circular(9.r),
+                                          border: Border.all(
+                                              color: AppColors.borderDefault),
+                                        ),
+                                        child: Icon(AppIcons.phone,
+                                            size: 17.sp,
+                                            color: AppColors.fgSecondary),
                                       ),
                                     ),
                                   ],
                                 ),
-                              ],
-                            ] else
+                              ),
+                              Divider(height: 1.h, color: AppColors.borderSoft),
+                              _BookingRef(
+                                bookingId: refund.bookingId,
+                                label: refund.bookingLabel,
+                              ),
+                            ],
+                          ),
+                        ),
+                        SizedBox(height: 14.h),
+
+                        // Reason + notes card
+                        AppCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
                               Text(
-                                'Required before marking Paid',
+                                'REASON',
                                 style: AppText.figtree(
-                                  size: 13,
-                                  weight: FontWeight.w500,
-                                  color: AppColors.fgMuted,
+                                  size: 11,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.fgTertiary,
+                                  letterSpacing: 1.0,
                                 ),
                               ),
-                          ],
+                              SizedBox(height: 8.h),
+                              Text(
+                                refund.reasonDisplay,
+                                style: AppText.figtree(
+                                  size: 14,
+                                  weight: FontWeight.w600,
+                                ),
+                              ),
+                              if ((refund.reasonSubtitle ?? '').isNotEmpty) ...[
+                                SizedBox(height: 6.h),
+                                Text(
+                                  refund.reasonSubtitle!,
+                                  style: AppText.figtree(
+                                    size: 13,
+                                    weight: FontWeight.w400,
+                                    color: AppColors.fgSecondary,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ],
+                              if (refund.notes.isNotEmpty) ...[
+                                SizedBox(height: 6.h),
+                                Text(
+                                  refund.notes,
+                                  style: AppText.figtree(
+                                    size: 13,
+                                    weight: FontWeight.w400,
+                                    color: AppColors.fgSecondary,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 14.h),
+                        SizedBox(height: 14.h),
 
-                      // Timestamps
-                      Text(
-                        _buildTimestamps(refund),
-                        textAlign: TextAlign.center,
-                        style: AppText.figtree(
-                          size: 11.5,
-                          weight: FontWeight.w500,
-                          color: AppColors.fgMuted,
+                        // Payment proof card
+                        AppCard(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'PAYMENT PROOF',
+                                style: AppText.figtree(
+                                  size: 11,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.fgTertiary,
+                                  letterSpacing: 1.0,
+                                ),
+                              ),
+                              SizedBox(height: 8.h),
+                              if (refund.utr.isNotEmpty) ...[
+                                Text(
+                                  refund.utr,
+                                  style: AppText.figtree(
+                                    size: 13,
+                                    weight: FontWeight.w600,
+                                  ),
+                                ),
+                                if (refund.proof) ...[
+                                  SizedBox(height: 5.h),
+                                  Row(
+                                    children: [
+                                      Icon(AppIcons.checkCircle,
+                                          size: 14.sp,
+                                          color: AppColors.greenFg),
+                                      SizedBox(width: 5.w),
+                                      Text(
+                                        'Screenshot on file',
+                                        style: AppText.figtree(
+                                          size: 12,
+                                          weight: FontWeight.w500,
+                                          color: AppColors.greenFg,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ] else
+                                Text(
+                                  'Required before marking Paid',
+                                  style: AppText.figtree(
+                                    size: 13,
+                                    weight: FontWeight.w500,
+                                    color: AppColors.fgMuted,
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 80.h),
-                    ],
+                        SizedBox(height: 14.h),
+
+                        // Timestamps
+                        Text(
+                          _buildTimestamps(refund),
+                          textAlign: TextAlign.center,
+                          style: AppText.figtree(
+                            size: 11.5,
+                            weight: FontWeight.w500,
+                            color: AppColors.fgMuted,
+                          ),
+                        ),
+                        SizedBox(height: 80.h),
+                      ],
+                    ),
                   ),
                 ),
 
@@ -704,8 +715,7 @@ class _MarkPaidModalState extends State<_MarkPaidModal> {
   Future<void> _pickScreenshot() async {
     setState(() => _picking = true);
     try {
-      final file =
-          await ImagePicker().pickImage(source: ImageSource.gallery);
+      final file = await ImagePicker().pickImage(source: ImageSource.gallery);
       if (file != null && mounted) {
         setState(() => _screenshotPath = file.path);
       }

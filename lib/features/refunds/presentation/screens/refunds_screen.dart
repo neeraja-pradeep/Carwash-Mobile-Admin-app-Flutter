@@ -126,33 +126,40 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> {
                           onAction: controller.reset,
                         );
                       }
-                      return ListView.separated(
-                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
-                        itemCount: refunds.length + 1,
-                        separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                        itemBuilder: (ctx, index) {
-                          if (index == 0) {
-                            return ListControls(
-                              count: refunds.length,
-                              noun: 'refund',
-                              onFilter: () => showRefundFilterSheet(ctx, ref),
-                              filterCount: filter.activeCount,
-                              sort: filter.sort,
-                              sortOptions: _sortOptions,
-                              onSort: controller.setSort,
-                            );
-                          }
-                          final r = refunds[index - 1];
-                          return RefundCard(
-                            refund: r,
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    RefundDetailScreen(refundId: r.detailKey),
-                              ),
-                            ),
-                          );
+                      return RefreshIndicator(
+                        onRefresh: () async {
+                          ref.invalidate(refundsProvider);
+                          await ref.read(refundsProvider.future);
                         },
+                        child: ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
+                          itemCount: refunds.length + 1,
+                          separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                          itemBuilder: (ctx, index) {
+                            if (index == 0) {
+                              return ListControls(
+                                count: refunds.length,
+                                noun: 'refund',
+                                onFilter: () => showRefundFilterSheet(ctx, ref),
+                                filterCount: filter.activeCount,
+                                sort: filter.sort,
+                                sortOptions: _sortOptions,
+                                onSort: controller.setSort,
+                              );
+                            }
+                            final r = refunds[index - 1];
+                            return RefundCard(
+                              refund: r,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      RefundDetailScreen(refundId: r.detailKey),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       );
                     },
                   ),

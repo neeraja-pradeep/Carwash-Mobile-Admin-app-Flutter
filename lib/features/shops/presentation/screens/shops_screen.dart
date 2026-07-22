@@ -44,8 +44,7 @@ class ShopsScreen extends ConsumerWidget {
                 ),
                 // Search bar
                 Container(
-                  padding:
-                      EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 10.h),
+                  padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 10.h),
                   decoration: const BoxDecoration(
                     color: AppColors.bgCard,
                     border: Border(
@@ -61,54 +60,73 @@ class ShopsScreen extends ConsumerWidget {
                 // Active filter chips
                 if (filter.activeCount > 0) _ActiveChips(),
                 Expanded(
-                  child: filtered.when(
-                    loading: () => ListView.separated(
-                      padding: EdgeInsets.all(16.r),
-                      itemCount: 3,
-                      separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                      itemBuilder: (_, __) => const SkeletonCard(),
-                    ),
-                    error: (_, __) => ErrorView(
-                      onRetry: () => ref.invalidate(shopsProvider),
-                    ),
-                    data: (shops) {
-                      if (shops.isEmpty) {
-                        return EmptyState(
-                          icon: AppIcons.store,
-                          title: 'No shops match',
-                          body: 'Try clearing your search or filters.',
-                          actionLabel: 'Reset filters',
-                          onAction: controller.reset,
-                        );
-                      }
-                      return ListView.separated(
-                        padding: EdgeInsets.fromLTRB(
-                          16.w, 16.h, 16.w, 96.h,
-                        ),
-                        itemCount: shops.length + 1,
-                        separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                        itemBuilder: (ctx, index) {
-                          if (index == 0) {
-                            return ListControls(
-                              count: shops.length,
-                              noun: 'shop',
-                              onFilter: () =>
-                                  showShopsFilterSheet(ctx, ref),
-                              filterCount: filter.activeCount,
-                              sort: filter.sort,
-                              sortOptions: _sortOptions,
-                              onSort: controller.setSort,
-                            );
-                          }
-                          final shop = shops[index - 1];
-                          return ShopCard(
-                            shop: shop,
-                            onTap: () => context
-                                .push(Routes.shopDetail(shop.id)),
-                          );
-                        },
-                      );
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(shopsPaginatedProvider);
+                      await ref.read(shopsPaginatedProvider.future);
                     },
+                    child: filtered.when(
+                      loading: () => ListView.separated(
+                        padding: EdgeInsets.all(16.r),
+                        itemCount: 3,
+                        separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                        itemBuilder: (_, __) => const SkeletonCard(),
+                      ),
+                      error: (_, __) => ErrorView(
+                        onRetry: () => ref.invalidate(shopsPaginatedProvider),
+                      ),
+                      data: (shops) {
+                        if (shops.isEmpty) {
+                          return LayoutBuilder(
+                            builder: (context, constraints) =>
+                                SingleChildScrollView(
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                    minHeight: constraints.maxHeight),
+                                child: EmptyState(
+                                  icon: AppIcons.store,
+                                  title: 'No shops match',
+                                  body: 'Try clearing your search or filters.',
+                                  actionLabel: 'Reset filters',
+                                  onAction: controller.reset,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        return ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.fromLTRB(
+                            16.w,
+                            16.h,
+                            16.w,
+                            96.h,
+                          ),
+                          itemCount: shops.length + 1,
+                          separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                          itemBuilder: (ctx, index) {
+                            if (index == 0) {
+                              return ListControls(
+                                count: shops.length,
+                                noun: 'shop',
+                                onFilter: () => showShopsFilterSheet(ctx, ref),
+                                filterCount: filter.activeCount,
+                                sort: filter.sort,
+                                sortOptions: _sortOptions,
+                                onSort: controller.setSort,
+                              );
+                            }
+                            final shop = shops[index - 1];
+                            return ShopCard(
+                              shop: shop,
+                              onTap: () =>
+                                  context.push(Routes.shopDetail(shop.id)),
+                            );
+                          },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ],

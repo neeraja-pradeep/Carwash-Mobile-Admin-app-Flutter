@@ -121,33 +121,40 @@ class _PayoutsScreenState extends ConsumerState<PayoutsScreen> {
                           onAction: controller.reset,
                         );
                       }
-                      return ListView.separated(
-                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
-                        itemCount: payouts.length + 1,
-                        separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                        itemBuilder: (ctx, index) {
-                          if (index == 0) {
-                            return ListControls(
-                              count: payouts.length,
-                              noun: 'payout',
-                              onFilter: () => showPayoutFilterSheet(ctx, ref),
-                              filterCount: filter.activeCount,
-                              sort: filter.sort,
-                              sortOptions: _sortOptions,
-                              onSort: controller.setSort,
-                            );
-                          }
-                          final p = payouts[index - 1];
-                          return PayoutCard(
-                            payout: p,
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute<void>(
-                                builder: (_) =>
-                                    PayoutDetailScreen(payout: p),
-                              ),
-                            ),
-                          );
+                      return RefreshIndicator(
+                        onRefresh: () async {
+                          ref.invalidate(payoutLogProvider);
+                          ref.invalidate(shopsProvider);
+                          await ref.read(payoutLogProvider.future);
                         },
+                        child: ListView.separated(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 100.h),
+                          itemCount: payouts.length + 1,
+                          separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                          itemBuilder: (ctx, index) {
+                            if (index == 0) {
+                              return ListControls(
+                                count: payouts.length,
+                                noun: 'payout',
+                                onFilter: () => showPayoutFilterSheet(ctx, ref),
+                                filterCount: filter.activeCount,
+                                sort: filter.sort,
+                                sortOptions: _sortOptions,
+                                onSort: controller.setSort,
+                              );
+                            }
+                            final p = payouts[index - 1];
+                            return PayoutCard(
+                              payout: p,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => PayoutDetailScreen(payout: p),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       );
                     },
                   ),

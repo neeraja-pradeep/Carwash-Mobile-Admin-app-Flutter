@@ -47,7 +47,20 @@ class _ServiceRequestDetailScreenState
   }
 
   String _getMonth(int month) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    ];
     return months[month - 1];
   }
 
@@ -70,13 +83,18 @@ class _ServiceRequestDetailScreenState
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text('Invalid Request ID',
-                  style: AppText.figtree(size: 14, color: AppColors.danger, weight: FontWeight.w600)),
+                  style: AppText.figtree(
+                      size: 14,
+                      color: AppColors.danger,
+                      weight: FontWeight.w600)),
               SizedBox(height: 8.h),
               Text('Received: "${widget.requestId}"',
-                  style: AppText.figtree(size: 12, color: AppColors.fgTertiary)),
+                  style:
+                      AppText.figtree(size: 12, color: AppColors.fgTertiary)),
               SizedBox(height: 4.h),
               Text('Expected: numeric ID (e.g., "77")',
-                  style: AppText.figtree(size: 11, color: AppColors.fgTertiary)),
+                  style:
+                      AppText.figtree(size: 11, color: AppColors.fgTertiary)),
               SizedBox(height: 16.h),
               AppButton(
                 label: 'Go Back',
@@ -219,7 +237,9 @@ class _DetailBody extends ConsumerWidget {
               ? null
               : () async {
                   try {
-                    await ref.read(detailActionProvider.notifier).markArrived(requestId);
+                    await ref
+                        .read(detailActionProvider.notifier)
+                        .markArrived(requestId);
                     if (context.mounted) {
                       AppToast.show(context, 'Marked Arrived');
                     }
@@ -234,16 +254,21 @@ class _DetailBody extends ConsumerWidget {
     } else if (status == ServiceRequestStatus.arrived && hasWorker) {
       nextStep = _NextStep(
         label: 'Start Job',
-        action: actionState.isLoading ? null : () => _showOtpModal(context, ref, 'start'),
+        action: actionState.isLoading
+            ? null
+            : () => _showOtpModal(context, ref, 'start'),
       );
     } else if (status == ServiceRequestStatus.inProgress) {
       nextStep = _NextStep(
         label: 'End Job',
-        action: actionState.isLoading ? null : () => _showOtpModal(context, ref, 'end'),
+        action: actionState.isLoading
+            ? null
+            : () => _showOtpModal(context, ref, 'end'),
       );
     }
 
-    final isDone = status == ServiceRequestStatus.completed || status == ServiceRequestStatus.cancelled;
+    final isDone = status == ServiceRequestStatus.completed ||
+        status == ServiceRequestStatus.cancelled;
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -259,38 +284,47 @@ class _DetailBody extends ConsumerWidget {
               onAddNote: () => _showNoteModal(context),
             ),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
-                children: [
-                  _HeaderCard(detail: detail, status: status),
-                  SizedBox(height: 14.h),
-                  _DetailsCard(detail: detail),
-                  SizedBox(height: 14.h),
-                  if (detail.customerNote != null && detail.customerNote!.isNotEmpty) ...[
-                    _NoteCard(
-                      label: 'CUSTOMER NOTE',
-                      icon: AppIcons.message,
-                      text: detail.customerNote!,
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(serviceRequestDetailProvider(requestId));
+                  await ref
+                      .read(serviceRequestDetailProvider(requestId).future);
+                },
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+                  children: [
+                    _HeaderCard(detail: detail, status: status),
+                    SizedBox(height: 14.h),
+                    _DetailsCard(detail: detail),
+                    SizedBox(height: 14.h),
+                    if (detail.customerNote != null &&
+                        detail.customerNote!.isNotEmpty) ...[
+                      _NoteCard(
+                        label: 'CUSTOMER NOTE',
+                        icon: AppIcons.message,
+                        text: detail.customerNote!,
+                      ),
+                      SizedBox(height: 14.h),
+                    ],
+                    if (opsNote.isNotEmpty) ...[
+                      _NoteCard(
+                        label: 'FOUNDER NOTE',
+                        icon: AppIcons.note,
+                        text: opsNote,
+                        onEdit: () => _showNoteModal(context),
+                      ),
+                      SizedBox(height: 14.h),
+                    ],
+                    _AssignCard(
+                      detail: detail,
+                      status: status,
+                      onAssign: () => _openAssignSheet(context, ref),
                     ),
                     SizedBox(height: 14.h),
+                    _TimelineCard(detail: detail),
                   ],
-                  if (opsNote.isNotEmpty) ...[
-                    _NoteCard(
-                      label: 'FOUNDER NOTE',
-                      icon: AppIcons.note,
-                      text: opsNote,
-                      onEdit: () => _showNoteModal(context),
-                    ),
-                    SizedBox(height: 14.h),
-                  ],
-                  _AssignCard(
-                    detail: detail,
-                    status: status,
-                    onAssign: () => _openAssignSheet(context, ref),
-                  ),
-                  SizedBox(height: 14.h),
-                  _TimelineCard(detail: detail),
-                ],
+                ),
               ),
             ),
             Container(
@@ -325,7 +359,8 @@ class _DetailBody extends ConsumerWidget {
                             child: AppButton(
                               label: nextStep?.label ?? 'Assign first',
                               full: true,
-                              disabled: nextStep == null || actionState.isLoading,
+                              disabled:
+                                  nextStep == null || actionState.isLoading,
                               onPressed: nextStep?.action,
                             ),
                           ),
@@ -371,7 +406,8 @@ class _DetailBody extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
       ),
       builder: (_) => Padding(
-        padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, MediaQuery.of(_).viewInsets.bottom + 20.h),
+        padding: EdgeInsets.fromLTRB(
+            20.w, 20.h, 20.w, MediaQuery.of(_).viewInsets.bottom + 20.h),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,7 +419,8 @@ class _DetailBody extends ConsumerWidget {
               controller: controller,
               decoration: InputDecoration(
                 hintText: 'OTP',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.r)),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12.r),
                   borderSide: const BorderSide(color: AppColors.borderDefault),
@@ -398,7 +435,9 @@ class _DetailBody extends ConsumerWidget {
                 final otp = controller.text.trim();
                 try {
                   if (mode == 'start') {
-                    await ref.read(detailActionProvider.notifier).verifyStartOtp(
+                    await ref
+                        .read(detailActionProvider.notifier)
+                        .verifyStartOtp(
                           id: requestId,
                           otp: otp,
                         );
@@ -410,7 +449,8 @@ class _DetailBody extends ConsumerWidget {
                   }
                   if (context.mounted) {
                     Navigator.of(context).pop();
-                    AppToast.show(context, mode == 'start' ? 'Job started' : 'Job completed');
+                    AppToast.show(context,
+                        mode == 'start' ? 'Job started' : 'Job completed');
                   }
                 } catch (e) {
                   if (context.mounted) {
@@ -487,7 +527,8 @@ class _DetailBody extends ConsumerWidget {
               autofocus: true,
               decoration: InputDecoration(
                 hintText: 'Type a note…',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12.r)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.r)),
               ),
             ),
             SizedBox(height: 20.h),
@@ -584,7 +625,10 @@ class _CancelButton extends StatelessWidget {
                 )
               : Text(
                   'Cancel',
-                  style: AppText.figtree(size: 14, weight: FontWeight.w700, color: AppColors.redFg),
+                  style: AppText.figtree(
+                      size: 14,
+                      weight: FontWeight.w700,
+                      color: AppColors.redFg),
                 ),
         ),
       ),
@@ -609,7 +653,8 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typeLabel = detail.requestType == 'inspection' ? 'Inspection' : 'Driver';
+    final typeLabel =
+        detail.requestType == 'inspection' ? 'Inspection' : 'Driver';
     return TopBar(
       title: '$typeLabel Request',
       subtitle: detail.reference,
@@ -669,7 +714,10 @@ class _HeaderCard extends StatelessWidget {
                 ),
                 child: Text(
                   detail.requestType == 'inspection' ? 'INSPECTION' : 'DRIVER',
-                  style: AppText.figtree(size: 11, weight: FontWeight.w700, color: AppColors.fgSecondary),
+                  style: AppText.figtree(
+                      size: 11,
+                      weight: FontWeight.w700,
+                      color: AppColors.fgSecondary),
                 ),
               ),
               const Spacer(),
@@ -691,9 +739,11 @@ class _HeaderCard extends StatelessWidget {
             ],
           ),
           SizedBox(height: 12.h),
-          Text(detail.title, style: AppText.figtree(size: 15, weight: FontWeight.w700)),
+          Text(detail.title,
+              style: AppText.figtree(size: 15, weight: FontWeight.w700)),
           SizedBox(height: 4.h),
-          Text(detail.reference, style: AppText.figtree(size: 12, color: AppColors.fgTertiary)),
+          Text(detail.reference,
+              style: AppText.figtree(size: 12, color: AppColors.fgTertiary)),
         ],
       ),
     );
@@ -711,13 +761,18 @@ class _DetailsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _DetailRow(label: 'Vehicle', value: detail.carLabel ?? detail.vehicleText ?? 'N/A'),
+          _DetailRow(
+              label: 'Vehicle',
+              value: detail.carLabel ?? detail.vehicleText ?? 'N/A'),
           _DetailRow(
             label: 'When',
-            value: '${detail.appointmentDate} ${detail.startTime} · ${detail.durationLabel}',
+            value:
+                '${detail.appointmentDate} ${detail.startTime} · ${detail.durationLabel}',
           ),
           _DetailRow(label: 'Location', value: detail.addressText),
-          _DetailRow(label: 'Fee', value: '₹${detail.quotedFee ?? detail.estimatedFee ?? '0'}'),
+          _DetailRow(
+              label: 'Fee',
+              value: '₹${detail.quotedFee ?? detail.estimatedFee ?? '0'}'),
         ],
       ),
     );
@@ -737,7 +792,11 @@ class _DetailRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: AppText.figtree(size: 11, color: AppColors.fgTertiary, weight: FontWeight.w600)),
+          Text(label,
+              style: AppText.figtree(
+                  size: 11,
+                  color: AppColors.fgTertiary,
+                  weight: FontWeight.w600)),
           SizedBox(height: 4.h),
           Text(value, style: AppText.figtree(size: 13)),
         ],
@@ -769,10 +828,17 @@ class _NoteCard extends StatelessWidget {
             children: [
               Icon(icon, size: 16, color: AppColors.fgTertiary),
               SizedBox(width: 8.w),
-              Text(label, style: AppText.figtree(size: 11, color: AppColors.fgTertiary, weight: FontWeight.w600)),
+              Text(label,
+                  style: AppText.figtree(
+                      size: 11,
+                      color: AppColors.fgTertiary,
+                      weight: FontWeight.w600)),
               const Spacer(),
               if (onEdit != null)
-                GestureDetector(onTap: onEdit, child: Icon(AppIcons.edit, size: 16, color: AppColors.fgTertiary)),
+                GestureDetector(
+                    onTap: onEdit,
+                    child: Icon(AppIcons.edit,
+                        size: 16, color: AppColors.fgTertiary)),
             ],
           ),
           SizedBox(height: 8.h),
@@ -803,11 +869,16 @@ class _AssignCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('ASSIGNMENT', style: AppText.figtree(size: 11, color: AppColors.fgTertiary, weight: FontWeight.w600)),
+          Text('ASSIGNMENT',
+              style: AppText.figtree(
+                  size: 11,
+                  color: AppColors.fgTertiary,
+                  weight: FontWeight.w600)),
           SizedBox(height: 12.h),
           if (needsAssignee)
             AppButton(
-              label: '+ Assign ${detail.requestType == 'inspection' ? 'Inspector' : 'Driver'}',
+              label:
+                  '+ Assign ${detail.requestType == 'inspection' ? 'Inspector' : 'Driver'}',
               full: true,
               onPressed: onAssign,
             )
@@ -820,15 +891,22 @@ class _AssignCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(worker.name, style: AppText.figtree(size: 13, weight: FontWeight.w600)),
+                      Text(worker.name,
+                          style: AppText.figtree(
+                              size: 13, weight: FontWeight.w600)),
                       Text('★ ${worker.rating?.toStringAsFixed(1) ?? 'N/A'}',
-                          style: AppText.figtree(size: 11, color: AppColors.fgTertiary)),
+                          style: AppText.figtree(
+                              size: 11, color: AppColors.fgTertiary)),
                     ],
                   ),
                 ),
                 GestureDetector(
                   onTap: onAssign,
-                  child: Text('Change', style: AppText.figtree(size: 12, color: AppColors.fgPrimary, weight: FontWeight.w600)),
+                  child: Text('Change',
+                      style: AppText.figtree(
+                          size: 12,
+                          color: AppColors.fgPrimary,
+                          weight: FontWeight.w600)),
                 ),
               ],
             ),
@@ -849,10 +927,15 @@ class _TimelineCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('TIMELINE', style: AppText.figtree(size: 11, color: AppColors.fgTertiary, weight: FontWeight.w600)),
+          Text('TIMELINE',
+              style: AppText.figtree(
+                  size: 11,
+                  color: AppColors.fgTertiary,
+                  weight: FontWeight.w600)),
           SizedBox(height: 12.h),
           if (detail.timeline.isEmpty)
-            Text('No timeline entries', style: AppText.figtree(size: 13, color: AppColors.fgTertiary))
+            Text('No timeline entries',
+                style: AppText.figtree(size: 13, color: AppColors.fgTertiary))
           else
             Column(
               children: [
@@ -864,13 +947,19 @@ class _TimelineCard extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Text(entry.status, style: AppText.figtree(size: 12, weight: FontWeight.w600)),
+                            Text(entry.status,
+                                style: AppText.figtree(
+                                    size: 12, weight: FontWeight.w600)),
                             const Spacer(),
-                            Text(entry.createdAt, style: AppText.figtree(size: 11, color: AppColors.fgTertiary)),
+                            Text(entry.createdAt,
+                                style: AppText.figtree(
+                                    size: 11, color: AppColors.fgTertiary)),
                           ],
                         ),
                         SizedBox(height: 2.h),
-                        Text('by ${entry.actorName}', style: AppText.figtree(size: 11, color: AppColors.fgTertiary)),
+                        Text('by ${entry.actorName}',
+                            style: AppText.figtree(
+                                size: 11, color: AppColors.fgTertiary)),
                       ],
                     ),
                   ),

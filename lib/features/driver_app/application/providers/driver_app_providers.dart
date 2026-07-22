@@ -45,9 +45,9 @@ final driverAppRepositoryProvider = Provider<DriverAppRepository>(
 
 // ── Entity providers ─────────────────────────────────────────────────────────
 
-/// All driver jobs (active + upcoming + completed). Kept alive so navigation
-/// back is instant (warm cache).
-final driverJobsProvider = FutureProvider<List<DriverJob>>(
+/// All driver jobs (active + upcoming + completed). autoDispose so
+/// re-entering the screen refetches fresh data.
+final driverJobsProvider = FutureProvider.autoDispose<List<DriverJob>>(
   (ref) => ref.watch(driverAppRepositoryProvider).fetchDriverJobs(),
 );
 
@@ -62,13 +62,13 @@ final driverJobByIdProvider =
   }
 });
 
-/// The signed-in driver's earnings summary. Kept alive with jobs.
-final driverEarningsProvider = FutureProvider<DriverEarnings>(
+/// The signed-in driver's earnings summary.
+final driverEarningsProvider = FutureProvider.autoDispose<DriverEarnings>(
   (ref) => ref.watch(driverAppRepositoryProvider).fetchDriverEarnings(),
 );
 
 /// The signed-in worker's profile. Fetched from the driver app API.
-final workerProfileProvider = FutureProvider<WorkerProfile>(
+final workerProfileProvider = FutureProvider.autoDispose<WorkerProfile>(
   (ref) => ref.watch(driverAppRepositoryProvider).fetchWorkerProfile(),
 );
 

@@ -50,8 +50,7 @@ class ReviewsScreen extends ConsumerWidget {
               padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 10.h),
               decoration: const BoxDecoration(
                 color: AppColors.bgCard,
-                border:
-                    Border(bottom: BorderSide(color: AppColors.borderSoft)),
+                border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
               ),
               child: SearchField(
                 value: filter.query,
@@ -81,32 +80,41 @@ class ReviewsScreen extends ConsumerWidget {
                       onAction: controller.reset,
                     );
                   }
-                  return ListView.separated(
-                    padding: EdgeInsets.all(16.r),
-                    itemCount: reviews.length + 1,
-                    separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return ListControls(
-                          count: reviews.length,
-                          noun: 'review',
-                          onFilter: () => showReviewsFilterSheet(context, ref),
-                          filterCount: filter.activeCount,
-                          sort: filter.sort,
-                          sortOptions: sortOptions,
-                          onSort: controller.setSort,
-                        );
-                      }
-                      final review = reviews[index - 1];
-                      return ReviewCard(
-                        review: review,
-                        onTap: () => Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => ReviewDetailScreen(review: review),
-                          ),
-                        ),
-                      );
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(reviewsProvider);
+                      await ref.read(reviewsProvider.future);
                     },
+                    child: ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.all(16.r),
+                      itemCount: reviews.length + 1,
+                      separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return ListControls(
+                            count: reviews.length,
+                            noun: 'review',
+                            onFilter: () =>
+                                showReviewsFilterSheet(context, ref),
+                            filterCount: filter.activeCount,
+                            sort: filter.sort,
+                            sortOptions: sortOptions,
+                            onSort: controller.setSort,
+                          );
+                        }
+                        final review = reviews[index - 1];
+                        return ReviewCard(
+                          review: review,
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  ReviewDetailScreen(review: review),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   );
                 },
               ),

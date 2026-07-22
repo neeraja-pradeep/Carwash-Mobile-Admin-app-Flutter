@@ -164,79 +164,100 @@ class _CarwashBookingsList extends ConsumerWidget {
 
             // Body
             Expanded(
-              child: filtered.when(
-                loading: () => ListView.separated(
-                  padding: EdgeInsets.all(16.r),
-                  itemCount: 4,
-                  separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                  itemBuilder: (_, __) => const SkeletonCard(),
-                ),
-                error: (_, __) => ErrorView(
-                  onRetry: () => ref.invalidate(bookingsProvider),
-                ),
-                data: (bookings) {
-                  if (bookings.isEmpty) {
-                    return EmptyState(
-                      icon: AppIcons.car,
-                      title: 'No bookings match',
-                      body: filter.query.isNotEmpty || filter.activeCount > 0
-                          ? 'Try clearing your search or filters.'
-                          : "Today's bookings will appear here as they come in.",
-                      actionLabel:
-                          filter.query.isNotEmpty || filter.activeCount > 0
-                              ? 'Reset filters'
-                              : null,
-                      onAction: () {
-                        controller.reset();
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(bookingsProvider);
+                  await ref.read(bookingsProvider.future);
+                },
+                child: filtered.when(
+                  loading: () => ListView.separated(
+                    padding: EdgeInsets.all(16.r),
+                    itemCount: 4,
+                    separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                    itemBuilder: (_, __) => const SkeletonCard(),
+                  ),
+                  error: (_, __) => ErrorView(
+                    onRetry: () => ref.invalidate(bookingsProvider),
+                  ),
+                  data: (bookings) {
+                    if (bookings.isEmpty) {
+                      return LayoutBuilder(
+                        builder: (context, constraints) =>
+                            SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight),
+                            child: EmptyState(
+                              icon: AppIcons.car,
+                              title: 'No bookings match',
+                              body: filter.query.isNotEmpty ||
+                                      filter.activeCount > 0
+                                  ? 'Try clearing your search or filters.'
+                                  : "Today's bookings will appear here as they come in.",
+                              actionLabel: filter.query.isNotEmpty ||
+                                      filter.activeCount > 0
+                                  ? 'Reset filters'
+                                  : null,
+                              onAction: () {
+                                controller.reset();
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.all(16.r),
+                      itemCount:
+                          bookings.length + 2, // controls + items + spacer
+                      separatorBuilder: (_, i) => i == 0
+                          ? const SizedBox.shrink()
+                          : SizedBox(height: 12.h),
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return ListControls(
+                            count: bookings.length,
+                            noun: 'booking',
+                            onFilter: () =>
+                                showBookingsFilterSheet(context, ref),
+                            filterCount: filter.activeCount,
+                            sort: filter.sort,
+                            sortOptions: _sortOptions,
+                            onSort: controller.setSort,
+                          );
+                        }
+                        if (index == bookings.length + 1) {
+                          return SizedBox(height: 84.h);
+                        }
+                        final booking = bookings[index - 1];
+                        return BookingCard(
+                          booking: booking,
+                          onTap: () {
+                            // Convert int ID to String for detail screen navigation
+                            final stringId = booking.id.toString();
+                            context.push(Routes.bookingDetail(stringId));
+                          },
+                          onAssign: booking.assigneeName != null &&
+                                  booking.assigneeName!.isNotEmpty
+                              ? null // Hide assign button if already assigned
+                              : () {
+                                  showAppBottomSheet(
+                                    context: context,
+                                    title: 'Assign driver',
+                                    maxHeightFactor: 0.72,
+                                    builder: (_) => _AssignDriverBody(
+                                      bookingId: booking.id,
+                                      ref: ref,
+                                    ),
+                                  );
+                                },
+                        );
                       },
                     );
-                  }
-                  return ListView.separated(
-                    padding: EdgeInsets.all(16.r),
-                    itemCount: bookings.length + 2, // controls + items + spacer
-                    separatorBuilder: (_, i) => i == 0
-                        ? const SizedBox.shrink()
-                        : SizedBox(height: 12.h),
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return ListControls(
-                          count: bookings.length,
-                          noun: 'booking',
-                          onFilter: () => showBookingsFilterSheet(context, ref),
-                          filterCount: filter.activeCount,
-                          sort: filter.sort,
-                          sortOptions: _sortOptions,
-                          onSort: controller.setSort,
-                        );
-                      }
-                      if (index == bookings.length + 1) {
-                        return SizedBox(height: 84.h);
-                      }
-                      final booking = bookings[index - 1];
-                      return BookingCard(
-                        booking: booking,
-                        onTap: () {
-                          // Convert int ID to String for detail screen navigation
-                          final stringId = booking.id.toString();
-                          context.push(Routes.bookingDetail(stringId));
-                        },
-                        onAssign: booking.assigneeName != null && booking.assigneeName!.isNotEmpty
-                            ? null // Hide assign button if already assigned
-                            : () {
-                                showAppBottomSheet(
-                                  context: context,
-                                  title: 'Assign driver',
-                                  maxHeightFactor: 0.72,
-                                  builder: (_) => _AssignDriverBody(
-                                    bookingId: booking.id,
-                                    ref: ref,
-                                  ),
-                                );
-                              },
-                      );
-                    },
-                  );
-                },
+                  },
+                ),
               ),
             ),
           ],

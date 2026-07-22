@@ -102,20 +102,29 @@ class DriversScreen extends ConsumerWidget {
 
                 // List
                 Expanded(
-                  child: isDrivers
-                      ? _DriversList(
-                          filtered: filtered,
-                          filterCount: filter.activeCount,
-                          onFilter: () =>
-                              showDriversFilterSheet(context, ref),
-                          onClearFilter: () =>
-                              ref.read(driversFilterProvider.notifier).reset(),
-                          onTap: (id) =>
-                              context.push(Routes.driverDetail(id)),
-                        )
-                      : _InspectorsList(
-                          inspectorsAsync: inspectorsAsync,
-                        ),
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(fieldDriversProvider);
+                      ref.invalidate(foundersProvider);
+                      ref.invalidate(inspectorsProvider);
+                      await ref.read(fieldDriversProvider.future);
+                    },
+                    child: isDrivers
+                        ? _DriversList(
+                            filtered: filtered,
+                            filterCount: filter.activeCount,
+                            onFilter: () =>
+                                showDriversFilterSheet(context, ref),
+                            onClearFilter: () => ref
+                                .read(driversFilterProvider.notifier)
+                                .reset(),
+                            onTap: (id) =>
+                                context.push(Routes.driverDetail(id)),
+                          )
+                        : _InspectorsList(
+                            inspectorsAsync: inspectorsAsync,
+                          ),
+                  ),
                 ),
               ],
             ),
@@ -125,7 +134,8 @@ class DriversScreen extends ConsumerWidget {
               right: 18.w,
               bottom: 96.h,
               child: AppFab(
-                onPressed: () => Navigator.of(context, rootNavigator: true).push(
+                onPressed: () =>
+                    Navigator.of(context, rootNavigator: true).push(
                   MaterialPageRoute<void>(
                     builder: (_) => HireDriverScreen(isInspector: !isDrivers),
                   ),
@@ -164,8 +174,7 @@ class _SegBtn extends StatelessWidget {
           color: active ? AppColors.brandYellow : AppColors.bgCard,
           borderRadius: BorderRadius.circular(10.r),
           border: Border.all(
-            color:
-                active ? AppColors.brandYellowDeep : AppColors.borderDefault,
+            color: active ? AppColors.brandYellowDeep : AppColors.borderDefault,
           ),
         ),
         child: Center(
@@ -266,15 +275,24 @@ class _DriversList extends StatelessWidget {
       ),
       data: (drivers) {
         if (drivers.isEmpty) {
-          return EmptyState(
-            icon: AppIcons.car,
-            title: 'No drivers match',
-            body: 'Try clearing the filter.',
-            actionLabel: 'Reset',
-            onAction: onClearFilter,
+          return LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: EmptyState(
+                  icon: AppIcons.car,
+                  title: 'No drivers match',
+                  body: 'Try clearing the filter.',
+                  actionLabel: 'Reset',
+                  onAction: onClearFilter,
+                ),
+              ),
+            ),
           );
         }
         return ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 96.h),
           itemCount: drivers.length + 1,
           separatorBuilder: (_, __) => SizedBox(height: 12.h),
@@ -327,12 +345,21 @@ class _InspectorsList extends StatelessWidget {
       ),
       data: (inspectors) {
         if (inspectors.isEmpty) {
-          return const EmptyState(
-            title: 'No inspectors',
-            body: 'Add an inspector to get started.',
+          return LayoutBuilder(
+            builder: (context, constraints) => SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: const EmptyState(
+                  title: 'No inspectors',
+                  body: 'Add an inspector to get started.',
+                ),
+              ),
+            ),
           );
         }
         return ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 96.h),
           itemCount: inspectors.length,
           separatorBuilder: (_, __) => SizedBox(height: 12.h),

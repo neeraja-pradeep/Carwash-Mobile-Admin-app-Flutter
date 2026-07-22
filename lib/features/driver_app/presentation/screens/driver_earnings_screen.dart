@@ -31,7 +31,13 @@ class DriverEarningsScreen extends ConsumerWidget {
         itemBuilder: (_, __) => const SkeletonCard(),
       ),
       error: (_, __) => const Center(child: Text('Could not load earnings.')),
-      data: (earnings) => _EarningsBody(earnings: earnings),
+      data: (earnings) => RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(driverEarningsProvider);
+          await ref.read(driverEarningsProvider.future);
+        },
+        child: _EarningsBody(earnings: earnings),
+      ),
     );
   }
 }
@@ -44,6 +50,7 @@ class _EarningsBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 32.h),
       children: [
         // This week + bar chart

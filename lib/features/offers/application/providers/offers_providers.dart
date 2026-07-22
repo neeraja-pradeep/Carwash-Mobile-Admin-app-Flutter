@@ -28,7 +28,6 @@ final couponsProvider = FutureProvider.autoDispose<List<Coupon>>((ref) async {
         lifecycle: filter.lifecycle,
         ordering: filter.ordering,
       );
-  ref.keepAlive();
   // Stash the count so the list controls can read it without a second fetch.
   ref.read(_couponCountProvider.notifier).state = page.count;
   return page.coupons;
@@ -42,7 +41,7 @@ final couponCountProvider = Provider.autoDispose<int>(
 );
 
 /// All banners (local).
-final bannersProvider = FutureProvider<List<OfferBanner>>(
+final bannersProvider = FutureProvider.autoDispose<List<OfferBanner>>(
   (ref) => ref.watch(offersRepositoryProvider).fetchBanners(),
 );
 

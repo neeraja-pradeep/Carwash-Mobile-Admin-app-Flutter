@@ -191,81 +191,100 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
               children: [
                 Positioned.fill(
                   child: Column(
-                  children: [
-                // ── Top bar ───────────────────────────────────────────────
-                TopBar(
-                  title: c.name,
-                  onBack: () => context.pop(),
-                  actions: [
-                    AppIconButton(
-                      icon: AppIcons.phone,
-                      semanticLabel: 'Call ${c.name}',
-                      iconSize: 20,
-                      onTap: () =>
-                          AppToast.show(context, 'Calling ${c.name}…'),
-                    ),
-                    AppIconButton(
-                      icon: AppIcons.more,
-                      semanticLabel: 'More options',
-                      iconSize: 22,
-                      onTap: _toggleMenu,
-                    ),
-                  ],
-                ),
-
-                // ── Block/Unblock controls row ────────────────────────────
-                Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: 16.w,
-                    vertical: 10.h,
-                  ),
-                  decoration: const BoxDecoration(
-                    color: AppColors.bgCard,
-                    border: Border(
-                      bottom: BorderSide(color: AppColors.borderSoft),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      StatusBadge(
-                        label: isBlocked ? 'Blocked' : 'Active',
-                        tone: isBlocked ? BadgeTone.grey : BadgeTone.green,
+                      // ── Top bar ───────────────────────────────────────────────
+                      TopBar(
+                        title: c.name,
+                        onBack: () => context.pop(),
+                        actions: [
+                          AppIconButton(
+                            icon: AppIcons.phone,
+                            semanticLabel: 'Call ${c.name}',
+                            iconSize: 20,
+                            onTap: () =>
+                                AppToast.show(context, 'Calling ${c.name}…'),
+                          ),
+                          AppIconButton(
+                            icon: AppIcons.more,
+                            semanticLabel: 'More options',
+                            iconSize: 22,
+                            onTap: _toggleMenu,
+                          ),
+                        ],
                       ),
-                      if (isBlocked)
-                        _ActionButton(
-                          label: 'Unblock',
-                          onTap: () => _onUnblock(c),
-                          danger: false,
-                        )
-                      else
-                        _ActionButton(
-                          label: 'Block',
-                          onTap: () => _onBlock(c),
-                          danger: true,
+
+                      // ── Block/Unblock controls row ────────────────────────────
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: 16.w,
+                          vertical: 10.h,
                         ),
+                        decoration: const BoxDecoration(
+                          color: AppColors.bgCard,
+                          border: Border(
+                            bottom: BorderSide(color: AppColors.borderSoft),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            StatusBadge(
+                              label: isBlocked ? 'Blocked' : 'Active',
+                              tone:
+                                  isBlocked ? BadgeTone.grey : BadgeTone.green,
+                            ),
+                            if (isBlocked)
+                              _ActionButton(
+                                label: 'Unblock',
+                                onTap: () => _onUnblock(c),
+                                danger: false,
+                              )
+                            else
+                              _ActionButton(
+                                label: 'Block',
+                                onTap: () => _onBlock(c),
+                                danger: true,
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      // ── KPI strip ─────────────────────────────────────────────
+                      _KpiStrip(customer: c),
+
+                      // ── Tab bar ───────────────────────────────────────────────
+                      _TabBar(
+                        current: _tab,
+                        onSelect: (t) => setState(() => _tab = t),
+                      ),
+
+                      // ── Tab body ──────────────────────────────────────────────
+                      Expanded(
+                        child: RefreshIndicator(
+                          onRefresh: () async {
+                            ref.invalidate(
+                                customerByIdProvider(widget.customerId));
+                            if (_tab == 'history') {
+                              ref.invalidate(
+                                customerHistoryProvider(
+                                  (id: c.id, page: _historyPage),
+                                ),
+                              );
+                            }
+                            await ref.read(
+                              customerByIdProvider(widget.customerId).future,
+                            );
+                          },
+                          child: SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            padding:
+                                EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+                            child: _buildTab(c),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-
-                // ── KPI strip ─────────────────────────────────────────────
-                _KpiStrip(customer: c),
-
-                // ── Tab bar ───────────────────────────────────────────────
-                _TabBar(
-                  current: _tab,
-                  onSelect: (t) => setState(() => _tab = t),
-                ),
-
-                // ── Tab body ──────────────────────────────────────────────
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
-                    child: _buildTab(c),
-                  ),
-                ),
-              ],
-                ),
                 ),
                 // ── 3-dot dropdown overlay ────────────────────────────────
                 if (_menuOpen) ...[
@@ -349,8 +368,7 @@ class _CustomerDetailScreenState extends ConsumerState<CustomerDetailScreen> {
       default:
         return InfoTabSection(
           customer: c,
-          onCallCustomer: () =>
-              AppToast.show(context, 'Calling ${c.name}…'),
+          onCallCustomer: () => AppToast.show(context, 'Calling ${c.name}…'),
           onEditNotes: () => _openNoteModal(c),
         );
     }
@@ -397,8 +415,7 @@ class _KpiStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final lastShort =
-        customer.lastBooking.replaceFirst(RegExp(r'-2026$'), '');
+    final lastShort = customer.lastBooking.replaceFirst(RegExp(r'-2026$'), '');
     final items = <(String, String)>[
       ('Bookings', '${customer.bookings}'),
       ('Spent', Formatters.money(customer.spend)),
@@ -567,7 +584,6 @@ class _ActionButton extends StatelessWidget {
     );
   }
 }
-
 
 class _MenuItem extends StatelessWidget {
   const _MenuItem({
@@ -756,9 +772,7 @@ class _ModalButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: secondary ? AppColors.bgPage : AppColors.brandYellow,
           borderRadius: BorderRadius.circular(12.r),
-          border: secondary
-              ? Border.all(color: AppColors.borderDefault)
-              : null,
+          border: secondary ? Border.all(color: AppColors.borderDefault) : null,
         ),
         child: Text(
           label,

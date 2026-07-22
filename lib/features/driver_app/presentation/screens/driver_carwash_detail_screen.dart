@@ -214,183 +214,13 @@ class _DriverCarwashDetailScreenState extends ConsumerState<DriverCarwashDetailS
           onBack: _handleBack,
         ),
         Expanded(
-          child: ListView(
-            padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
-            children: [
-              // Customer info card - Match driver hire design
-              Container(
-                padding: EdgeInsets.all(14.w),
-                decoration: BoxDecoration(
-                  color: AppColors.bgCard,
-                  borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(color: AppColors.borderDefault),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                booking.customerName,
-                                style: AppText.figtree(size: 16, weight: FontWeight.w700),
-                              ),
-                              SizedBox(height: 4.h),
-                              Text(
-                                booking.vehicleText,
-                                style: AppText.figtree(
-                                  size: 13,
-                                  weight: FontWeight.w500,
-                                  color: AppColors.fgSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            // Call button
-                            GestureDetector(
-                              onTap: () => _launchPhone(booking.customerPhone),
-                              child: Container(
-                                padding: EdgeInsets.all(10.r),
-                                decoration: BoxDecoration(
-                                  color: AppColors.bgPage,
-                                  borderRadius: BorderRadius.circular(8.r),
-                                ),
-                                child: Icon(
-                                  AppIcons.phone,
-                                  size: 18.sp,
-                                  color: AppColors.fgPrimary,
-                                ),
-                              ),
-                            ),
-                            SizedBox(height: 8.h),
-                            // Location button
-                            GestureDetector(
-                              onTap: () => _launchMaps(0, 0),
-                              child: Container(
-                                padding: EdgeInsets.all(10.r),
-                                decoration: BoxDecoration(
-                                  color: AppColors.brandYellow,
-                                  borderRadius: BorderRadius.circular(8.r),
-                                ),
-                                child: Icon(
-                                  AppIcons.nav,
-                                  size: 18.sp,
-                                  color: AppColors.fgPrimary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 12.h),
-
-              // Location details card
-              Container(
-                padding: EdgeInsets.all(14.w),
-                decoration: BoxDecoration(
-                  color: AppColors.bgCard,
-                  borderRadius: BorderRadius.circular(12.r),
-                  border: Border.all(color: AppColors.borderDefault),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          AppIcons.cal,
-                          size: 16.sp,
-                          color: AppColors.brandYellow,
-                        ),
-                        SizedBox(width: 10.w),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'SERVICE LOCATION',
-                                style: AppText.figtree(
-                                  size: 11,
-                                  weight: FontWeight.w500,
-                                  color: AppColors.fgSecondary,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              SizedBox(height: 4.h),
-                              Text(
-                                booking.address.isNotEmpty
-                                    ? booking.address
-                                    : 'Shop Location',
-                                style: AppText.figtree(
-                                  size: 13,
-                                  weight: FontWeight.w600,
-                                  color: AppColors.fgPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(height: 12.h),
-
-              // Show different content based on completion status
-              if (!isCompleted) ...[
-                // In Progress: Show washing status flow
-                _WashingStatusFlow(
-                  currentStatus: booking.washingStatus,
-                ),
-                SizedBox(height: 16.h),
-
-                // Amount card for in-progress
-                AppCard(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Amount',
-                        style: AppText.figtree(
-                          size: 14,
-                          weight: FontWeight.w500,
-                          color: AppColors.fgSecondary,
-                        ),
-                      ),
-                      Text(
-                        Formatters.money(
-                          (double.tryParse(booking.amount) ?? 0).toInt(),
-                        ),
-                        style: AppText.figtree(size: 16, weight: FontWeight.w700),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: 20.h),
-
-                // Action button for in-progress jobs
-                AppButton(
-                  label: 'Advance Status',
-                  full: true,
-                  disabled: state.isUpdating,
-                  onPressed: _advanceWashingStatus,
-                ),
-              ] else ...[
-                // Completed: Show status and payout
+          child: RefreshIndicator(
+            onRefresh: _loadBooking,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
+              children: [
+                // Customer info card - Match driver hire design
                 Container(
                   padding: EdgeInsets.all(14.w),
                   decoration: BoxDecoration(
@@ -398,20 +228,217 @@ class _DriverCarwashDetailScreenState extends ConsumerState<DriverCarwashDetailS
                     borderRadius: BorderRadius.circular(12.r),
                     border: Border.all(color: AppColors.borderDefault),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        AppIcons.checkCircle,
-                        size: 20.sp,
-                        color: AppColors.success,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  booking.customerName,
+                                  style: AppText.figtree(size: 16, weight: FontWeight.w700),
+                                ),
+                                SizedBox(height: 4.h),
+                                Text(
+                                  booking.vehicleText,
+                                  style: AppText.figtree(
+                                    size: 13,
+                                    weight: FontWeight.w500,
+                                    color: AppColors.fgSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              // Call button
+                              GestureDetector(
+                                onTap: () => _launchPhone(booking.customerPhone),
+                                child: Container(
+                                  padding: EdgeInsets.all(10.r),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.bgPage,
+                                    borderRadius: BorderRadius.circular(8.r),
+                                  ),
+                                  child: Icon(
+                                    AppIcons.phone,
+                                    size: 18.sp,
+                                    color: AppColors.fgPrimary,
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: 8.h),
+                              // Location button
+                              GestureDetector(
+                                onTap: () => _launchMaps(0, 0),
+                                child: Container(
+                                  padding: EdgeInsets.all(10.r),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.brandYellow,
+                                    borderRadius: BorderRadius.circular(8.r),
+                                  ),
+                                  child: Icon(
+                                    AppIcons.nav,
+                                    size: 18.sp,
+                                    color: AppColors.fgPrimary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 12.w),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ],
+                  ),
+                ),
+                SizedBox(height: 12.h),
+  
+                // Location details card
+                Container(
+                  padding: EdgeInsets.all(14.w),
+                  decoration: BoxDecoration(
+                    color: AppColors.bgCard,
+                    borderRadius: BorderRadius.circular(12.r),
+                    border: Border.all(color: AppColors.borderDefault),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            AppIcons.cal,
+                            size: 16.sp,
+                            color: AppColors.brandYellow,
+                          ),
+                          SizedBox(width: 10.w),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'SERVICE LOCATION',
+                                  style: AppText.figtree(
+                                    size: 11,
+                                    weight: FontWeight.w500,
+                                    color: AppColors.fgSecondary,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                SizedBox(height: 4.h),
+                                Text(
+                                  booking.address.isNotEmpty
+                                      ? booking.address
+                                      : 'Shop Location',
+                                  style: AppText.figtree(
+                                    size: 13,
+                                    weight: FontWeight.w600,
+                                    color: AppColors.fgPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 12.h),
+  
+                // Show different content based on completion status
+                if (!isCompleted) ...[
+                  // In Progress: Show washing status flow
+                  _WashingStatusFlow(
+                    currentStatus: booking.washingStatus,
+                  ),
+                  SizedBox(height: 16.h),
+  
+                  // Amount card for in-progress
+                  AppCard(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Amount',
+                          style: AppText.figtree(
+                            size: 14,
+                            weight: FontWeight.w500,
+                            color: AppColors.fgSecondary,
+                          ),
+                        ),
+                        Text(
+                          Formatters.money(
+                            (double.tryParse(booking.amount) ?? 0).toInt(),
+                          ),
+                          style: AppText.figtree(size: 16, weight: FontWeight.w700),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: 20.h),
+  
+                  // Action button for in-progress jobs
+                  AppButton(
+                    label: 'Advance Status',
+                    full: true,
+                    disabled: state.isUpdating,
+                    onPressed: _advanceWashingStatus,
+                  ),
+                ] else ...[
+                  // Completed: Show status and payout
+                  Container(
+                    padding: EdgeInsets.all(14.w),
+                    decoration: BoxDecoration(
+                      color: AppColors.bgCard,
+                      borderRadius: BorderRadius.circular(12.r),
+                      border: Border.all(color: AppColors.borderDefault),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          AppIcons.checkCircle,
+                          size: 20.sp,
+                          color: AppColors.success,
+                        ),
+                        SizedBox(width: 12.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'STATUS',
+                                style: AppText.figtree(
+                                  size: 11,
+                                  weight: FontWeight.w500,
+                                  color: AppColors.fgSecondary,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              SizedBox(height: 2.h),
+                              Text(
+                                'Completed',
+                                style: AppText.figtree(
+                                  size: 16,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.fgPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              'STATUS',
+                              'YOUR PAYOUT',
                               style: AppText.figtree(
                                 size: 11,
                                 weight: FontWeight.w500,
@@ -421,7 +448,9 @@ class _DriverCarwashDetailScreenState extends ConsumerState<DriverCarwashDetailS
                             ),
                             SizedBox(height: 2.h),
                             Text(
-                              'Completed',
+                              Formatters.money(
+                                (double.tryParse(booking.amount) ?? 0).toInt(),
+                              ),
                               style: AppText.figtree(
                                 size: 16,
                                 weight: FontWeight.w700,
@@ -430,41 +459,16 @@ class _DriverCarwashDetailScreenState extends ConsumerState<DriverCarwashDetailS
                             ),
                           ],
                         ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'YOUR PAYOUT',
-                            style: AppText.figtree(
-                              size: 11,
-                              weight: FontWeight.w500,
-                              color: AppColors.fgSecondary,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                          SizedBox(height: 2.h),
-                          Text(
-                            Formatters.money(
-                              (double.tryParse(booking.amount) ?? 0).toInt(),
-                            ),
-                            style: AppText.figtree(
-                              size: 16,
-                              weight: FontWeight.w700,
-                              color: AppColors.fgPrimary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                SizedBox(height: 12.h),
-
-                // Completed: Show summary view
-                _buildCompletedSummary(booking, _summary),
+                  SizedBox(height: 12.h),
+  
+                  // Completed: Show summary view
+                  _buildCompletedSummary(booking, _summary),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ],

@@ -52,189 +52,199 @@ class DashboardScreen extends ConsumerWidget {
               onNotifications: () => context.push(Routes.notifications),
             ),
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.only(bottom: 24.h),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // ── Driver Hiring & Inspection ──
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SectionHead(
-                            title: 'Driver Hiring & Inspection',
-                            actionLabel: 'Manage',
-                            onAction: () => context.go(Routes.drivers),
-                          ),
-                          hiringAsync.when(
-                            loading: () => _KpiSkeletonGrid(),
-                            error: (_, __) => _KpiSkeletonGrid(),
-                            data: (h) => _HiringKpis(
-                              hiring: h,
-                              onDrivers: () => context.go(Routes.drivers),
-                              onServices: () => context.go(Routes.bookings),
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(dashboardSnapshotProvider);
+                  ref.invalidate(hiringSnapshotProvider);
+                  ref.invalidate(activityFeedProvider);
+                  ref.invalidate(notificationCountProvider);
+                  await ref.read(dashboardSnapshotProvider.future);
+                },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.only(bottom: 24.h),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Driver Hiring & Inspection ──
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SectionHead(
+                              title: 'Driver Hiring & Inspection',
+                              actionLabel: 'Manage',
+                              onAction: () => context.go(Routes.drivers),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // ── Carwash · Today ──
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SectionHead(title: 'Carwash · Today'),
-                          snapshotAsync.when(
-                            loading: () => _KpiSkeletonGrid(),
-                            error: (_, __) => _KpiSkeletonGrid(),
-                            data: (s) => _CarwashKpis(
-                              snapshot: s,
-                              onBookings: () => context.go(Routes.bookings),
-                              onRefunds: () => context.push(Routes.refunds),
+                            hiringAsync.when(
+                              loading: () => _KpiSkeletonGrid(),
+                              error: (_, __) => _KpiSkeletonGrid(),
+                              data: (h) => _HiringKpis(
+                                hiring: h,
+                                onDrivers: () => context.go(Routes.drivers),
+                                onServices: () => context.go(Routes.bookings),
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
 
-                    // ── Quick Actions ──
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SectionHead(title: 'Quick Actions'),
-                          GridView.count(
-                            crossAxisCount: 2,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisSpacing: 12.w,
-                            mainAxisSpacing: 12.h,
-                            childAspectRatio: 2.6,
-                            children: [
-                              QuickActionTile(
-                                icon: AppIcons.plus,
-                                label: 'New Booking',
-                                onTap: () => context.push(Routes.newBooking),
+                      // ── Carwash · Today ──
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SectionHead(title: 'Carwash · Today'),
+                            snapshotAsync.when(
+                              loading: () => _KpiSkeletonGrid(),
+                              error: (_, __) => _KpiSkeletonGrid(),
+                              data: (s) => _CarwashKpis(
+                                snapshot: s,
+                                onBookings: () => context.go(Routes.bookings),
+                                onRefunds: () => context.push(Routes.refunds),
                               ),
-                              QuickActionTile(
-                                icon: AppIcons.car,
-                                label: 'Assign Me',
-                                onTap: () => context.go(Routes.bookings),
-                              ),
-                              QuickActionTile(
-                                icon: AppIcons.receipt,
-                                label: 'New Refund',
-                                onTap: () => context.push(Routes.refunds),
-                              ),
-                              QuickActionTile(
-                                icon: AppIcons.search,
-                                label: 'Find Booking',
-                                onTap: () => context.go(Routes.bookings),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // ── More Tools ──
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SectionHead(title: 'More Tools'),
-                          GridView.count(
-                            crossAxisCount: 3,
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            crossAxisSpacing: 12.w,
-                            mainAxisSpacing: 12.h,
-                            // Order/labels mirror the More Tools grid in
-                            // screen_dashboard.jsx (Drivers is a bottom-nav tab,
-                            // not a tile here).
-                            children: [
-                              ModuleTile(
-                                icon: AppIcons.store,
-                                label: 'Shops',
-                                onTap: () => context.push(Routes.shops),
-                              ),
-                              ModuleTile(
-                                icon: AppIcons.message,
-                                label: 'Reviews',
-                                onTap: () => context.push(Routes.reviews),
-                              ),
-                              ModuleTile(
-                                icon: AppIcons.receipt,
-                                label: 'Refunds',
-                                // Pending-refund count badge (data-driven from
-                                // the snapshot; matches `badge={2}` in
-                                // screen_dashboard.jsx).
-                                badge:
-                                    snapshotAsync.valueOrNull?.pendingRefunds,
-                                onTap: () => context.push(Routes.refunds),
-                              ),
-                              ModuleTile(
-                                icon: AppIcons.wallet,
-                                label: 'Payouts',
-                                onTap: () => context.push(Routes.payouts),
-                              ),
-                              ModuleTile(
-                                icon: AppIcons.tag,
-                                label: 'Offers',
-                                onTap: () => context.push(Routes.offers),
-                              ),
-                              ModuleTile(
-                                icon: AppIcons.chart,
-                                label: 'Reports',
-                                onTap: () => context.push(Routes.reports),
-                              ),
-                              ModuleTile(
-                                icon: AppIcons.bell,
-                                label: 'Push',
-                                onTap: () =>
-                                    context.push(Routes.pushNotifications),
-                              ),
-                              ModuleTile(
-                                icon: AppIcons.gear,
-                                label: 'Settings',
-                                onTap: () => context.push(Routes.settings),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // ── Recent Activity ──
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          SectionHead(
-                            title: 'Recent Activity',
-                            actionLabel: 'View all',
-                            onAction: () => context.go(Routes.bookings),
-                          ),
-                          activityAsync.when(
-                            loading: () => const SkeletonCard(),
-                            error: (_, __) => const SkeletonCard(),
-                            data: (feed) => _ActivityFeed(
-                              feed: feed,
-                              onItem: (id) =>
-                                  context.push(Routes.bookingDetail(id)),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+
+                      // ── Quick Actions ──
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SectionHead(title: 'Quick Actions'),
+                            GridView.count(
+                              crossAxisCount: 2,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisSpacing: 12.w,
+                              mainAxisSpacing: 12.h,
+                              childAspectRatio: 2.6,
+                              children: [
+                                QuickActionTile(
+                                  icon: AppIcons.plus,
+                                  label: 'New Booking',
+                                  onTap: () => context.push(Routes.newBooking),
+                                ),
+                                QuickActionTile(
+                                  icon: AppIcons.car,
+                                  label: 'Assign Me',
+                                  onTap: () => context.go(Routes.bookings),
+                                ),
+                                QuickActionTile(
+                                  icon: AppIcons.receipt,
+                                  label: 'New Refund',
+                                  onTap: () => context.push(Routes.refunds),
+                                ),
+                                QuickActionTile(
+                                  icon: AppIcons.search,
+                                  label: 'Find Booking',
+                                  onTap: () => context.go(Routes.bookings),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // ── More Tools ──
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SectionHead(title: 'More Tools'),
+                            GridView.count(
+                              crossAxisCount: 3,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisSpacing: 12.w,
+                              mainAxisSpacing: 12.h,
+                              // Order/labels mirror the More Tools grid in
+                              // screen_dashboard.jsx (Drivers is a bottom-nav tab,
+                              // not a tile here).
+                              children: [
+                                ModuleTile(
+                                  icon: AppIcons.store,
+                                  label: 'Shops',
+                                  onTap: () => context.push(Routes.shops),
+                                ),
+                                ModuleTile(
+                                  icon: AppIcons.message,
+                                  label: 'Reviews',
+                                  onTap: () => context.push(Routes.reviews),
+                                ),
+                                ModuleTile(
+                                  icon: AppIcons.receipt,
+                                  label: 'Refunds',
+                                  // Pending-refund count badge (data-driven from
+                                  // the snapshot; matches `badge={2}` in
+                                  // screen_dashboard.jsx).
+                                  badge:
+                                      snapshotAsync.valueOrNull?.pendingRefunds,
+                                  onTap: () => context.push(Routes.refunds),
+                                ),
+                                ModuleTile(
+                                  icon: AppIcons.wallet,
+                                  label: 'Payouts',
+                                  onTap: () => context.push(Routes.payouts),
+                                ),
+                                ModuleTile(
+                                  icon: AppIcons.tag,
+                                  label: 'Offers',
+                                  onTap: () => context.push(Routes.offers),
+                                ),
+                                ModuleTile(
+                                  icon: AppIcons.chart,
+                                  label: 'Reports',
+                                  onTap: () => context.push(Routes.reports),
+                                ),
+                                ModuleTile(
+                                  icon: AppIcons.bell,
+                                  label: 'Push',
+                                  onTap: () =>
+                                      context.push(Routes.pushNotifications),
+                                ),
+                                ModuleTile(
+                                  icon: AppIcons.gear,
+                                  label: 'Settings',
+                                  onTap: () => context.push(Routes.settings),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // ── Recent Activity ──
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SectionHead(
+                              title: 'Recent Activity',
+                              actionLabel: 'View all',
+                              onAction: () => context.go(Routes.bookings),
+                            ),
+                            activityAsync.when(
+                              loading: () => const SkeletonCard(),
+                              error: (_, __) => const SkeletonCard(),
+                              data: (feed) => _ActivityFeed(
+                                feed: feed,
+                                onItem: (id) =>
+                                    context.push(Routes.bookingDetail(id)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

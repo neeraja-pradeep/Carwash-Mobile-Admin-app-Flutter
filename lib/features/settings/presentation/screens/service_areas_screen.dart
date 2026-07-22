@@ -71,11 +71,17 @@ class _ServiceAreasScreenState extends ConsumerState<ServiceAreasScreen> {
                         onChanged: (v) => setState(() => _seg = v),
                       ),
                       Expanded(
-                        child: _AreaList(
-                          areas: areas,
-                          seg: _seg,
-                          onEdit: (area) => _openSheet(area: area),
-                          onAdd: () => _openSheet(area: null),
+                        child: RefreshIndicator(
+                          onRefresh: () async {
+                            ref.invalidate(appSettingsProvider);
+                            await ref.read(appSettingsProvider.future);
+                          },
+                          child: _AreaList(
+                            areas: areas,
+                            seg: _seg,
+                            onEdit: (area) => _openSheet(area: area),
+                            onAdd: () => _openSheet(area: null),
+                          ),
                         ),
                       ),
                     ],
@@ -119,7 +125,8 @@ class _ServiceAreasScreenState extends ConsumerState<ServiceAreasScreen> {
             );
           }
           if (mounted) {
-            AppToast.show(context, area != null ? 'Area updated' : 'Area added');
+            AppToast.show(
+                context, area != null ? 'Area updated' : 'Area added');
           }
         } catch (e) {
           if (mounted) AppToast.show(context, _errMsg(e));
@@ -234,6 +241,7 @@ class _AreaList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
       children: [
         // Info banner

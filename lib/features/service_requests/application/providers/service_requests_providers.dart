@@ -75,8 +75,8 @@ final serviceRequestsQueryProvider =
 
 // ── Entity providers ─────────────────────────────────────────────────────────
 
-/// All service requests with automatic caching per query.
-final serviceRequestsProvider = FutureProvider<List<ServiceRequest>>(
+/// All service requests — autoDispose so re-entering the screen refetches.
+final serviceRequestsProvider = FutureProvider.autoDispose<List<ServiceRequest>>(
   (ref) {
     final query = ref.watch(serviceRequestsQueryProvider);
     return ref.watch(serviceRequestsRepositoryProvider).fetchServiceRequests(

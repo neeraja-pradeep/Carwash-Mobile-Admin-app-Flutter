@@ -30,7 +30,7 @@ String? driverStatusParam(DriverStatus? status) => switch (status) {
 // ── Entity providers ─────────────────────────────────────────────────────────
 
 /// All drivers, filtered server-side by the committed status filter.
-final fieldDriversProvider = FutureProvider<List<FieldDriver>>((ref) {
+final fieldDriversProvider = FutureProvider.autoDispose<List<FieldDriver>>((ref) {
   final filter = ref.watch(driversFilterProvider);
   return ref
       .watch(driversRepositoryProvider)
@@ -44,12 +44,12 @@ final fieldDriverByIdProvider =
 });
 
 /// The founders (Anand, Vishnu) — local fallback for the assignee resolver.
-final foundersProvider = FutureProvider<List<TeamMember>>(
+final foundersProvider = FutureProvider.autoDispose<List<TeamMember>>(
   (ref) => ref.watch(driversRepositoryProvider).fetchFounders(),
 );
 
 /// The inspectors (list-only tab).
-final inspectorsProvider = FutureProvider<List<TeamMember>>(
+final inspectorsProvider = FutureProvider.autoDispose<List<TeamMember>>(
   (ref) => ref.watch(driversRepositoryProvider).fetchInspectors(),
 );
 

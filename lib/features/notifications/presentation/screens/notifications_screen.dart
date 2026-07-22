@@ -121,31 +121,39 @@ class NotificationsScreen extends ConsumerWidget {
                     );
                   }
 
-                  return ListView(
-                    padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
-                    children: [
-                      ListControls(
-                        count: items.length,
-                        noun: 'notification',
-                        onFilter: () => _showFilterSheet(
-                          context,
-                          filter: filter,
-                          onChanged: (v) => filterController.state = v,
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(notificationsProvider);
+                      ref.invalidate(unreadCountProvider);
+                      await ref.read(notificationsProvider.future);
+                    },
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+                      children: [
+                        ListControls(
+                          count: items.length,
+                          noun: 'notification',
+                          onFilter: () => _showFilterSheet(
+                            context,
+                            filter: filter,
+                            onChanged: (v) => filterController.state = v,
+                          ),
+                          filterCount: filter == 'unread' ? 1 : 0,
                         ),
-                        filterCount: filter == 'unread' ? 1 : 0,
-                      ),
-                      // Notif rows
-                      Column(
-                        children: [
-                          for (final n in items)
-                            NotifRow(
-                              key: ValueKey(n.id),
-                              notification: n,
-                              onTap: () => openNotification(n),
-                            ),
-                        ],
-                      ),
-                    ],
+                        // Notif rows
+                        Column(
+                          children: [
+                            for (final n in items)
+                              NotifRow(
+                                key: ValueKey(n.id),
+                                notification: n,
+                                onTap: () => openNotification(n),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),

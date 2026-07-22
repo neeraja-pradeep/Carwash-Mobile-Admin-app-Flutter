@@ -153,59 +153,70 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
                       ],
                     ),
                     Expanded(
-                      child: ListView(
-                        padding: EdgeInsets.fromLTRB(
-                          16.w,
-                          16.h,
-                          16.w,
-                          24.h,
-                        ),
-                        children: [
-                          // ── Hero card ──────────────────────────────────
-                          _HeroCard(driver: driver, status: status),
-                          SizedBox(height: 14.h),
+                      child: RefreshIndicator(
+                        onRefresh: () async {
+                          ref.invalidate(
+                            fieldDriverByIdProvider(widget.driverId),
+                          );
+                          await ref.read(
+                            fieldDriverByIdProvider(widget.driverId).future,
+                          );
+                        },
+                        child: ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.fromLTRB(
+                            16.w,
+                            16.h,
+                            16.w,
+                            24.h,
+                          ),
+                          children: [
+                            // ── Hero card ──────────────────────────────────
+                            _HeroCard(driver: driver, status: status),
+                            SizedBox(height: 14.h),
 
-                          // ── Live job card (only when on a job) ─────────
-                          if (onJob && driver.currentJob != null) ...[
-                            LiveJobCard(
-                              job: driver.currentJob!,
-                              onOpenBooking: () => context.push(
-                                Routes.bookingDetail(
-                                  driver.currentJob!.bookingId,
+                            // ── Live job card (only when on a job) ─────────
+                            if (onJob && driver.currentJob != null) ...[
+                              LiveJobCard(
+                                job: driver.currentJob!,
+                                onOpenBooking: () => context.push(
+                                  Routes.bookingDetail(
+                                    driver.currentJob!.bookingId,
+                                  ),
+                                ),
+                                onReassign: () => AppToast.show(
+                                  context,
+                                  'Reassign from booking detail',
                                 ),
                               ),
-                              onReassign: () => AppToast.show(
-                                context,
-                                'Reassign from booking detail',
-                              ),
+                              SizedBox(height: 14.h),
+                            ],
+
+                            // ── Role assignment ────────────────────────────
+                            _RoleCard(driver: driver),
+                            SizedBox(height: 14.h),
+
+                            // ── Profile / contact + license ────────────────
+                            _ProfileCard(driver: driver),
+                            SizedBox(height: 14.h),
+
+                            // ── Documents (real uploads / verify / delete) ─
+                            DocumentsSection(
+                              documents: docs,
+                              workerId: driver.id,
+                              onChanged: (_) {},
                             ),
                             SizedBox(height: 14.h),
+
+                            // ── Performance strip ──────────────────────────
+                            _PerfStrip(driver: driver),
+                            SizedBox(height: 14.h),
+
+                            // ── Invited banner ─────────────────────────────
+                            if (status == DriverStatus.invited)
+                              _InvitedBanner(name: driver.name),
                           ],
-
-                          // ── Role assignment ────────────────────────────
-                          _RoleCard(driver: driver),
-                          SizedBox(height: 14.h),
-
-                          // ── Profile / contact + license ────────────────
-                          _ProfileCard(driver: driver),
-                          SizedBox(height: 14.h),
-
-                          // ── Documents (real uploads / verify / delete) ─
-                          DocumentsSection(
-                            documents: docs,
-                            workerId: driver.id,
-                            onChanged: (_) {},
-                          ),
-                          SizedBox(height: 14.h),
-
-                          // ── Performance strip ──────────────────────────
-                          _PerfStrip(driver: driver),
-                          SizedBox(height: 14.h),
-
-                          // ── Invited banner ─────────────────────────────
-                          if (status == DriverStatus.invited)
-                            _InvitedBanner(name: driver.name),
-                        ],
+                        ),
                       ),
                     ),
                   ],

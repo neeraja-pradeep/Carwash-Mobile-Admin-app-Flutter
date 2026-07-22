@@ -90,9 +90,20 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
                     _buildTopBar(context, shop),
                     _buildTabBar(),
                     Expanded(
-                      child: SingleChildScrollView(
-                        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 28.h),
-                        child: _buildTabBody(context, live, services, isActive),
+                      child: RefreshIndicator(
+                        onRefresh: () async {
+                          ref.invalidate(shopDetailProvider(widget.shopId));
+                          ref.invalidate(shopServicesProvider(widget.shopId));
+                          await ref.read(
+                            shopDetailProvider(widget.shopId).future,
+                          );
+                        },
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 28.h),
+                          child:
+                              _buildTabBody(context, live, services, isActive),
+                        ),
                       ),
                     ),
                   ],
@@ -248,8 +259,7 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
       default:
         return SettlementSection(
           shop: live,
-          onCreatePayout: () =>
-              context.push(Routes.payouts, extra: live.id),
+          onCreatePayout: () => context.push(Routes.payouts, extra: live.id),
         );
     }
   }
@@ -362,8 +372,7 @@ class _ServicesTabBodyState extends ConsumerState<_ServicesTabBody> {
     return servicesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, st) => ErrorView(
-        onRetry: () =>
-            ref.invalidate(shopServicesProvider(widget.shopId)),
+        onRetry: () => ref.invalidate(shopServicesProvider(widget.shopId)),
       ),
       data: (services) {
         return ServicesSection(
@@ -383,10 +392,9 @@ class _ServicesTabBodyState extends ConsumerState<_ServicesTabBody> {
     final services = servicesAsync.value;
     if (services == null) return;
 
-    final service = services
-        .cast<ShopService?>()
-        .firstWhere((s) => s != null && int.parse(s.id) == serviceId,
-            orElse: () => null);
+    final service = services.cast<ShopService?>().firstWhere(
+        (s) => s != null && int.parse(s.id) == serviceId,
+        orElse: () => null);
     if (service == null) return;
 
     final newActive = !service.active;
@@ -467,8 +475,8 @@ class _ServicesTabBodyState extends ConsumerState<_ServicesTabBody> {
         title: const Text('Apply Price Change'),
         content: TextField(
           controller: percentController,
-          keyboardType:
-              const TextInputType.numberWithOptions(signed: true, decimal: false),
+          keyboardType: const TextInputType.numberWithOptions(
+              signed: true, decimal: false),
           decoration: const InputDecoration(
             hintText: 'Enter percent (e.g., 10 or -5)',
           ),

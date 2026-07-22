@@ -104,47 +104,51 @@ class _DriverTodayScreenState extends ConsumerState<DriverTodayScreen> {
     }
 
     if (homeState is DriverHomeSuccess) {
-      return ListView(
-        padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
-        children: [
-          _buildStatsStrip(homeState.stats),
-          SizedBox(height: 24.h),
-          if (homeState.jobFeed.activeNow.isNotEmpty) ...[
-            Text(
-              'ACTIVE NOW',
-              style: AppText.figtree(
-                size: 12.5,
-                weight: FontWeight.w700,
-                color: AppColors.fgSecondary,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            ...homeState.jobFeed.activeNow.map((job) => _buildJobCard(job)),
+      return RefreshIndicator(
+        onRefresh: _loadHomeData,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+          children: [
+            _buildStatsStrip(homeState.stats),
             SizedBox(height: 24.h),
-          ],
-          if (homeState.jobFeed.upNext.isNotEmpty) ...[
-            Text(
-              'UP NEXT',
-              style: AppText.figtree(
-                size: 12.5,
-                weight: FontWeight.w700,
-                color: AppColors.fgSecondary,
-              ),
-            ),
-            SizedBox(height: 8.h),
-            ...homeState.jobFeed.upNext.map((job) => _buildJobCard(job)),
-          ] else if (homeState.jobFeed.activeNow.isEmpty) ...[
-            Center(
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 32.h),
-                child: Text(
-                  'No jobs scheduled today',
-                  style: AppText.figtree(size: 14, color: AppColors.fgMuted),
+            if (homeState.jobFeed.activeNow.isNotEmpty) ...[
+              Text(
+                'ACTIVE NOW',
+                style: AppText.figtree(
+                  size: 12.5,
+                  weight: FontWeight.w700,
+                  color: AppColors.fgSecondary,
                 ),
               ),
-            ),
+              SizedBox(height: 8.h),
+              ...homeState.jobFeed.activeNow.map((job) => _buildJobCard(job)),
+              SizedBox(height: 24.h),
+            ],
+            if (homeState.jobFeed.upNext.isNotEmpty) ...[
+              Text(
+                'UP NEXT',
+                style: AppText.figtree(
+                  size: 12.5,
+                  weight: FontWeight.w700,
+                  color: AppColors.fgSecondary,
+                ),
+              ),
+              SizedBox(height: 8.h),
+              ...homeState.jobFeed.upNext.map((job) => _buildJobCard(job)),
+            ] else if (homeState.jobFeed.activeNow.isEmpty) ...[
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32.h),
+                  child: Text(
+                    'No jobs scheduled today',
+                    style: AppText.figtree(size: 14, color: AppColors.fgMuted),
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       );
     }
 

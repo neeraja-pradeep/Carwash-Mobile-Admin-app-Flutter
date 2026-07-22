@@ -27,8 +27,8 @@ final bookingsRepositoryProvider = Provider<BookingsRepository>(
 
 // ── Entity providers ──────────────────────────────────────────────────────────
 
-/// All carwash bookings with automatic caching per query.
-final bookingsProvider = FutureProvider<List<CarwashBooking>>(
+/// All carwash bookings — autoDispose so re-entering the screen refetches.
+final bookingsProvider = FutureProvider.autoDispose<List<CarwashBooking>>(
   (ref) {
     final filter = ref.watch(bookingsFilterProvider);
 

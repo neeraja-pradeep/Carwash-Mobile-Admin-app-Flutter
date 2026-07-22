@@ -126,6 +126,7 @@ class _DriverJobDetailScreenState extends ConsumerState<DriverJobDetailScreen> {
         bill: state.bill,
         isLoading: state.isLoading,
         otpKind: _otpKind,
+        onRefresh: _loadJobDetail,
         onBack: () => Navigator.of(context).pop(),
         onArrive: _handleArrive,
         onStartOtp: _handleStartOtp,
@@ -196,6 +197,7 @@ class _JobDetailBody extends StatelessWidget {
     this.bill,
     this.isLoading = false,
     this.otpKind,
+    required this.onRefresh,
     required this.onBack,
     required this.onArrive,
     required this.onStartOtp,
@@ -209,6 +211,7 @@ class _JobDetailBody extends StatelessWidget {
   final dynamic bill;
   final bool isLoading;
   final String? otpKind;
+  final Future<void> Function() onRefresh;
   final VoidCallback onBack;
   final VoidCallback onArrive;
   final Future<void> Function(String) onStartOtp;
@@ -235,17 +238,21 @@ class _JobDetailBody extends StatelessWidget {
               onBack: onBack,
             ),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
-                children: [
-                  _CustomerRouteCard(job: job),
-                  SizedBox(height: 14.h),
-                  _StatusCard(job: job),
-                  if (_isCompleted && bill != null) ...[
+              child: RefreshIndicator(
+                onRefresh: onRefresh,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
+                  children: [
+                    _CustomerRouteCard(job: job),
                     SizedBox(height: 14.h),
-                    _FareSummaryCard(job: job, bill: bill),
+                    _StatusCard(job: job),
+                    if (_isCompleted && bill != null) ...[
+                      SizedBox(height: 14.h),
+                      _FareSummaryCard(job: job, bill: bill),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
 

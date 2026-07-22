@@ -61,58 +61,76 @@ class CustomersScreen extends ConsumerWidget {
 
             // ── List / skeleton / empty ────────────────────────────────────
             Expanded(
-              child: filtered.when(
-                loading: () => ListView.separated(
-                  padding: EdgeInsets.all(16.r),
-                  itemCount: 4,
-                  separatorBuilder: (_, __) => SizedBox(height: 12.h),
-                  itemBuilder: (_, __) => const SkeletonCard(),
-                ),
-                error: (_, __) => ErrorView(
-                  onRetry: () => ref.invalidate(customersProvider),
-                ),
-                data: (customers) {
-                  if (customers.isEmpty) {
-                    return EmptyState(
-                      icon: AppIcons.users,
-                      title: 'No customers match',
-                      body: 'Try clearing your search or filters.',
-                      actionLabel: 'Reset filters',
-                      onAction: () {
-                        controller.reset();
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(customersProvider);
+                  await ref.read(customersProvider.future);
+                },
+                child: filtered.when(
+                  loading: () => ListView.separated(
+                    padding: EdgeInsets.all(16.r),
+                    itemCount: 4,
+                    separatorBuilder: (_, __) => SizedBox(height: 12.h),
+                    itemBuilder: (_, __) => const SkeletonCard(),
+                  ),
+                  error: (_, __) => ErrorView(
+                    onRetry: () => ref.invalidate(customersProvider),
+                  ),
+                  data: (customers) {
+                    if (customers.isEmpty) {
+                      return LayoutBuilder(
+                        builder: (context, constraints) =>
+                            SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight),
+                            child: EmptyState(
+                              icon: AppIcons.users,
+                              title: 'No customers match',
+                              body: 'Try clearing your search or filters.',
+                              actionLabel: 'Reset filters',
+                              onAction: () {
+                                controller.reset();
+                              },
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.all(16.r),
+                      itemCount: customers.length + 2,
+                      separatorBuilder: (_, index) => index == 0
+                          ? const SizedBox.shrink()
+                          : SizedBox(height: 12.h),
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return ListControls(
+                            count: customers.length,
+                            noun: 'customer',
+                            onFilter: () =>
+                                showCustomersFilterSheet(context, ref),
+                            filterCount: filter.activeCount,
+                            sort: filter.sort,
+                            sortOptions: kCustomerSortOpts,
+                            onSort: controller.setSort,
+                          );
+                        }
+                        if (index == customers.length + 1) {
+                          return SizedBox(height: 8.h);
+                        }
+                        final customer = customers[index - 1];
+                        return CustomerCard(
+                          customer: customer,
+                          onTap: () =>
+                              context.push(Routes.customerDetail(customer.id)),
+                        );
                       },
                     );
-                  }
-                  return ListView.separated(
-                    padding: EdgeInsets.all(16.r),
-                    itemCount: customers.length + 2,
-                    separatorBuilder: (_, index) =>
-                        index == 0 ? const SizedBox.shrink() : SizedBox(height: 12.h),
-                    itemBuilder: (context, index) {
-                      if (index == 0) {
-                        return ListControls(
-                          count: customers.length,
-                          noun: 'customer',
-                          onFilter: () =>
-                              showCustomersFilterSheet(context, ref),
-                          filterCount: filter.activeCount,
-                          sort: filter.sort,
-                          sortOptions: kCustomerSortOpts,
-                          onSort: controller.setSort,
-                        );
-                      }
-                      if (index == customers.length + 1) {
-                        return SizedBox(height: 8.h);
-                      }
-                      final customer = customers[index - 1];
-                      return CustomerCard(
-                        customer: customer,
-                        onTap: () =>
-                            context.push(Routes.customerDetail(customer.id)),
-                      );
-                    },
-                  );
-                },
+                  },
+                ),
               ),
             ),
           ],
@@ -138,9 +156,7 @@ class _ActiveChips extends ConsumerWidget {
         ),
       if (filter.joined != 'any')
         AppChip(
-          label: kJoinedOpts
-              .firstWhere((o) => o.$1 == filter.joined)
-              .$2,
+          label: kJoinedOpts.firstWhere((o) => o.$1 == filter.joined).$2,
           active: true,
           removable: true,
           onRemove: controller.removeJoined,

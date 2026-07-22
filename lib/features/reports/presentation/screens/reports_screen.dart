@@ -86,8 +86,7 @@ class _ReportTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return GestureDetector(
-      onTap: () =>
-          ref.read(selectedReportProvider.notifier).state = kind.name,
+      onTap: () => ref.read(selectedReportProvider.notifier).state = kind.name,
       child: Container(
         padding: EdgeInsets.all(14.r),
         decoration: BoxDecoration(
@@ -216,12 +215,38 @@ class _ReportDetailState extends ConsumerState<_ReportDetail> {
         _ => widget.reportId, // revenue, commission
       };
 
+  /// Invalidates and re-awaits the report provider for the current window.
+  Future<void> _refreshReport() async {
+    final query = _query;
+    switch (widget.reportId) {
+      case 'revenue':
+        ref.invalidate(revenueReportProvider(query));
+        await ref.read(revenueReportProvider(query).future);
+      case 'drivers':
+        ref.invalidate(driversReportProvider(query));
+        await ref.read(driversReportProvider(query).future);
+      case 'shops':
+        ref.invalidate(shopPerformanceReportProvider(query));
+        await ref.read(shopPerformanceReportProvider(query).future);
+      case 'commission':
+        ref.invalidate(commissionReportProvider(query));
+        await ref.read(commissionReportProvider(query).future);
+      case 'cancellation':
+        ref.invalidate(cancellationsReportProvider(query));
+        await ref.read(cancellationsReportProvider(query).future);
+      case 'inspection':
+        ref.invalidate(inspectionsReportProvider(query));
+        await ref.read(inspectionsReportProvider(query).future);
+    }
+  }
+
   Future<void> _exportCsv() async {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
-      final export =
-          await ref.read(reportsRepositoryProvider).exportCsv(_reportSlug, _query);
+      final export = await ref
+          .read(reportsRepositoryProvider)
+          .exportCsv(_reportSlug, _query);
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/${export.filename}');
       await file.writeAsBytes(export.bytes);
@@ -267,13 +292,11 @@ class _ReportDetailState extends ConsumerState<_ReportDetail> {
             Container(
               decoration: const BoxDecoration(
                 color: AppColors.bgCard,
-                border: Border(
-                    bottom: BorderSide(color: AppColors.borderSoft)),
+                border: Border(bottom: BorderSide(color: AppColors.borderSoft)),
               ),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.symmetric(
-                    horizontal: 16.w, vertical: 12.h),
+                padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 12.h),
                 child: Row(
                   children: [
                     for (final (key, label) in _kPeriods) ...[
@@ -313,29 +336,33 @@ class _ReportDetailState extends ConsumerState<_ReportDetail> {
               ),
             // Scrollable body — each report manages its own loading/error.
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 28.h),
-                children: [
-                  Text(
-                    _periodLabel,
-                    style: AppText.figtree(
-                      size: 12,
-                      color: AppColors.fgTertiary,
-                      weight: FontWeight.w500,
+              child: RefreshIndicator(
+                onRefresh: _refreshReport,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 28.h),
+                  children: [
+                    Text(
+                      _periodLabel,
+                      style: AppText.figtree(
+                        size: 12,
+                        color: AppColors.fgTertiary,
+                        weight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  SizedBox(height: 14.h),
-                  ReportBody(reportId: widget.reportId, query: _query),
-                  SizedBox(height: 14.h),
-                  AppButton(
-                    label: _exporting ? 'Exporting…' : 'Export this report',
-                    kind: AppButtonKind.secondary,
-                    full: true,
-                    icon: AppIcons.share,
-                    onPressed: _exporting ? null : _exportCsv,
-                  ),
-                  SizedBox(height: 20.h),
-                ],
+                    SizedBox(height: 14.h),
+                    ReportBody(reportId: widget.reportId, query: _query),
+                    SizedBox(height: 14.h),
+                    AppButton(
+                      label: _exporting ? 'Exporting…' : 'Export this report',
+                      kind: AppButtonKind.secondary,
+                      full: true,
+                      icon: AppIcons.share,
+                      onPressed: _exporting ? null : _exportCsv,
+                    ),
+                    SizedBox(height: 20.h),
+                  ],
+                ),
               ),
             ),
           ],

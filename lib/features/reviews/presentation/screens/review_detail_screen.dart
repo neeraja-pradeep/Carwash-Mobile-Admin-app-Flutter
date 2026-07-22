@@ -46,38 +46,45 @@ class ReviewDetailScreen extends ConsumerWidget {
               ],
             ),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
-                children: [
-                  _ScoreCard(review: r),
-                  SizedBox(height: 14.h),
-                  if (r.isFlagged) ...[
-                    const _FlaggedBanner(),
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(reviewDetailProvider(review.id));
+                  await ref.read(reviewDetailProvider(review.id).future);
+                },
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 24.h),
+                  children: [
+                    _ScoreCard(review: r),
                     SizedBox(height: 14.h),
-                  ],
-                  _BodyCard(review: r),
-                  if (r.tags.isNotEmpty) ...[
+                    if (r.isFlagged) ...[
+                      const _FlaggedBanner(),
+                      SizedBox(height: 14.h),
+                    ],
+                    _BodyCard(review: r),
+                    if (r.tags.isNotEmpty) ...[
+                      SizedBox(height: 14.h),
+                      _TagsCard(tags: r.tags),
+                    ],
                     SizedBox(height: 14.h),
-                    _TagsCard(tags: r.tags),
-                  ],
-                  SizedBox(height: 14.h),
-                  _MetaCard(review: r),
-                  SizedBox(height: 14.h),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 12.w),
-                    child: Text(
-                      'View only · no moderation in v0.1. Handle offensive or fake '
-                      'reviews out-of-band.',
-                      textAlign: TextAlign.center,
-                      style: AppText.figtree(
-                        size: 11.5,
-                        weight: FontWeight.w500,
-                        color: AppColors.fgMuted,
-                        height: 1.5,
+                    _MetaCard(review: r),
+                    SizedBox(height: 14.h),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12.w),
+                      child: Text(
+                        'View only · no moderation in v0.1. Handle offensive or fake '
+                        'reviews out-of-band.',
+                        textAlign: TextAlign.center,
+                        style: AppText.figtree(
+                          size: 11.5,
+                          weight: FontWeight.w500,
+                          color: AppColors.fgMuted,
+                          height: 1.5,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],
@@ -135,7 +142,8 @@ class _BodyCard extends StatelessWidget {
       child: review.hasText
           ? Text(
               '“${review.text}”',
-              style: AppText.figtree(size: 16, weight: FontWeight.w400, height: 1.6),
+              style: AppText.figtree(
+                  size: 16, weight: FontWeight.w400, height: 1.6),
             )
           : Text(
               'Rating only — no written review.',
@@ -159,7 +167,11 @@ class _MetaCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final rows = <(String, String, IconData)>[
       ('Shop', review.shop, AppIcons.store),
-      ('Booking', review.bookingId.replaceFirst('DD-KL-2026', '#…'), AppIcons.cal),
+      (
+        'Booking',
+        review.bookingId.replaceFirst('DD-KL-2026', '#…'),
+        AppIcons.cal
+      ),
       ('Handled by', review.drivers.join(', '), AppIcons.car),
     ];
     return AppCard(

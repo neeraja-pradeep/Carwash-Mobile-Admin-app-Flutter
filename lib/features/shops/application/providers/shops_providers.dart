@@ -25,7 +25,7 @@ final shopsFilterProvider =
 
 /// All shops (backward compatible - loads first page only).
 /// Used by bookings, payouts, and other screens that need a simple list.
-final shopsProvider = FutureProvider<List<Shop>>(
+final shopsProvider = FutureProvider.autoDispose<List<Shop>>(
   (ref) async {
     final repository = ref.watch(shopsRepositoryProvider);
     // Load all shops from API (no filters, just first page for compatibility)
@@ -86,7 +86,7 @@ final shopByIdProvider =
 });
 
 /// All holidays.
-final holidaysProvider = FutureProvider<List<Holiday>>(
+final holidaysProvider = FutureProvider.autoDispose<List<Holiday>>(
   (ref) => ref.watch(shopsRepositoryProvider).fetchHolidays(),
 );
 

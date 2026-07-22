@@ -120,7 +120,8 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
     }
   }
 
-  Future<void> _assignMeCarwash(BuildContext context, WidgetRef ref, int bookingId) async {
+  Future<void> _assignMeCarwash(
+      BuildContext context, WidgetRef ref, int bookingId) async {
     try {
       await ref.read(bookingsRepositoryProvider).assignMe(bookingId);
       if (context.mounted) {
@@ -137,7 +138,8 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
     }
   }
 
-  void _showAssignDriverSheet(BuildContext context, WidgetRef ref, int? bookingId) {
+  void _showAssignDriverSheet(
+      BuildContext context, WidgetRef ref, int? bookingId) {
     if (bookingId == null) {
       // Use old mock assign sheet for driver & inspection bookings
       showAssignSheet(
@@ -314,482 +316,501 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                 ),
 
                 Expanded(
-                  child: ListView(
-                    padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
-                    children: [
-                      // ── Hero header ──────────────────────────────────────
-                      AppCard(
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                StatusBadge(
-                                  label: status.label,
-                                  tone: status.tone,
-                                ),
-                                Text(
-                                  booking.id,
-                                  style: AppText.figtree(
-                                    size: 12,
-                                    weight: FontWeight.w500,
-                                    color: AppColors.fgTertiary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 14.h),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'TOTAL',
-                                      style: AppText.figtree(
-                                        size: 10.5,
-                                        weight: FontWeight.w700,
-                                        color: AppColors.fgTertiary,
-                                        letterSpacing: 1.0,
-                                      ),
-                                    ),
-                                    SizedBox(height: 5.h),
-                                    Text(
-                                      Formatters.money(booking.total),
-                                      style: AppText.figtree(
-                                        size: 30,
-                                        weight: FontWeight.w800,
-                                        letterSpacing: -1,
-                                        height: 1,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                _PaymentPill(payment: booking.payment),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                      SizedBox(height: 14.h),
-
-                      // ── Customer ─────────────────────────────────────────
-                      AppCard(
-                        child: _SectionLabel(
-                          icon: AppIcons.users,
-                          label: 'Customer',
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      booking.customer.name,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppText.figtree(
-                                        size: 16,
-                                        weight: FontWeight.w700,
-                                        height: 1.25,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4.h),
-                                    Text(
-                                      booking.customer.phone,
-                                      style: AppText.figtree(
-                                        size: 13,
-                                        weight: FontWeight.w500,
-                                        color: AppColors.fgTertiary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              _ActionPill(
-                                icon: AppIcons.phone,
-                                label: 'Call customer',
-                                onTap: () => _makePhoneCall(booking.customer.phone),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 14.h),
-
-                      // ── Vehicle ──────────────────────────────────────────
-                      AppCard(
-                        child: _SectionLabel(
-                          icon: AppIcons.car,
-                          label: 'Vehicle',
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      booking.vehicle.title,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppText.figtree(
-                                        size: 15,
-                                        weight: FontWeight.w700,
-                                        height: 1.25,
-                                      ),
-                                    ),
-                                    SizedBox(height: 4.h),
-                                    Text(
-                                      booking.vehicle.type,
-                                      style: AppText.figtree(
-                                        size: 13,
-                                        weight: FontWeight.w500,
-                                        color: AppColors.fgTertiary,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (booking.vehicle.plate != null)
-                                Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: 11.w,
-                                    vertical: 7.h,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.bgPage,
-                                    borderRadius: BorderRadius.circular(8.r),
-                                    border:
-                                        Border.all(color: AppColors.borderSoft),
-                                  ),
-                                  child: Text(
-                                    booking.vehicle.plate!,
-                                    style: AppText.figtree(
-                                      size: 13,
-                                      weight: FontWeight.w700,
-                                      letterSpacing: 0.4,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      SizedBox(height: 14.h),
-
-                      // ── Journey (pickup → shop → drop) ────────────────────
-                      _JourneyCard(
-                        booking: booking,
-                        onToast: (msg) => AppToast.show(context, msg),
-                      ),
-                      SizedBox(height: 14.h),
-
-                      // ── Services ─────────────────────────────────────────
-                      AppCard(
-                        child: _SectionLabel(
-                          icon: AppIcons.droplet,
-                          label: 'Services',
-                          right: Text(
-                            '~$totalMin min',
-                            style: AppText.figtree(
-                              size: 11.5,
-                              weight: FontWeight.w600,
-                              color: AppColors.fgTertiary,
-                            ),
-                          ),
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(bookingByIdProvider(widget.bookingId));
+                      await ref
+                          .read(bookingByIdProvider(widget.bookingId).future);
+                    },
+                    child: ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
+                      children: [
+                        // ── Hero header ──────────────────────────────────────
+                        AppCard(
                           child: Column(
                             children: [
-                              for (final sv in booking.services)
-                                Padding(
-                                  padding: EdgeInsets.only(bottom: 11.h),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            sv.name,
-                                            style: AppText.figtree(
-                                              size: 14,
-                                              weight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          SizedBox(height: 2.h),
-                                          Text(
-                                            'est. ${sv.minutes} min',
-                                            style: AppText.figtree(
-                                              size: 12,
-                                              weight: FontWeight.w500,
-                                              color: AppColors.fgTertiary,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      Text(
-                                        Formatters.money(sv.price),
-                                        style: AppText.figtree(
-                                          size: 14,
-                                          weight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              const Divider(
-                                color: AppColors.borderSoft,
-                                height: 1,
-                              ),
-                              SizedBox(height: 11.h),
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    'Total',
-                                    style: AppText.figtree(
-                                      size: 14,
-                                      weight: FontWeight.w700,
-                                    ),
+                                  StatusBadge(
+                                    label: status.label,
+                                    tone: status.tone,
                                   ),
                                   Text(
-                                    Formatters.money(booking.total),
+                                    booking.id,
                                     style: AppText.figtree(
-                                      size: 16,
-                                      weight: FontWeight.w800,
+                                      size: 12,
+                                      weight: FontWeight.w500,
+                                      color: AppColors.fgTertiary,
                                     ),
                                   ),
+                                ],
+                              ),
+                              SizedBox(height: 14.h),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'TOTAL',
+                                        style: AppText.figtree(
+                                          size: 10.5,
+                                          weight: FontWeight.w700,
+                                          color: AppColors.fgTertiary,
+                                          letterSpacing: 1.0,
+                                        ),
+                                      ),
+                                      SizedBox(height: 5.h),
+                                      Text(
+                                        Formatters.money(booking.total),
+                                        style: AppText.figtree(
+                                          size: 30,
+                                          weight: FontWeight.w800,
+                                          letterSpacing: -1,
+                                          height: 1,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  _PaymentPill(payment: booking.payment),
                                 ],
                               ),
                             ],
                           ),
                         ),
-                      ),
-                      SizedBox(height: 14.h),
+                        SizedBox(height: 14.h),
 
-                      // ── Driver ───────────────────────────────────────────
-                      _DriverCard(
-                        driverId: driverId,
-                        assigneeName: _assigneeName,
-                        carwashBookingId: intId,
-                        onAssign: () => _showAssignDriverSheet(context, ref, intId),
-                        onCall: (name) =>
-                            AppToast.show(context, 'Calling $name…'),
-                      ),
-                      SizedBox(height: 14.h),
-
-                      // ── Status Update ─────────────────────────────────────
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: EdgeInsets.only(left: 2.w, bottom: 10.h),
-                            child: Text(
-                              'UPDATE STATUS',
-                              style: AppText.eyebrow,
-                            ),
-                          ),
-                          StatusUpdateBlock(
-                            status: status,
-                            timeline: timeline,
-                            onAdvance: (action) => _advance(action, booking),
-                            carwashBookingId: intId,
-                            onAssignMe: intId != null ? () => _assignMeCarwash(context, ref, intId) : null,
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 14.h),
-
-                      // ── Damage & Issues ───────────────────────────────────
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: EdgeInsets.only(left: 2.w, bottom: 10.h),
-                            child: Text(
-                              'DAMAGE & ISSUES',
-                              style: AppText.eyebrow,
-                            ),
-                          ),
-                          _DamageSection(
-                            issueList: issueList,
-                            pickup: booking.damage.pickup,
-                            drop: booking.damage.drop,
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 14.h),
-
-                      // ── Collapsibles ──────────────────────────────────────
-                      Collapsible(
-                        title: 'Status Timeline',
-                        leading: Icon(
-                          AppIcons.clock,
-                          size: 17.sp,
-                          color: AppColors.fgSecondary,
-                        ),
-                        summary:
-                            '${timeline.length} updates · now ${status.label}',
-                        child: Column(
-                          children: [
-                            for (int i = 0; i < timeline.length; i++)
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Column(
+                        // ── Customer ─────────────────────────────────────────
+                        AppCard(
+                          child: _SectionLabel(
+                            icon: AppIcons.users,
+                            label: 'Customer',
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        width: 9.r,
-                                        height: 9.r,
-                                        margin: EdgeInsets.only(top: 5.h),
-                                        decoration: BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: i == timeline.length - 1
-                                              ? AppColors.brandYellowDeep
-                                              : AppColors.borderStrong,
+                                      Text(
+                                        booking.customer.name,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppText.figtree(
+                                          size: 16,
+                                          weight: FontWeight.w700,
+                                          height: 1.25,
                                         ),
                                       ),
-                                      if (i < timeline.length - 1)
+                                      SizedBox(height: 4.h),
+                                      Text(
+                                        booking.customer.phone,
+                                        style: AppText.figtree(
+                                          size: 13,
+                                          weight: FontWeight.w500,
+                                          color: AppColors.fgTertiary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                _ActionPill(
+                                  icon: AppIcons.phone,
+                                  label: 'Call customer',
+                                  onTap: () =>
+                                      _makePhoneCall(booking.customer.phone),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 14.h),
+
+                        // ── Vehicle ──────────────────────────────────────────
+                        AppCard(
+                          child: _SectionLabel(
+                            icon: AppIcons.car,
+                            label: 'Vehicle',
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        booking.vehicle.title,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppText.figtree(
+                                          size: 15,
+                                          weight: FontWeight.w700,
+                                          height: 1.25,
+                                        ),
+                                      ),
+                                      SizedBox(height: 4.h),
+                                      Text(
+                                        booking.vehicle.type,
+                                        style: AppText.figtree(
+                                          size: 13,
+                                          weight: FontWeight.w500,
+                                          color: AppColors.fgTertiary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (booking.vehicle.plate != null)
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: 11.w,
+                                      vertical: 7.h,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.bgPage,
+                                      borderRadius: BorderRadius.circular(8.r),
+                                      border: Border.all(
+                                          color: AppColors.borderSoft),
+                                    ),
+                                    child: Text(
+                                      booking.vehicle.plate!,
+                                      style: AppText.figtree(
+                                        size: 13,
+                                        weight: FontWeight.w700,
+                                        letterSpacing: 0.4,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 14.h),
+
+                        // ── Journey (pickup → shop → drop) ────────────────────
+                        _JourneyCard(
+                          booking: booking,
+                          onToast: (msg) => AppToast.show(context, msg),
+                        ),
+                        SizedBox(height: 14.h),
+
+                        // ── Services ─────────────────────────────────────────
+                        AppCard(
+                          child: _SectionLabel(
+                            icon: AppIcons.droplet,
+                            label: 'Services',
+                            right: Text(
+                              '~$totalMin min',
+                              style: AppText.figtree(
+                                size: 11.5,
+                                weight: FontWeight.w600,
+                                color: AppColors.fgTertiary,
+                              ),
+                            ),
+                            child: Column(
+                              children: [
+                                for (final sv in booking.services)
+                                  Padding(
+                                    padding: EdgeInsets.only(bottom: 11.h),
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              sv.name,
+                                              style: AppText.figtree(
+                                                size: 14,
+                                                weight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            SizedBox(height: 2.h),
+                                            Text(
+                                              'est. ${sv.minutes} min',
+                                              style: AppText.figtree(
+                                                size: 12,
+                                                weight: FontWeight.w500,
+                                                color: AppColors.fgTertiary,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        Text(
+                                          Formatters.money(sv.price),
+                                          style: AppText.figtree(
+                                            size: 14,
+                                            weight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                const Divider(
+                                  color: AppColors.borderSoft,
+                                  height: 1,
+                                ),
+                                SizedBox(height: 11.h),
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Total',
+                                      style: AppText.figtree(
+                                        size: 14,
+                                        weight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      Formatters.money(booking.total),
+                                      style: AppText.figtree(
+                                        size: 16,
+                                        weight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(height: 14.h),
+
+                        // ── Driver ───────────────────────────────────────────
+                        _DriverCard(
+                          driverId: driverId,
+                          assigneeName: _assigneeName,
+                          carwashBookingId: intId,
+                          onAssign: () =>
+                              _showAssignDriverSheet(context, ref, intId),
+                          onCall: (name) =>
+                              AppToast.show(context, 'Calling $name…'),
+                        ),
+                        SizedBox(height: 14.h),
+
+                        // ── Status Update ─────────────────────────────────────
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.only(left: 2.w, bottom: 10.h),
+                              child: Text(
+                                'UPDATE STATUS',
+                                style: AppText.eyebrow,
+                              ),
+                            ),
+                            StatusUpdateBlock(
+                              status: status,
+                              timeline: timeline,
+                              onAdvance: (action) => _advance(action, booking),
+                              carwashBookingId: intId,
+                              onAssignMe: intId != null
+                                  ? () => _assignMeCarwash(context, ref, intId)
+                                  : null,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 14.h),
+
+                        // ── Damage & Issues ───────────────────────────────────
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: EdgeInsets.only(left: 2.w, bottom: 10.h),
+                              child: Text(
+                                'DAMAGE & ISSUES',
+                                style: AppText.eyebrow,
+                              ),
+                            ),
+                            _DamageSection(
+                              issueList: issueList,
+                              pickup: booking.damage.pickup,
+                              drop: booking.damage.drop,
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 14.h),
+
+                        // ── Collapsibles ──────────────────────────────────────
+                        Collapsible(
+                          title: 'Status Timeline',
+                          leading: Icon(
+                            AppIcons.clock,
+                            size: 17.sp,
+                            color: AppColors.fgSecondary,
+                          ),
+                          summary:
+                              '${timeline.length} updates · now ${status.label}',
+                          child: Column(
+                            children: [
+                              for (int i = 0; i < timeline.length; i++)
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Column(
+                                      children: [
                                         Container(
-                                          width: 0,
-                                          height: 36.h,
-                                          decoration: const BoxDecoration(
-                                            border: Border(
-                                              left: BorderSide(
-                                                color: AppColors.borderSoft,
-                                                width: 1.5,
+                                          width: 9.r,
+                                          height: 9.r,
+                                          margin: EdgeInsets.only(top: 5.h),
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: i == timeline.length - 1
+                                                ? AppColors.brandYellowDeep
+                                                : AppColors.borderStrong,
+                                          ),
+                                        ),
+                                        if (i < timeline.length - 1)
+                                          Container(
+                                            width: 0,
+                                            height: 36.h,
+                                            decoration: const BoxDecoration(
+                                              border: Border(
+                                                left: BorderSide(
+                                                  color: AppColors.borderSoft,
+                                                  width: 1.5,
+                                                ),
                                               ),
                                             ),
                                           ),
+                                      ],
+                                    ),
+                                    SizedBox(width: 12.w),
+                                    Expanded(
+                                      child: Padding(
+                                        padding: EdgeInsets.only(bottom: 14.h),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              timeline[i].status.label,
+                                              style: AppText.figtree(
+                                                size: 13.5,
+                                                weight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            SizedBox(height: 2.h),
+                                            Text(
+                                              '${timeline[i].at} · ${timeline[i].by}',
+                                              style: AppText.figtree(
+                                                size: 12,
+                                                weight: FontWeight.w500,
+                                                color: AppColors.fgTertiary,
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                    ],
-                                  ),
-                                  SizedBox(width: 12.w),
-                                  Expanded(
-                                    child: Padding(
-                                      padding: EdgeInsets.only(bottom: 14.h),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            timeline[i].status.label,
-                                            style: AppText.figtree(
-                                              size: 13.5,
-                                              weight: FontWeight.w700,
-                                            ),
-                                          ),
-                                          SizedBox(height: 2.h),
-                                          Text(
-                                            '${timeline[i].at} · ${timeline[i].by}',
-                                            style: AppText.figtree(
-                                              size: 12,
-                                              weight: FontWeight.w500,
-                                              color: AppColors.fgTertiary,
-                                            ),
-                                          ),
-                                        ],
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                          ],
+                                  ],
+                                ),
+                            ],
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 14.h),
+                        SizedBox(height: 14.h),
 
-                      Collapsible(
-                        title: 'Damage Check',
-                        leading: Icon(
-                          AppIcons.checkCircle,
-                          size: 17.sp,
-                          color: AppColors.fgSecondary,
-                        ),
-                        summary: dmgSummary,
-                        child: Row(
-                          children: [
-                            for (final phase in ['pickup', 'drop'])
-                              Expanded(
-                                child: Padding(
-                                  padding: EdgeInsets.only(
-                                    right: phase == 'pickup' ? 6.w : 0,
-                                    left: phase == 'drop' ? 6.w : 0,
-                                  ),
-                                  child: _DamagePhaseTile(
-                                    phase: phase,
-                                    check: phase == 'pickup'
-                                        ? booking.damage.pickup
-                                        : booking.damage.drop,
+                        Collapsible(
+                          title: 'Damage Check',
+                          leading: Icon(
+                            AppIcons.checkCircle,
+                            size: 17.sp,
+                            color: AppColors.fgSecondary,
+                          ),
+                          summary: dmgSummary,
+                          child: Row(
+                            children: [
+                              for (final phase in ['pickup', 'drop'])
+                                Expanded(
+                                  child: Padding(
+                                    padding: EdgeInsets.only(
+                                      right: phase == 'pickup' ? 6.w : 0,
+                                      left: phase == 'drop' ? 6.w : 0,
+                                    ),
+                                    child: _DamagePhaseTile(
+                                      phase: phase,
+                                      check: phase == 'pickup'
+                                          ? booking.damage.pickup
+                                          : booking.damage.drop,
+                                    ),
                                   ),
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      SizedBox(height: 14.h),
+                        SizedBox(height: 14.h),
 
-                      Collapsible(
-                        title: 'Notes',
-                        leading: Icon(
-                          AppIcons.note,
-                          size: 17.sp,
-                          color: AppColors.fgSecondary,
-                        ),
-                        initiallyOpen: notes.isNotEmpty,
-                        summary: notes.isNotEmpty ? '1 note' : 'No notes',
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            notes.isNotEmpty
-                                ? Text(
-                                    notes,
-                                    style: AppText.figtree(
-                                      size: 13.5,
-                                      weight: FontWeight.w400,
-                                      color: AppColors.fgSecondary,
-                                      height: 1.5,
+                        Collapsible(
+                          title: 'Notes',
+                          leading: Icon(
+                            AppIcons.note,
+                            size: 17.sp,
+                            color: AppColors.fgSecondary,
+                          ),
+                          initiallyOpen: notes.isNotEmpty,
+                          summary: notes.isNotEmpty ? '1 note' : 'No notes',
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              notes.isNotEmpty
+                                  ? Text(
+                                      notes,
+                                      style: AppText.figtree(
+                                        size: 13.5,
+                                        weight: FontWeight.w400,
+                                        color: AppColors.fgSecondary,
+                                        height: 1.5,
+                                      ),
+                                    )
+                                  : Text(
+                                      'No notes yet.',
+                                      style: AppText.figtree(
+                                        size: 13,
+                                        weight: FontWeight.w500,
+                                        color: AppColors.fgMuted,
+                                      ),
                                     ),
-                                  )
-                                : Text(
-                                    'No notes yet.',
-                                    style: AppText.figtree(
-                                      size: 13,
-                                      weight: FontWeight.w500,
-                                      color: AppColors.fgMuted,
-                                    ),
-                                  ),
-                            SizedBox(height: 12.h),
-                            GestureDetector(
-                              onTap: () => _showNoteModal(context, notes),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    AppIcons.edit,
-                                    size: 14.sp,
-                                    color: AppColors.fgSecondary,
-                                  ),
-                                  SizedBox(width: 6.w),
-                                  Text(
-                                    notes.isNotEmpty ? 'Edit note' : 'Add note',
-                                    style: AppText.figtree(
-                                      size: 12.5,
-                                      weight: FontWeight.w700,
+                              SizedBox(height: 12.h),
+                              GestureDetector(
+                                onTap: () => _showNoteModal(context, notes),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      AppIcons.edit,
+                                      size: 14.sp,
                                       color: AppColors.fgSecondary,
                                     ),
-                                  ),
-                                ],
+                                    SizedBox(width: 6.w),
+                                    Text(
+                                      notes.isNotEmpty
+                                          ? 'Edit note'
+                                          : 'Add note',
+                                      style: AppText.figtree(
+                                        size: 12.5,
+                                        weight: FontWeight.w700,
+                                        color: AppColors.fgSecondary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
 
-                      SizedBox(height: 100.h),
-                    ],
+                        SizedBox(height: 100.h),
+                      ],
+                    ),
                   ),
                 ),
 
@@ -867,7 +888,8 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                           label: 'Reassign',
                           icon: AppIcons.refresh,
                           enabled: canReassign,
-                          onTap: () => _showAssignDriverSheet(context, ref, intId),
+                          onTap: () =>
+                              _showAssignDriverSheet(context, ref, intId),
                         ),
                       ],
                     ),
@@ -996,7 +1018,8 @@ class _JourneyCard extends ConsumerWidget {
         'https://www.google.com/maps/search/?api=1&query=${shop.latitude},${shop.longitude}',
       ));
     } else {
-      await _navigateToAddress(shop.address.isNotEmpty ? shop.address : shop.area);
+      await _navigateToAddress(
+          shop.address.isNotEmpty ? shop.address : shop.area);
     }
   }
 
@@ -1255,7 +1278,8 @@ class _DriverCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    debugPrint('🎭 _DriverCard.build() - driverId: $driverId, assigneeName: $assigneeName, carwashBookingId: $carwashBookingId');
+    debugPrint(
+        '🎭 _DriverCard.build() - driverId: $driverId, assigneeName: $assigneeName, carwashBookingId: $carwashBookingId');
 
     // For carwash bookings with no driver, show custom assign UI
     if (carwashBookingId != null && driverId == null && assigneeName == null) {
@@ -1304,7 +1328,8 @@ class _DriverCard extends ConsumerWidget {
 
     // If assigneeName is available but no driverId, show driver card with assignee name
     if (assigneeName != null && driverId == null) {
-      debugPrint('📍 Branch: AssigneeName without driverId - showing $assigneeName');
+      debugPrint(
+          '📍 Branch: AssigneeName without driverId - showing $assigneeName');
       return AppCard(
         child: _SectionLabel(
           icon: AppIcons.car,
@@ -1349,68 +1374,106 @@ class _DriverCard extends ConsumerWidget {
 
     // If driverId is available, fetch driver details
     if (driverId != null) {
-      debugPrint('📍 Branch: DriverID available - fetching details for $driverId');
+      debugPrint(
+          '📍 Branch: DriverID available - fetching details for $driverId');
       return AppCard(
         child: _SectionLabel(
           icon: AppIcons.car,
           label: 'Driver',
           child: ref.watch(assigneeByIdProvider(driverId!)).when(
-            loading: () =>
-                SizedBox(height: 40.h, child: const SizedBox.shrink()),
-            error: (_, __) {
-              // Show assignee name if driver fetch fails
-              if (assigneeName != null) {
-                return Row(
-                  children: [
-                    Avatar(name: assigneeName!, size: 38),
-                    SizedBox(width: 11.w),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                loading: () =>
+                    SizedBox(height: 40.h, child: const SizedBox.shrink()),
+                error: (_, __) {
+                  // Show assignee name if driver fetch fails
+                  if (assigneeName != null) {
+                    return Row(
+                      children: [
+                        Avatar(name: assigneeName!, size: 38),
+                        SizedBox(width: 11.w),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                assigneeName!,
+                                style: AppText.figtree(
+                                  size: 14.5,
+                                  weight: FontWeight.w700,
+                                ),
+                              ),
+                              SizedBox(height: 2.h),
+                              Text(
+                                'Driver',
+                                style: AppText.figtree(
+                                  size: 12.5,
+                                  weight: FontWeight.w500,
+                                  color: AppColors.fgTertiary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        _ActionPill(
+                          icon: AppIcons.phone,
+                          label: 'Call driver',
+                          onTap: () => onCall(assigneeName!),
+                        ),
+                      ],
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+                data: (driver) {
+                  if (driver == null) {
+                    // Show assignee name if driver is null
+                    if (assigneeName != null) {
+                      return Row(
                         children: [
-                          Text(
-                            assigneeName!,
-                            style: AppText.figtree(
-                              size: 14.5,
-                              weight: FontWeight.w700,
+                          Avatar(name: assigneeName!, size: 38),
+                          SizedBox(width: 11.w),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  assigneeName!,
+                                  style: AppText.figtree(
+                                    size: 14.5,
+                                    weight: FontWeight.w700,
+                                  ),
+                                ),
+                                SizedBox(height: 2.h),
+                                Text(
+                                  'Driver',
+                                  style: AppText.figtree(
+                                    size: 12.5,
+                                    weight: FontWeight.w500,
+                                    color: AppColors.fgTertiary,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          SizedBox(height: 2.h),
-                          Text(
-                            'Driver',
-                            style: AppText.figtree(
-                              size: 12.5,
-                              weight: FontWeight.w500,
-                              color: AppColors.fgTertiary,
-                            ),
+                          _ActionPill(
+                            icon: AppIcons.phone,
+                            label: 'Call driver',
+                            onTap: () => onCall(assigneeName!),
                           ),
                         ],
-                      ),
-                    ),
-                    _ActionPill(
-                      icon: AppIcons.phone,
-                      label: 'Call driver',
-                      onTap: () => onCall(assigneeName!),
-                    ),
-                  ],
-                );
-              }
-              return const SizedBox.shrink();
-            },
-            data: (driver) {
-              if (driver == null) {
-                // Show assignee name if driver is null
-                if (assigneeName != null) {
+                      );
+                    }
+                    return _assignButton(onAssign);
+                  }
                   return Row(
                     children: [
-                      Avatar(name: assigneeName!, size: 38),
+                      Avatar(name: driver.name, size: 38),
                       SizedBox(width: 11.w),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              assigneeName!,
+                              driver.name,
                               style: AppText.figtree(
                                 size: 14.5,
                                 weight: FontWeight.w700,
@@ -1418,7 +1481,7 @@ class _DriverCard extends ConsumerWidget {
                             ),
                             SizedBox(height: 2.h),
                             Text(
-                              'Driver',
+                              '${driver.role} · ${driver.phone}',
                               style: AppText.figtree(
                                 size: 12.5,
                                 weight: FontWeight.w500,
@@ -1431,49 +1494,12 @@ class _DriverCard extends ConsumerWidget {
                       _ActionPill(
                         icon: AppIcons.phone,
                         label: 'Call driver',
-                        onTap: () => onCall(assigneeName!),
+                        onTap: () => onCall(driver.name),
                       ),
                     ],
                   );
-                }
-                return _assignButton(onAssign);
-              }
-              return Row(
-                children: [
-                  Avatar(name: driver.name, size: 38),
-                  SizedBox(width: 11.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          driver.name,
-                          style: AppText.figtree(
-                            size: 14.5,
-                            weight: FontWeight.w700,
-                          ),
-                        ),
-                        SizedBox(height: 2.h),
-                        Text(
-                          '${driver.role} · ${driver.phone}',
-                          style: AppText.figtree(
-                            size: 12.5,
-                            weight: FontWeight.w500,
-                            color: AppColors.fgTertiary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _ActionPill(
-                    icon: AppIcons.phone,
-                    label: 'Call driver',
-                    onTap: () => onCall(driver.name),
-                  ),
-                ],
-              );
-            },
-          ),
+                },
+              ),
         ),
       );
     }
@@ -2207,8 +2233,7 @@ class _CarwashAssignDriverBodyState
 
   @override
   Widget build(BuildContext context) {
-    final driversAsync =
-        ref.watch(assignableDriversProvider(widget.bookingId));
+    final driversAsync = ref.watch(assignableDriversProvider(widget.bookingId));
 
     return driversAsync.when(
       loading: () => const Center(
@@ -2243,8 +2268,8 @@ class _CarwashAssignDriverBodyState
                               );
                               // Invalidate both the detail provider and the
                               // list so the new assignee shows immediately.
-                              ref.invalidate(
-                                  bookingByIdProvider(widget.bookingId.toString()));
+                              ref.invalidate(bookingByIdProvider(
+                                  widget.bookingId.toString()));
                               ref.invalidate(bookingsProvider);
                               Navigator.pop(context);
                             }
