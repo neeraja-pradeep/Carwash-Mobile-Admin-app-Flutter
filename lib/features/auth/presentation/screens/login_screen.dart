@@ -15,7 +15,7 @@ import '../../../auth/application/states/auth_state.dart';
 
 /// Login screen — Admin / Driver toggle (default = Driver).
 ///
-/// DRIVER mode: phone → Send OTP → 4-digit OTP → Verify → driverToday.
+/// DRIVER mode: phone → Send OTP → 6-digit OTP → Verify → driverToday.
 /// ADMIN mode: username + password → Sign In → dashboard.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -84,8 +84,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final phone = _phoneController.text.trim();
     final otp = _otpController.text.trim();
 
-    if (otp.length != 4) {
-      setState(() => _driverError = 'OTP must be 4 digits.');
+    if (otp.length != 6) {
+      setState(() => _driverError = 'OTP must be 6 digits.');
       return;
     }
 
@@ -341,24 +341,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           TextField(
             controller: _otpController,
             keyboardType: TextInputType.number,
-            maxLength: 4,
+            maxLength: 6,
             textAlign: TextAlign.center,
             style: AppText.figtree(
               size: 26,
               weight: FontWeight.w700,
-              letterSpacing: 14,
+              letterSpacing: 10,
             ),
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             onChanged: (_) => setState(() => _driverError = null),
             onSubmitted: (_) => _handleVerifyOtp(),
             decoration: InputDecoration(
               counterText: '',
-              hintText: '----',
+              hintText: '------',
               hintStyle: AppText.figtree(
                 size: 26,
                 weight: FontWeight.w300,
                 color: AppColors.fgMuted,
-                letterSpacing: 14,
+                letterSpacing: 10,
               ),
               filled: true,
               fillColor: AppColors.bgInput,
@@ -409,7 +409,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           AppButton(
             label: 'Verify & Sign In',
             full: true,
-            disabled: _otpController.text.length != 4,
+            disabled: _otpController.text.length != 6,
             onPressed: _handleVerifyOtp,
           ),
           SizedBox(height: 12.h),
