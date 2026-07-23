@@ -442,7 +442,10 @@ class _StatusCard extends StatelessWidget {
     };
 
 
-    final payout = double.tryParse(job.quotedFee) ?? double.tryParse(job.estimatedFee) ?? 0;
+    // quoted_fee arrives as '0' when the API sends null, so treat 0 as
+    // "no quote" and fall back to the estimated fee.
+    final quoted = double.tryParse(job.quotedFee) ?? 0;
+    final payout = quoted > 0 ? quoted : (double.tryParse(job.estimatedFee) ?? 0);
 
     return AppCard(
       child: Row(
