@@ -17,6 +17,7 @@ import '../../../../core/widgets/skeleton_card.dart';
 import '../../application/providers/schedule_provider.dart';
 import '../../application/providers/available_jobs_provider.dart';
 import '../../application/providers/claim_job_provider.dart';
+import '../../application/states/available_jobs_state.dart';
 import '../../application/states/schedule_state.dart';
 import '../../domain/entities/job.dart';
 import '../components/route_ladder.dart';
@@ -192,22 +193,37 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
         final upcomingJobs = schedule.schedule.days;
         final completedJobs = schedule.schedule.completed;
 
+        // With nothing assigned yet, still surface the claimable pool — the
+        // empty state only applies when there is nothing to claim either.
         if (upcomingJobs.isEmpty && completedJobs.isEmpty) {
+          final hasAvailableSection = availableJobsState is AvailableJobsLoading ||
+              (availableJobsState is AvailableJobsSuccess &&
+                  availableJobsState.jobs.isNotEmpty);
+
           return RefreshIndicator(
             onRefresh: _refreshAll,
-            child: LayoutBuilder(
-              builder: (context, constraints) => SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: EmptyState(
-                    icon: AppIcons.cal,
-                    title: 'No jobs',
-                    body: 'You have no upcoming or completed jobs.',
+            child: hasAvailableSection
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 32.h),
+                    children: [
+                      _buildAvailableJobsSection(availableJobsState),
+                    ],
+                  )
+                : LayoutBuilder(
+                    builder: (context, constraints) => SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: ConstrainedBox(
+                        constraints:
+                            BoxConstraints(minHeight: constraints.maxHeight),
+                        child: EmptyState(
+                          icon: AppIcons.cal,
+                          title: 'No jobs',
+                          body: 'You have no upcoming or completed jobs.',
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ),
           );
         }
 
@@ -233,58 +249,8 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
               ]).expand((x) => x),
   
               // Available jobs to claim section
-              availableJobsState.when(
-                initial: () => const SizedBox.shrink(),
-                loading: () => Padding(
-                  padding: EdgeInsets.symmetric(vertical: 16.h),
-                  child: const Center(child: CircularProgressIndicator()),
-                ),
-                success: (jobs) {
-                  if (jobs.jobs.isNotEmpty) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(height: 16.h),
-                        _SectionLabel('Available to Claim'),
-                        SizedBox(height: 8.h),
-                        ...jobs.jobs.map((job) => Padding(
-                          padding: EdgeInsets.only(bottom: 12.h),
-                          child: _AvailableJobCard(
-                            job: job,
-                            onClaim: () => _claimJob(job),
-                            onCall: () => _launchPhone(job.customerPhone),
-                            onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
-                          ),
-                        )),
-                        if (jobs.nextPageUrl != null) ...[
-                          SizedBox(height: 8.h),
-                          AppButton(
-                            label: 'Load more available jobs',
-                            kind: AppButtonKind.secondary,
-                            onPressed: jobs.isLoadingMore
-                                ? null
-                                : () async {
-                              try {
-                                await ref
-                                    .read(availableJobsStateProvider.notifier)
-                                    .loadNextPage();
-                              } catch (e) {
-                                if (mounted && context.mounted) {
-                                  // ignore: use_build_context_synchronously
-                                  AppToast.show(context, 'Failed to load more jobs');
-                                }
-                              }
-                            },
-                          ),
-                        ],
-                      ],
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-                error: (_) => const SizedBox.shrink(),
-              ),
-  
+              _buildAvailableJobsSection(availableJobsState),
+
               // Completed jobs section
               if (completedJobs.isNotEmpty) ...[
                 SizedBox(height: 2.h),
@@ -351,6 +317,60 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
           ],
         ),
       ),
+    );
+  }
+
+  /// "Available to Claim" list. Rendered whether or not the driver already has
+  /// assigned jobs, so a driver with an empty schedule still sees the pool.
+  Widget _buildAvailableJobsSection(AvailableJobsState state) {
+    return state.when(
+      initial: () => const SizedBox.shrink(),
+      loading: () => Padding(
+        padding: EdgeInsets.symmetric(vertical: 16.h),
+        child: const Center(child: CircularProgressIndicator()),
+      ),
+      success: (jobs) {
+        if (jobs.jobs.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(height: 16.h),
+            _SectionLabel('Available to Claim'),
+            SizedBox(height: 8.h),
+            ...jobs.jobs.map((job) => Padding(
+              padding: EdgeInsets.only(bottom: 12.h),
+              child: _AvailableJobCard(
+                job: job,
+                onClaim: () => _claimJob(job),
+                onCall: () => _launchPhone(job.customerPhone),
+                onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
+              ),
+            )),
+            if (jobs.nextPageUrl != null) ...[
+              SizedBox(height: 8.h),
+              AppButton(
+                label: 'Load more available jobs',
+                kind: AppButtonKind.secondary,
+                onPressed: jobs.isLoadingMore
+                    ? null
+                    : () async {
+                  try {
+                    await ref
+                        .read(availableJobsStateProvider.notifier)
+                        .loadNextPage();
+                  } catch (e) {
+                    if (mounted && context.mounted) {
+                      // ignore: use_build_context_synchronously
+                      AppToast.show(context, 'Failed to load more jobs');
+                    }
+                  }
+                },
+              ),
+            ],
+          ],
+        );
+      },
+      error: (_) => const SizedBox.shrink(),
     );
   }
 
