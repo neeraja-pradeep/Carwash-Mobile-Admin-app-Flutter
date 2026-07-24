@@ -50,3 +50,11 @@ final allNotificationsProvider =
   final currentPage = ref.watch(notificationsProvider);
   return currentPage.whenData((page) => page.items);
 });
+
+/// Refetches the notifications list and unread badge. Shared by pull-to-refresh
+/// and the navigate-back refresh wired up in `app_router.dart`.
+Future<void> refreshNotifications(WidgetRef ref) async {
+  ref.invalidate(notificationsProvider);
+  ref.invalidate(unreadCountProvider);
+  await ref.read(notificationsProvider.future);
+}

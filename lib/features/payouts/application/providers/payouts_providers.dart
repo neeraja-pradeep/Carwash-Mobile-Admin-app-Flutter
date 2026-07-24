@@ -125,3 +125,10 @@ final payoutLogProvider =
     pageSize: filter.pageSize,
   );
 });
+
+/// Refetches the payouts log. Shared by pull-to-refresh and the navigate-back
+/// refresh wired up in `app_router.dart`.
+Future<void> refreshPayouts(WidgetRef ref) async {
+  ref.invalidate(payoutLogProvider);
+  await ref.read(payoutLogProvider.future);
+}

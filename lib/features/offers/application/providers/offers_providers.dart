@@ -65,3 +65,11 @@ class OffersFilterController extends StateNotifier<OffersFilterState> {
   void setStatus(String? value) => state = state.copyWith(status: value);
   void reset() => state = const OffersFilterState();
 }
+
+/// Refetches both offers tabs. Shared by pull-to-refresh and the navigate-back
+/// refresh wired up in `app_router.dart`.
+Future<void> refreshOffers(WidgetRef ref) async {
+  ref.invalidate(couponsProvider);
+  ref.invalidate(bannersProvider);
+  await ref.read(couponsProvider.future);
+}

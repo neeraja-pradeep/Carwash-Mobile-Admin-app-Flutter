@@ -154,3 +154,10 @@ class CustomersFilterController extends StateNotifier<CustomersFilterState> {
 
   void removeVolume() => state = state.copyWith(volume: 'any');
 }
+
+/// Refetches the customers list. Shared by pull-to-refresh and the
+/// navigate-back refresh wired up in `app_router.dart`.
+Future<void> refreshCustomers(WidgetRef ref) async {
+  ref.invalidate(customersProvider);
+  await ref.read(customersProvider.future);
+}

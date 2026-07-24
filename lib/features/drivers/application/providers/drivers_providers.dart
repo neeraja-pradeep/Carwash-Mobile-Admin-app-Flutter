@@ -268,3 +268,12 @@ class DriversFilterController extends StateNotifier<DriversFilterState> {
   /// Resets all filters.
   void reset() => state = const DriversFilterState();
 }
+
+/// Refetches the drivers screen (both segments). Shared by pull-to-refresh and
+/// the navigate-back refresh wired up in `app_router.dart`.
+Future<void> refreshDrivers(WidgetRef ref) async {
+  ref.invalidate(fieldDriversProvider);
+  ref.invalidate(foundersProvider);
+  ref.invalidate(inspectorsProvider);
+  await ref.read(fieldDriversProvider.future);
+}

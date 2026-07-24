@@ -124,3 +124,10 @@ class SettingsActions {
     _refresh();
   }
 }
+
+/// Refetches app settings (settings screen and service areas). Shared by
+/// pull-to-refresh and the navigate-back refresh wired up in `app_router.dart`.
+Future<void> refreshSettings(WidgetRef ref) async {
+  ref.invalidate(appSettingsProvider);
+  await ref.read(appSettingsProvider.future);
+}

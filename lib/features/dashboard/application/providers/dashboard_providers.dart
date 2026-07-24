@@ -58,3 +58,16 @@ final notificationCountProvider = FutureProvider.autoDispose<int>((ref) async {
     return 0;
   }
 });
+
+/// Refetches every dashboard endpoint.
+///
+/// [dashboardSnapshotProvider] and [hiringSnapshotProvider] only *derive* from
+/// [_dashboardResponseProvider], so invalidating them alone re-reads the cached
+/// API response without hitting the network. Callers must go through this
+/// helper — it lives in this library so it can reach the private provider.
+Future<void> refreshDashboard(WidgetRef ref) async {
+  ref.invalidate(_dashboardResponseProvider);
+  ref.invalidate(activityFeedProvider);
+  ref.invalidate(notificationCountProvider);
+  await ref.read(dashboardSnapshotProvider.future);
+}

@@ -106,3 +106,10 @@ String _sortParam(String sort) {
       return 'recent';
   }
 }
+
+/// Refetches the reviews list. Shared by pull-to-refresh and the navigate-back
+/// refresh wired up in `app_router.dart`.
+Future<void> refreshReviews(WidgetRef ref) async {
+  ref.invalidate(reviewsProvider);
+  await ref.read(reviewsProvider.future);
+}

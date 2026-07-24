@@ -1,7 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/utils/screen_refresh.dart';
 import '../../features/auth/presentation/screens/auth_check_screen.dart';
+import '../../features/bookings/application/providers/bookings_providers.dart';
+import '../../features/customers/application/providers/customers_providers.dart';
+import '../../features/dashboard/application/providers/dashboard_providers.dart';
+import '../../features/driver_app/application/providers/driver_app_providers.dart';
+import '../../features/drivers/application/providers/drivers_providers.dart';
+import '../../features/notifications/application/providers/notifications_providers.dart';
+import '../../features/offers/application/providers/offers_providers.dart';
+import '../../features/payouts/application/providers/payouts_providers.dart';
+import '../../features/refunds/application/providers/refunds_providers.dart';
+import '../../features/reviews/application/providers/reviews_providers.dart';
+import '../../features/service_requests/application/providers/service_requests_providers.dart';
+import '../../features/settings/application/providers/settings_providers.dart';
+import '../../features/shops/application/providers/shops_providers.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/bookings/presentation/screens/booking_detail_screen.dart';
 import '../../features/bookings/presentation/screens/bookings_screen.dart';
@@ -118,7 +132,11 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: Routes.dashboard,
-              builder: (context, state) => const DashboardScreen(),
+              builder: (context, state) => const RevisitRefresher(
+                path: Routes.dashboard,
+                onRevisit: refreshDashboard,
+                child: DashboardScreen(),
+              ),
             ),
           ],
         ),
@@ -126,7 +144,15 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: Routes.bookings,
-              builder: (context, state) => const BookingsScreen(),
+              // Hosts both the service-requests and carwash-bookings segments.
+              builder: (context, state) => RevisitRefresher(
+                path: Routes.bookings,
+                onRevisit: (ref) async {
+                  await refreshServiceRequests(ref);
+                  await refreshBookings(ref);
+                },
+                child: const BookingsScreen(),
+              ),
             ),
           ],
         ),
@@ -134,7 +160,11 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: Routes.drivers,
-              builder: (context, state) => const DriversScreen(),
+              builder: (context, state) => const RevisitRefresher(
+                path: Routes.drivers,
+                onRevisit: refreshDrivers,
+                child: DriversScreen(),
+              ),
             ),
           ],
         ),
@@ -142,7 +172,11 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: Routes.customers,
-              builder: (context, state) => const CustomersScreen(),
+              builder: (context, state) => const RevisitRefresher(
+                path: Routes.customers,
+                onRevisit: refreshCustomers,
+                child: CustomersScreen(),
+              ),
             ),
           ],
         ),
@@ -190,7 +224,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: Routes.shops,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const ShopsScreen(),
+      builder: (context, state) => const RevisitRefresher(
+        path: Routes.shops,
+        onRevisit: refreshShops,
+        child: ShopsScreen(),
+      ),
     ),
     GoRoute(
       path: Routes.addShop,
@@ -232,24 +270,38 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: Routes.reviews,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const ReviewsScreen(),
+      builder: (context, state) => const RevisitRefresher(
+        path: Routes.reviews,
+        onRevisit: refreshReviews,
+        child: ReviewsScreen(),
+      ),
     ),
     GoRoute(
       path: Routes.refunds,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) =>
-          RefundsScreen(prefillBooking: state.extra as RefundPrefill?),
+      builder: (context, state) => RevisitRefresher(
+        path: Routes.refunds,
+        onRevisit: refreshRefunds,
+        child: RefundsScreen(prefillBooking: state.extra as RefundPrefill?),
+      ),
     ),
     GoRoute(
       path: Routes.payouts,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) =>
-          PayoutsScreen(prefillShopId: state.extra as String?),
+      builder: (context, state) => RevisitRefresher(
+        path: Routes.payouts,
+        onRevisit: refreshPayouts,
+        child: PayoutsScreen(prefillShopId: state.extra as String?),
+      ),
     ),
     GoRoute(
       path: Routes.offers,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const OffersScreen(),
+      builder: (context, state) => const RevisitRefresher(
+        path: Routes.offers,
+        onRevisit: refreshOffers,
+        child: OffersScreen(),
+      ),
     ),
     GoRoute(
       path: Routes.reports,
@@ -259,17 +311,29 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: Routes.settings,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const SettingsScreen(),
+      builder: (context, state) => const RevisitRefresher(
+        path: Routes.settings,
+        onRevisit: refreshSettings,
+        child: SettingsScreen(),
+      ),
     ),
     GoRoute(
       path: Routes.serviceAreas,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const ServiceAreasScreen(),
+      builder: (context, state) => const RevisitRefresher(
+        path: Routes.serviceAreas,
+        onRevisit: refreshSettings,
+        child: ServiceAreasScreen(),
+      ),
     ),
     GoRoute(
       path: Routes.notifications,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const NotificationsScreen(),
+      builder: (context, state) => const RevisitRefresher(
+        path: Routes.notifications,
+        onRevisit: refreshNotifications,
+        child: NotificationsScreen(),
+      ),
     ),
     GoRoute(
       path: Routes.pushNotifications,
@@ -286,7 +350,11 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: Routes.driverToday,
-              builder: (context, state) => const DriverTodayScreen(),
+              builder: (context, state) => const RevisitRefresher(
+                path: Routes.driverToday,
+                onRevisit: refreshDriverToday,
+                child: DriverTodayScreen(),
+              ),
             ),
           ],
         ),
@@ -294,7 +362,11 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: Routes.driverSchedule,
-              builder: (context, state) => const DriverScheduleScreen(),
+              builder: (context, state) => const RevisitRefresher(
+                path: Routes.driverSchedule,
+                onRevisit: refreshDriverSchedule,
+                child: DriverScheduleScreen(),
+              ),
             ),
           ],
         ),
@@ -302,7 +374,11 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: Routes.driverEarnings,
-              builder: (context, state) => const DriverEarningsScreen(),
+              builder: (context, state) => const RevisitRefresher(
+                path: Routes.driverEarnings,
+                onRevisit: refreshDriverEarnings,
+                child: DriverEarningsScreen(),
+              ),
             ),
           ],
         ),
@@ -310,7 +386,11 @@ final GoRouter appRouter = GoRouter(
           routes: [
             GoRoute(
               path: Routes.driverProfile,
-              builder: (context, state) => const DriverProfileScreen(),
+              builder: (context, state) => const RevisitRefresher(
+                path: Routes.driverProfile,
+                onRevisit: refreshDriverProfile,
+                child: DriverProfileScreen(),
+              ),
             ),
           ],
         ),

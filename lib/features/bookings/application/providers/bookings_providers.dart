@@ -342,3 +342,10 @@ class BookingsFilterController extends StateNotifier<BookingsFilterState> {
 
   void removeAssign() => state = state.copyWith(assign: null);
 }
+
+/// Refetches the bookings list. Shared by pull-to-refresh and the
+/// navigate-back refresh wired up in `app_router.dart`.
+Future<void> refreshBookings(WidgetRef ref) async {
+  ref.invalidate(bookingsProvider);
+  await ref.read(bookingsProvider.future);
+}

@@ -11,6 +11,9 @@ import '../../infrastructure/data_sources/earnings_api.dart';
 import '../../infrastructure/data_sources/worker_profile_api.dart';
 import '../../infrastructure/data_sources/logout_api.dart';
 import '../../infrastructure/repositories/driver_app_repository_impl.dart';
+import 'available_jobs_provider.dart';
+import 'driver_home_provider.dart';
+import 'schedule_provider.dart';
 
 // ── Data layer providers ─────────────────────────────────────────────────────
 
@@ -96,3 +99,27 @@ final logoutProvider = Provider<Future<void> Function()>((ref) {
   final logoutApi = ref.watch(logoutApiProvider);
   return () => logoutApi.logout();
 });
+
+// ── Navigate-back refresh helpers (wired up in `app_router.dart`) ─────────────
+
+/// Refetches the driver Today tab.
+Future<void> refreshDriverToday(WidgetRef ref) =>
+    ref.read(driverHomeStateProvider.notifier).loadHomeData();
+
+/// Refetches the driver Schedule tab — assigned schedule plus claimable pool.
+Future<void> refreshDriverSchedule(WidgetRef ref) async {
+  await ref.read(scheduleStateProvider.notifier).loadSchedule();
+  await ref.read(availableJobsStateProvider.notifier).loadAvailableJobs();
+}
+
+/// Refetches the driver Earnings tab.
+Future<void> refreshDriverEarnings(WidgetRef ref) async {
+  ref.invalidate(driverEarningsProvider);
+  await ref.read(driverEarningsProvider.future);
+}
+
+/// Refetches the driver Profile tab.
+Future<void> refreshDriverProfile(WidgetRef ref) async {
+  ref.invalidate(workerProfileProvider);
+  await ref.read(workerProfileProvider.future);
+}

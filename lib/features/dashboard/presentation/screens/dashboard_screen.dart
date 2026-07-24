@@ -53,13 +53,7 @@ class DashboardScreen extends ConsumerWidget {
             ),
             Expanded(
               child: RefreshIndicator(
-                onRefresh: () async {
-                  ref.invalidate(dashboardSnapshotProvider);
-                  ref.invalidate(hiringSnapshotProvider);
-                  ref.invalidate(activityFeedProvider);
-                  ref.invalidate(notificationCountProvider);
-                  await ref.read(dashboardSnapshotProvider.future);
-                },
+                onRefresh: () => refreshDashboard(ref),
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: EdgeInsets.only(bottom: 24.h),
