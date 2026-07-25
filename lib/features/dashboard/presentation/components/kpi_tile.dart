@@ -80,9 +80,11 @@ class KpiTile extends StatelessWidget {
                     Icon(icon, size: 18.sp, color: iconColor),
                   ],
                 ),
-                SizedBox(height: 12.h),
+                SizedBox(height: 8.h),
                 Text(
                   value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppText.figtree(
                     size: 27,
                     weight: FontWeight.w800,
@@ -91,7 +93,7 @@ class KpiTile extends StatelessWidget {
                     height: 1,
                   ),
                 ),
-                SizedBox(height: 8.h),
+                SizedBox(height: 5.h),
                 // Flexible so a longer sub line (or a larger system font scale)
                 // ellipsises within the fixed-height grid cell instead of
                 // overflowing the tile — see the Bookings Today tile, whose
