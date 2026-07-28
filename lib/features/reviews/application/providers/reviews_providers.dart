@@ -64,6 +64,9 @@ class ReviewsFilterController extends StateNotifier<ReviewsFilterState> {
 
   void setSort(String value) => state = state.copyWith(sort: value);
 
+  /// `7` | `30` | `any` — also the escape hatch from an empty recent window.
+  void setDate(String value) => state = state.copyWith(date: value);
+
   void apply(ReviewsFilterState next) => state = next;
 
   void reset() => state = const ReviewsFilterState();

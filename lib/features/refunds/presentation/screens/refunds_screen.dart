@@ -73,7 +73,8 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> {
               children: [
                 TopBar(
                   title: 'Refund Log',
-                  subtitle: 'Last 30 days',
+                  // Tracks the window so "All time" is visible once selected.
+                  subtitle: filter.dateLabel,
                   onBack: () => context.pop(),
                 ),
                 Container(
@@ -118,12 +119,35 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> {
                     },
                     data: (refunds) {
                       if (refunds.isEmpty) {
-                        return EmptyState(
+                        // Same three cases as Reviews: a filter the admin set,
+                        // the date window they never chose, or genuinely no
+                        // refunds at all.
+                        if (filter.hasUserFilter) {
+                          return EmptyState(
+                            icon: AppIcons.receipt,
+                            title: 'No refunds match',
+                            body: 'Try clearing your search or filters.',
+                            actionLabel: 'Reset filters',
+                            onAction: controller.reset,
+                          );
+                        }
+                        if (filter.isDateLimited) {
+                          return EmptyState(
+                            icon: AppIcons.receipt,
+                            title: 'No refunds in the '
+                                '${filter.dateLabel.toLowerCase()}',
+                            body: 'This list is scoped to the '
+                                '${filter.dateLabel.toLowerCase()}. '
+                                'Older refunds are still there.',
+                            actionLabel: 'Show all time',
+                            onAction: () => controller.setDays(0),
+                          );
+                        }
+                        return const EmptyState(
                           icon: AppIcons.receipt,
-                          title: 'No refunds match',
-                          body: 'Try clearing your search or filters.',
-                          actionLabel: 'Reset filters',
-                          onAction: controller.reset,
+                          title: 'No refunds yet',
+                          body: 'Refunds raised against bookings will show up '
+                              'here.',
                         );
                       }
                       return RefreshIndicator(

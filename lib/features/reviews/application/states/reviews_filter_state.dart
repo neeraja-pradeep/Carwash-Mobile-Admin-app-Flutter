@@ -27,8 +27,26 @@ class ReviewsFilterState {
   final String sort;
 
   /// Count of active filters (drives the Filter pill badge + chip row).
+  ///
+  /// [date] is deliberately excluded — it is a scope the screen always has,
+  /// shown in the top bar rather than as a removable chip. Use [isDateLimited]
+  /// when you need to know whether it is hiding rows.
   int get activeCount =>
       (rating != 'any' ? 1 : 0) + shops.length + (hasText ? 1 : 0);
+
+  /// True when the list is narrowed to a date window, so an empty result may
+  /// simply mean "nothing recent" rather than "nothing at all".
+  bool get isDateLimited => date != 'any';
+
+  /// Human label for the current window — top bar subtitle and empty state.
+  String get dateLabel => switch (date) {
+        '30' => 'Last 30 days',
+        'any' => 'All time',
+        _ => 'Last 7 days',
+      };
+
+  /// True when the admin has actually narrowed the list themselves.
+  bool get hasUserFilter => activeCount > 0 || query.trim().isNotEmpty;
 
   ReviewsFilterState copyWith({
     String? rating,
