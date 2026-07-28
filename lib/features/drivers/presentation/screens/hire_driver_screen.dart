@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
@@ -11,6 +12,7 @@ import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
+import 'package:new_flutter_project/core/utils/license_number.dart';
 
 import '../../application/providers/drivers_providers.dart';
 import '../../domain/entities/field_driver.dart';
@@ -86,7 +88,10 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
   bool get _valid =>
       _name.trim().isNotEmpty &&
       _phone.trim().length >= 10 &&
-      _licenseNo.trim().isNotEmpty;
+      // A complete, well-formed licence number — a partial or malformed one
+      // blocks the CTA rather than being stored as typed.
+      LicenseNumber.isValid(_licenseNo) &&
+      LicenseNumber.compact(_licenseNo).isNotEmpty;
 
   // Editing an existing driver is always treated as dirty (mirrors the design).
   bool get _dirty =>
@@ -148,7 +153,7 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
           email: _email.trim(),
           subRole: subRoleFromLabel(_role),
           vehicleClasses: _classes,
-          licenseNumber: _licenseNo.trim(),
+          licenseNumber: LicenseNumber.format(_licenseNo),
           licenseExpiry: _expiryForPatch(_licenseExpiry),
           licenseVerified: _verified,
           phone: _phone.trim(),
@@ -161,7 +166,7 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
           phone: _phone.trim(),
           email: _email.trim().isEmpty ? null : _email.trim(),
           vehicleClasses: _classes,
-          licenseNumber: _licenseNo.trim(),
+          licenseNumber: LicenseNumber.format(_licenseNo),
           licenseExpiry: _licenseExpiry.trim(),
           licenseVerified: _verified,
         );
@@ -174,7 +179,7 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
           email: _email.trim().isEmpty ? null : _email.trim(),
           subRole: subRoleFromLabel(_role),
           vehicleClasses: _classes,
-          licenseNumber: _licenseNo.trim(),
+          licenseNumber: LicenseNumber.format(_licenseNo),
           licenseExpiry: _licenseExpiry.trim(),
           licenseVerified: _verified,
         );
@@ -297,8 +302,16 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
                     children: [
                       _LabeledField(
                         label: 'License number',
+                        // Prefilled as stored — a legacy value is shown as it
+                        // is and flagged, not silently re-grouped into a shape
+                        // it never had.
                         value: _licenseNo,
-                        placeholder: 'KL04 …',
+                        placeholder: 'KL-07-2011-0001234',
+                        inputFormatters: const [
+                          LicenseNumberInputFormatter(),
+                        ],
+                        errorText: LicenseNumber.errorFor(_licenseNo),
+                        helperText: 'State · RTO · year of issue · 7 digits',
                         onChanged: (v) => setState(() => _licenseNo = v),
                       ),
                       _LabeledField(
@@ -310,27 +323,32 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Mark as verified',
-                                style: AppText.figtree(
-                                  size: 13.5,
-                                  weight: FontWeight.w600,
+                          // Flexible so the copy wraps beside the toggle on a
+                          // narrow screen instead of overflowing the row.
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Mark as verified',
+                                  style: AppText.figtree(
+                                    size: 13.5,
+                                    weight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
-                              SizedBox(height: 2.h),
-                              Text(
-                                "Confirm you've checked the original",
-                                style: AppText.figtree(
-                                  size: 12,
-                                  weight: FontWeight.w400,
-                                  color: AppColors.fgTertiary,
+                                SizedBox(height: 2.h),
+                                Text(
+                                  "Confirm you've checked the original",
+                                  style: AppText.figtree(
+                                    size: 12,
+                                    weight: FontWeight.w400,
+                                    color: AppColors.fgTertiary,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
+                          SizedBox(width: 12.w),
                           _Toggle(
                             value: _verified,
                             onChanged: () =>
@@ -465,6 +483,9 @@ class _LabeledField extends StatefulWidget {
     required this.onChanged,
     this.optional = false,
     this.keyboardType = TextInputType.text,
+    this.inputFormatters,
+    this.errorText,
+    this.helperText,
   });
 
   final String label;
@@ -473,6 +494,13 @@ class _LabeledField extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final bool optional;
   final TextInputType keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+
+  /// Shown in red under the field — the value is present but unusable.
+  final String? errorText;
+
+  /// Shown in muted grey under the field when there is no [errorText].
+  final String? helperText;
 
   @override
   State<_LabeledField> createState() => _LabeledFieldState();
@@ -521,13 +549,18 @@ class _LabeledFieldState extends State<_LabeledField> {
           decoration: BoxDecoration(
             color: AppColors.bgInput,
             borderRadius: BorderRadius.circular(10.r),
-            border: Border.all(color: AppColors.borderDefault),
+            border: Border.all(
+              color: widget.errorText != null
+                  ? AppColors.redFg
+                  : AppColors.borderDefault,
+            ),
           ),
           padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
           child: TextField(
             controller: _ctrl,
             onChanged: widget.onChanged,
             keyboardType: widget.keyboardType,
+            inputFormatters: widget.inputFormatters,
             decoration: InputDecoration(
               isDense: true,
               border: InputBorder.none,
@@ -541,6 +574,19 @@ class _LabeledFieldState extends State<_LabeledField> {
             style: AppText.figtree(size: 14.5, weight: FontWeight.w400),
           ),
         ),
+        if (widget.errorText != null || widget.helperText != null) ...[
+          SizedBox(height: 6.h),
+          Text(
+            widget.errorText ?? widget.helperText!,
+            style: AppText.figtree(
+              size: 11.5,
+              weight: FontWeight.w500,
+              color: widget.errorText != null
+                  ? AppColors.redFg
+                  : AppColors.fgMuted,
+            ),
+          ),
+        ],
       ],
     );
   }
