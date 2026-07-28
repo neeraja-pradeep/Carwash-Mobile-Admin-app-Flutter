@@ -60,20 +60,21 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.3
 
 # Launcher icons are generated from assets/images/app_icon.png (a 1024×1024 PNG
-# export of assets/images/app_icon.jpeg). The Android adaptive icon uses a
-# padded foreground so the logo survives the launcher's circular/squircle mask.
+# export of assets/images/Logo Admin JPEG.jpg.jpeg). The adaptive foreground is the
+# same full-bleed artwork — the generated ic_launcher.xml already insets it by 16%,
+# which keeps the logo inside the launcher's circular/squircle mask.
 flutter_launcher_icons:
   image_path: "assets/images/app_icon.png"
   android: "ic_launcher"
-  adaptive_icon_background: "#FABE04"
+  adaptive_icon_background: "#F7CD55"
   adaptive_icon_foreground: "assets/images/app_icon_foreground.png"
   ios: true
   remove_alpha_ios: true
   web:
     generate: true
     image_path: "assets/images/app_icon.png"
-    background_color: "#FABE04"
-    theme_color: "#FABE04"
+    background_color: "#F7CD55"
+    theme_color: "#F7CD55"
 
 flutter:
   uses-material-design: true
