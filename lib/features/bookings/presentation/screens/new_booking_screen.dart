@@ -13,6 +13,7 @@ import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/features/customers/application/providers/customers_providers.dart';
 import 'package:new_flutter_project/features/customers/domain/entities/customer.dart';
+import 'package:new_flutter_project/features/customers/presentation/components/saved_address_picker.dart';
 import 'package:new_flutter_project/features/shops/application/providers/shop_services_providers.dart';
 import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
 import 'package:new_flutter_project/features/shops/domain/entities/shop.dart';
@@ -55,6 +56,15 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
 
   // Step 5: Pickup
   final _pickAddrCtrl = TextEditingController();
+
+  /// The saved address chosen for pickup. Null while nothing is picked or when
+  /// the admin switched to typing a one-off address; [_pickAddrCtrl] holds the
+  /// text either way.
+  SavedAddress? _pickedAddress;
+
+  /// True once the admin picks "Type a different address" — keeps the free-text
+  /// field open even though no saved address is selected.
+  bool _typingAddress = false;
 
   // Step 6: Drop
   bool _dropSame = true;
@@ -113,6 +123,11 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
       _addingVehicle = false;
       _slot = null;
       _coupon = null;
+      // The address book belongs to the previous customer — drop it so their
+      // address can't ride along into this booking.
+      _pickedAddress = null;
+      _typingAddress = false;
+      _pickAddrCtrl.clear();
     });
 
     if (pick?.id != null) {
@@ -137,6 +152,89 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
         }
       });
     }
+  }
+
+  /// The Pickup address control.
+  ///
+  /// Once an existing customer is selected this becomes a dropdown over their
+  /// saved addresses (`/api/accounts/v1/addresses/?user_id=…`), so the booking
+  /// binds to an address the customer actually saved. A customer with none gets
+  /// a disabled box and a note — they have to save one in the app first. Free
+  /// text remains for a brand-new customer, a failed fetch, or an explicit
+  /// "type a different address".
+  Widget _buildPickupAddressField() {
+    final customerId = _customer?.id;
+    if (customerId == null) return _pickupTextField();
+
+    return ref.watch(customerAddressesProvider(customerId)).when(
+          loading: () => const SavedAddressLoadingField(label: 'Address'),
+          error: (_, __) => _pickupTextField(
+            note: "Couldn't load saved addresses — type the address instead.",
+            noteColor: AppColors.redFg,
+          ),
+          data: (addresses) {
+            if (addresses.isEmpty) {
+              return _pickupTextField(
+                enabled: false,
+                note: 'This customer has no saved addresses. Ask them to save '
+                    'one in the Drivey app, then create the booking.',
+                noteColor: AppColors.redFg,
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SavedAddressDropdown(
+                  label: 'Address',
+                  addresses: addresses,
+                  value: _pickedAddress,
+                  typingAddress: _typingAddress,
+                  onSelected: (address) => setState(() {
+                    _pickedAddress = address;
+                    _typingAddress = address == null;
+                    _pickAddrCtrl.text = address?.text ?? '';
+                  }),
+                ),
+                if (_typingAddress) ...[
+                  SizedBox(height: 10.h),
+                  _pickupTextField(),
+                ],
+              ],
+            );
+          },
+        );
+  }
+
+  /// Free-text pickup entry, with an optional note underneath. [enabled] false
+  /// greys it out — used when the customer has no saved address to pick.
+  Widget _pickupTextField({
+    String? note,
+    Color? noteColor,
+    bool enabled = true,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _TextField(
+          label: 'Address',
+          controller: _pickAddrCtrl,
+          placeholder:
+              enabled ? 'Pickup address' : 'No saved address to pick',
+          enabled: enabled,
+        ),
+        if (note != null) ...[
+          SizedBox(height: 6.h),
+          Text(
+            note,
+            style: AppText.figtree(
+              size: 11.5,
+              weight: FontWeight.w500,
+              color: noteColor ?? AppColors.fgMuted,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   String get _vehicleType {
@@ -391,11 +489,7 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _TextField(
-                              label: 'Address',
-                              controller: _pickAddrCtrl,
-                              placeholder: 'Pickup address',
-                            ),
+                            _buildPickupAddressField(),
                             SizedBox(height: 10.h),
                             Text(
                               'Scheduled time',
@@ -777,6 +871,9 @@ class _NewBookingScreenState extends ConsumerState<NewBookingScreen> {
         pickupAddressText: _pickAddrCtrl.text.trim().isNotEmpty
             ? _pickAddrCtrl.text.trim()
             : null,
+        // Picking from the customer's address book binds the booking to that
+        // saved Address instead of creating a duplicate from the text.
+        addressId: _pickedAddress?.id,
         sameAsPickup: _dropSame,
         // The screen captures drop as free text; there is no saved-address
         // picker, so a separate drop address id is not available. When the
@@ -1038,6 +1135,7 @@ class _TextField extends StatelessWidget {
     required this.placeholder,
     this.optional = false,
     this.onChanged,
+    this.enabled = true,
   });
 
   final String label;
@@ -1045,6 +1143,7 @@ class _TextField extends StatelessWidget {
   final String placeholder;
   final bool optional;
   final void Function(String)? onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -1076,6 +1175,7 @@ class _TextField extends StatelessWidget {
         TextField(
           controller: controller,
           onChanged: onChanged,
+          enabled: enabled,
           decoration: InputDecoration(
             hintText: placeholder,
             hintStyle: AppText.figtree(
@@ -1096,6 +1196,10 @@ class _TextField extends StatelessWidget {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(11.r),
               borderSide: const BorderSide(color: AppColors.brandYellowDeep),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(11.r),
+              borderSide: const BorderSide(color: AppColors.borderSoft),
             ),
           ),
           style: AppText.figtree(size: 14, weight: FontWeight.w500),

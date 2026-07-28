@@ -14,6 +14,7 @@ import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/features/bookings/presentation/components/customer_picker.dart';
 import 'package:new_flutter_project/features/customers/application/providers/customers_providers.dart';
 import 'package:new_flutter_project/features/customers/domain/entities/customer.dart';
+import 'package:new_flutter_project/features/customers/presentation/components/saved_address_picker.dart';
 
 import '../../domain/entities/service_request.dart';
 import '../../application/providers/service_requests_providers.dart';
@@ -220,7 +221,7 @@ class _NewServiceRequestScreenState
     if (customerId == null) return _locationTextField();
 
     return ref.watch(customerAddressesProvider(customerId)).when(
-          loading: () => const _LocationFieldSkeleton(),
+          loading: () => const SavedAddressLoadingField(label: 'Location'),
           error: (_, __) => _locationTextField(
             note: "Couldn't load saved addresses — type the address instead.",
             noteColor: AppColors.redFg,
@@ -237,7 +238,8 @@ class _NewServiceRequestScreenState
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _SavedAddressDropdown(
+                SavedAddressDropdown(
+                  label: 'Location',
                   addresses: addresses,
                   value: _pickedAddress,
                   typingAddress: _typingAddress,
@@ -475,261 +477,6 @@ class _NewServiceRequestScreenState
           ],
         ),
       ),
-    );
-  }
-}
-
-// ── Location helpers ──────────────────────────────────────────────────────────
-
-/// Sentinel entry for the "type a different address" row — a saved address the
-/// customer will never have, matched by identity (const canonicalisation).
-const _typeAddressOption = SavedAddress(label: '', text: '', isDefault: false);
-
-/// Dropdown over a customer's saved addresses, plus an escape hatch for an
-/// address that isn't in their address book.
-class _SavedAddressDropdown extends StatelessWidget {
-  const _SavedAddressDropdown({
-    required this.addresses,
-    required this.value,
-    required this.typingAddress,
-    required this.onSelected,
-  });
-
-  final List<SavedAddress> addresses;
-
-  /// The selected saved address, or null when nothing is picked yet or the
-  /// admin opted to type one instead (see [typingAddress]).
-  final SavedAddress? value;
-  final bool typingAddress;
-
-  /// Fires with the chosen address, or null for "type a different address".
-  final ValueChanged<SavedAddress?> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final selected = value ?? (typingAddress ? _typeAddressOption : null);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Location',
-          style: AppText.figtree(
-            size: 12,
-            weight: FontWeight.w600,
-            color: AppColors.fgTertiary,
-          ),
-        ),
-        SizedBox(height: 6.h),
-        Container(
-          padding: EdgeInsets.symmetric(horizontal: 12.w),
-          decoration: BoxDecoration(
-            color: AppColors.bgPage,
-            borderRadius: BorderRadius.circular(9.r),
-            border: Border.all(color: AppColors.borderDefault),
-          ),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<SavedAddress>(
-              value: selected,
-              isExpanded: true,
-              itemHeight: 58.h,
-              borderRadius: BorderRadius.circular(12.r),
-              dropdownColor: AppColors.bgCard,
-              icon: Icon(
-                AppIcons.chevDown,
-                size: 20.sp,
-                color: AppColors.fgTertiary,
-              ),
-              hint: Row(
-                children: [
-                  Icon(AppIcons.pin, size: 16.sp, color: AppColors.fgTertiary),
-                  SizedBox(width: 8.w),
-                  Expanded(
-                    child: Text(
-                      'Select saved address',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.figtree(
-                        size: 14.5,
-                        weight: FontWeight.w400,
-                        color: AppColors.fgMuted,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              // Collapsed state stays one line — the menu shows the detail.
-              selectedItemBuilder: (_) => [
-                for (final a in addresses) _collapsedRow(a.text),
-                _collapsedRow('Type a different address'),
-              ],
-              items: [
-                for (final a in addresses)
-                  DropdownMenuItem<SavedAddress>(
-                    value: a,
-                    child: _AddressMenuRow(address: a),
-                  ),
-                DropdownMenuItem<SavedAddress>(
-                  value: _typeAddressOption,
-                  child: Row(
-                    children: [
-                      Icon(AppIcons.plus,
-                          size: 16.sp, color: AppColors.fgSecondary),
-                      SizedBox(width: 8.w),
-                      Expanded(
-                        child: Text(
-                          'Type a different address',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppText.figtree(
-                            size: 13.5,
-                            weight: FontWeight.w600,
-                            color: AppColors.fgSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              onChanged: (picked) => onSelected(
-                picked == _typeAddressOption ? null : picked,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _collapsedRow(String text) {
-    return Row(
-      children: [
-        Icon(AppIcons.pin, size: 16.sp, color: AppColors.fgTertiary),
-        SizedBox(width: 8.w),
-        Expanded(
-          child: Text(
-            text,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppText.figtree(size: 14.5, weight: FontWeight.w500),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// One saved address inside the open dropdown: label + DEFAULT badge on top,
-/// the full address underneath.
-class _AddressMenuRow extends StatelessWidget {
-  const _AddressMenuRow({required this.address});
-
-  final SavedAddress address;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Flexible(
-              child: Text(
-                address.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppText.figtree(size: 13, weight: FontWeight.w700),
-              ),
-            ),
-            if (address.isDefault) ...[
-              SizedBox(width: 7.w),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
-                decoration: BoxDecoration(
-                  color: AppColors.blueBg,
-                  borderRadius: BorderRadius.circular(5.r),
-                ),
-                child: Text(
-                  'DEFAULT',
-                  style: AppText.figtree(
-                    size: 9,
-                    weight: FontWeight.w600,
-                    color: AppColors.blueFg,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        SizedBox(height: 3.h),
-        Text(
-          address.text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppText.figtree(
-            size: 12.5,
-            weight: FontWeight.w500,
-            color: AppColors.fgTertiary,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Placeholder shown while a customer's saved addresses are loading.
-class _LocationFieldSkeleton extends StatelessWidget {
-  const _LocationFieldSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Location',
-          style: AppText.figtree(
-            size: 12,
-            weight: FontWeight.w600,
-            color: AppColors.fgTertiary,
-          ),
-        ),
-        SizedBox(height: 6.h),
-        Container(
-          height: 46.h,
-          padding: EdgeInsets.symmetric(horizontal: 12.w),
-          decoration: BoxDecoration(
-            color: AppColors.bgPage,
-            borderRadius: BorderRadius.circular(9.r),
-            border: Border.all(color: AppColors.borderDefault),
-          ),
-          child: Row(
-            children: [
-              SizedBox(
-                width: 15.sp,
-                height: 15.sp,
-                child: const CircularProgressIndicator.adaptive(strokeWidth: 2),
-              ),
-              SizedBox(width: 10.w),
-              Expanded(
-                child: Text(
-                  'Loading saved addresses…',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppText.figtree(
-                    size: 14,
-                    weight: FontWeight.w500,
-                    color: AppColors.fgMuted,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
