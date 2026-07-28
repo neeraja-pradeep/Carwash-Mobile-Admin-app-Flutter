@@ -44,6 +44,14 @@ final customerByIdProvider =
   (ref, id) => ref.watch(customersRepositoryProvider).fetchCustomerById(id),
 );
 
+/// A customer's saved addresses, default first. Family keyed by customer id;
+/// autoDispose so switching customers on a create form refetches rather than
+/// showing the previous customer's list.
+final customerAddressesProvider =
+    FutureProvider.autoDispose.family<List<SavedAddress>, String>(
+  (ref, id) => ref.watch(customersRepositoryProvider).fetchSavedAddresses(id),
+);
+
 /// A page of a customer's booking history. Family keyed by `(id, page)`.
 final customerHistoryProvider = FutureProvider.autoDispose
     .family<CustomerHistoryPage, ({String id, int page})>(

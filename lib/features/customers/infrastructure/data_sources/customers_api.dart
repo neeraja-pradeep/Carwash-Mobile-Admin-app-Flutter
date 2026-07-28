@@ -8,6 +8,7 @@ class CustomersApi {
 
   static const String _customersPath = '/api/accounts/v1/superadmin/customers/';
   static const String _createCustomerPath = '/api/accounts/v1/admin/customers/';
+  static const String _addressesPath = '/api/accounts/v1/addresses/';
 
   CustomersApi() {
     _dio = HttpClient().dio;
@@ -72,6 +73,26 @@ class CustomersApi {
       return CustomerDetailResponse.fromJson(
         response.data as Map<String, dynamic>,
       );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  /// Get a customer's saved addresses (the ones they added in the customer
+  /// app). Paginated by DRF — the `results` array is all we need here.
+  Future<List<CustomerAddressModel>> getSavedAddresses(int userId) async {
+    try {
+      final response = await _dio.get(
+        _addressesPath,
+        queryParameters: {'user_id': userId},
+      );
+      final data = response.data;
+      final results = data is Map<String, dynamic> ? data['results'] : data;
+      return (results as List?)
+              ?.cast<Map<String, dynamic>>()
+              .map(CustomerAddressModel.fromJson)
+              .toList() ??
+          const [];
     } on DioException catch (e) {
       throw _handleError(e);
     }

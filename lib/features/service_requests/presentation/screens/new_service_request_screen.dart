@@ -12,6 +12,8 @@ import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/features/bookings/presentation/components/customer_picker.dart';
+import 'package:new_flutter_project/features/customers/application/providers/customers_providers.dart';
+import 'package:new_flutter_project/features/customers/domain/entities/customer.dart';
 
 import '../../domain/entities/service_request.dart';
 import '../../application/providers/service_requests_providers.dart';
@@ -48,6 +50,15 @@ class _NewServiceRequestScreenState
   final _noteCtrl = TextEditingController();
   bool _isSubmitting = false;
 
+  /// The saved address chosen from the dropdown. Null while nothing is picked
+  /// or when the admin switched to typing a one-off address; [_locationCtrl] is
+  /// the single source of truth for the text either way.
+  SavedAddress? _pickedAddress;
+
+  /// True once the admin picks "Type a different address" — keeps the free-text
+  /// field open even though no saved address is selected.
+  bool _typingAddress = false;
+
   bool get _isDriver => widget.kind == SrKind.driver;
 
   // Matches the JSX `valid` check: customer + when + location.
@@ -55,6 +66,18 @@ class _NewServiceRequestScreenState
       _customer != null &&
       _appointmentDate != null &&
       _locationCtrl.text.trim().isNotEmpty;
+
+  /// Swapping the customer invalidates anything picked from their address
+  /// book, so the location resets to empty rather than carrying the previous
+  /// customer's address into the new request.
+  void _onCustomerChanged(CustomerPick? customer) {
+    setState(() {
+      _customer = customer;
+      _pickedAddress = null;
+      _typingAddress = false;
+      _locationCtrl.clear();
+    });
+  }
 
   /// Map UI reason label to API trip_type value
   String _getTripType(String uiLabel) {
@@ -149,6 +172,10 @@ class _NewServiceRequestScreenState
             : null,
         'appointmentDate': appointmentDate,
         'addressText': _locationCtrl.text,
+        // A saved address brings its own pin — forward it so the assigned
+        // worker gets coordinates, not just a line of text.
+        'latitude': _pickedAddress?.latitude,
+        'longitude': _pickedAddress?.longitude,
         'quotedFee': _feeCtrl.text.isNotEmpty ? _feeCtrl.text : null,
         'customerNote': _noteCtrl.text.isNotEmpty ? _noteCtrl.text : null,
       };
@@ -176,6 +203,85 @@ class _NewServiceRequestScreenState
         setState(() => _isSubmitting = false);
       }
     }
+  }
+
+  /// The Location control.
+  ///
+  /// For an existing customer this is a dropdown over their saved addresses
+  /// (fetched from `/api/accounts/v1/addresses/?user_id=…`), so an admin taking
+  /// a phone-in request picks the address the customer already saved instead of
+  /// re-typing it — which also carries the saved lat/long through to the job.
+  /// Falls back to free text for a brand-new customer, for one with no saved
+  /// addresses, when the fetch fails, or when the admin explicitly chooses to
+  /// type a different address.
+  Widget _buildLocationField() {
+    final customerId = _customer?.id;
+    if (customerId == null) return _locationTextField();
+
+    return ref.watch(customerAddressesProvider(customerId)).when(
+          loading: () => const _LocationFieldSkeleton(),
+          error: (_, __) => _locationTextField(
+            note: "Couldn't load saved addresses — type the address instead.",
+            noteColor: AppColors.redFg,
+          ),
+          data: (addresses) {
+            if (addresses.isEmpty) {
+              return _locationTextField(
+                note: 'No saved addresses for this customer.',
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SavedAddressDropdown(
+                  addresses: addresses,
+                  value: _pickedAddress,
+                  typingAddress: _typingAddress,
+                  onSelected: (address) => setState(() {
+                    _pickedAddress = address;
+                    _typingAddress = address == null;
+                    _locationCtrl.text = address?.text ?? '';
+                  }),
+                ),
+                if (_typingAddress) ...[
+                  SizedBox(height: 10.h),
+                  _locationTextField(label: 'Address'),
+                ],
+              ],
+            );
+          },
+        );
+  }
+
+  /// Free-text location entry, with an optional explanatory note underneath.
+  Widget _locationTextField({
+    String label = 'Location',
+    String? note,
+    Color? noteColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _FormInput(
+          controller: _locationCtrl,
+          label: label,
+          hint: 'Pick-up / inspection address',
+          onChanged: (_) => setState(() {}),
+          prefixIcon: AppIcons.pin,
+        ),
+        if (note != null) ...[
+          SizedBox(height: 6.h),
+          Text(
+            note,
+            style: AppText.figtree(
+              size: 11.5,
+              weight: FontWeight.w500,
+              color: noteColor ?? AppColors.fgMuted,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -230,7 +336,7 @@ class _NewServiceRequestScreenState
                     label: 'Customer',
                     child: CustomerPicker(
                       value: _customer,
-                      onChanged: (c) => setState(() => _customer = c),
+                      onChanged: _onCustomerChanged,
                     ),
                   ),
                   SizedBox(height: 12.h),
@@ -314,14 +420,9 @@ class _NewServiceRequestScreenState
                         ),
                         SizedBox(height: 10.h),
 
-                        // Location.
-                        _FormInput(
-                          controller: _locationCtrl,
-                          label: 'Location',
-                          hint: 'Pick-up / inspection address',
-                          onChanged: (_) => setState(() {}),
-                          prefixIcon: AppIcons.pin,
-                        ),
+                        // Location — saved-address dropdown once a customer
+                        // with an id is selected, free text otherwise.
+                        _buildLocationField(),
                       ],
                     ),
                   ),
@@ -364,6 +465,261 @@ class _NewServiceRequestScreenState
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Location helpers ──────────────────────────────────────────────────────────
+
+/// Sentinel entry for the "type a different address" row — a saved address the
+/// customer will never have, matched by identity (const canonicalisation).
+const _typeAddressOption = SavedAddress(label: '', text: '', isDefault: false);
+
+/// Dropdown over a customer's saved addresses, plus an escape hatch for an
+/// address that isn't in their address book.
+class _SavedAddressDropdown extends StatelessWidget {
+  const _SavedAddressDropdown({
+    required this.addresses,
+    required this.value,
+    required this.typingAddress,
+    required this.onSelected,
+  });
+
+  final List<SavedAddress> addresses;
+
+  /// The selected saved address, or null when nothing is picked yet or the
+  /// admin opted to type one instead (see [typingAddress]).
+  final SavedAddress? value;
+  final bool typingAddress;
+
+  /// Fires with the chosen address, or null for "type a different address".
+  final ValueChanged<SavedAddress?> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = value ?? (typingAddress ? _typeAddressOption : null);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Location',
+          style: AppText.figtree(
+            size: 12,
+            weight: FontWeight.w600,
+            color: AppColors.fgTertiary,
+          ),
+        ),
+        SizedBox(height: 6.h),
+        Container(
+          padding: EdgeInsets.symmetric(horizontal: 12.w),
+          decoration: BoxDecoration(
+            color: AppColors.bgPage,
+            borderRadius: BorderRadius.circular(9.r),
+            border: Border.all(color: AppColors.borderDefault),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<SavedAddress>(
+              value: selected,
+              isExpanded: true,
+              itemHeight: 58.h,
+              borderRadius: BorderRadius.circular(12.r),
+              dropdownColor: AppColors.bgCard,
+              icon: Icon(
+                AppIcons.chevDown,
+                size: 20.sp,
+                color: AppColors.fgTertiary,
+              ),
+              hint: Row(
+                children: [
+                  Icon(AppIcons.pin, size: 16.sp, color: AppColors.fgTertiary),
+                  SizedBox(width: 8.w),
+                  Expanded(
+                    child: Text(
+                      'Select saved address',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.figtree(
+                        size: 14.5,
+                        weight: FontWeight.w400,
+                        color: AppColors.fgMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              // Collapsed state stays one line — the menu shows the detail.
+              selectedItemBuilder: (_) => [
+                for (final a in addresses) _collapsedRow(a.text),
+                _collapsedRow('Type a different address'),
+              ],
+              items: [
+                for (final a in addresses)
+                  DropdownMenuItem<SavedAddress>(
+                    value: a,
+                    child: _AddressMenuRow(address: a),
+                  ),
+                DropdownMenuItem<SavedAddress>(
+                  value: _typeAddressOption,
+                  child: Row(
+                    children: [
+                      Icon(AppIcons.plus,
+                          size: 16.sp, color: AppColors.fgSecondary),
+                      SizedBox(width: 8.w),
+                      Expanded(
+                        child: Text(
+                          'Type a different address',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppText.figtree(
+                            size: 13.5,
+                            weight: FontWeight.w600,
+                            color: AppColors.fgSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              onChanged: (picked) => onSelected(
+                picked == _typeAddressOption ? null : picked,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _collapsedRow(String text) {
+    return Row(
+      children: [
+        Icon(AppIcons.pin, size: 16.sp, color: AppColors.fgTertiary),
+        SizedBox(width: 8.w),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.figtree(size: 14.5, weight: FontWeight.w500),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// One saved address inside the open dropdown: label + DEFAULT badge on top,
+/// the full address underneath.
+class _AddressMenuRow extends StatelessWidget {
+  const _AddressMenuRow({required this.address});
+
+  final SavedAddress address;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Flexible(
+              child: Text(
+                address.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.figtree(size: 13, weight: FontWeight.w700),
+              ),
+            ),
+            if (address.isDefault) ...[
+              SizedBox(width: 7.w),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 6.w, vertical: 2.h),
+                decoration: BoxDecoration(
+                  color: AppColors.blueBg,
+                  borderRadius: BorderRadius.circular(5.r),
+                ),
+                child: Text(
+                  'DEFAULT',
+                  style: AppText.figtree(
+                    size: 9,
+                    weight: FontWeight.w600,
+                    color: AppColors.blueFg,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+        SizedBox(height: 3.h),
+        Text(
+          address.text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppText.figtree(
+            size: 12.5,
+            weight: FontWeight.w500,
+            color: AppColors.fgTertiary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Placeholder shown while a customer's saved addresses are loading.
+class _LocationFieldSkeleton extends StatelessWidget {
+  const _LocationFieldSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Location',
+          style: AppText.figtree(
+            size: 12,
+            weight: FontWeight.w600,
+            color: AppColors.fgTertiary,
+          ),
+        ),
+        SizedBox(height: 6.h),
+        Container(
+          height: 46.h,
+          padding: EdgeInsets.symmetric(horizontal: 12.w),
+          decoration: BoxDecoration(
+            color: AppColors.bgPage,
+            borderRadius: BorderRadius.circular(9.r),
+            border: Border.all(color: AppColors.borderDefault),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 15.sp,
+                height: 15.sp,
+                child: const CircularProgressIndicator.adaptive(strokeWidth: 2),
+              ),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Text(
+                  'Loading saved addresses…',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.figtree(
+                    size: 14,
+                    weight: FontWeight.w500,
+                    color: AppColors.fgMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

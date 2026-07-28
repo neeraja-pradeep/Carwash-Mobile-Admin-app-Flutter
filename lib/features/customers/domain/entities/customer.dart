@@ -6,11 +6,38 @@ class SavedAddress {
     required this.label,
     required this.text,
     required this.isDefault,
+    this.id,
+    this.latitude,
+    this.longitude,
   });
 
   final String label;
   final String text;
   final bool isDefault;
+
+  /// The backing `Address` id. `null` for locally-sourced / mock addresses.
+  final int? id;
+
+  /// Coordinates as saved by the customer app — forwarded when an admin books
+  /// on the customer's behalf so the worker gets a pin, not just a string.
+  final double? latitude;
+  final double? longitude;
+
+  /// Value equality so a selection survives the list being re-fetched — a
+  /// dropdown holding an instance from a previous fetch must still match the
+  /// equivalent row in the new one.
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SavedAddress &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          label == other.label &&
+          text == other.text &&
+          isDefault == other.isDefault;
+
+  @override
+  int get hashCode => Object.hash(id, label, text, isDefault);
 }
 
 /// A vehicle in a customer's garage (read-only here).

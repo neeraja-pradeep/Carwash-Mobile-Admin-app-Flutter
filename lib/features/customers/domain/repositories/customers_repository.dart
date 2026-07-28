@@ -20,6 +20,9 @@ abstract class CustomersRepository {
   /// Search customers by phone, name, or username.
   Future<List<Customer>> searchCustomers(String query);
 
+  /// The customer's saved addresses, default first. Empty when they have none.
+  Future<List<SavedAddress>> fetchSavedAddresses(String customerId);
+
   /// Update the editable founder notes; returns the refreshed customer.
   Future<Customer> updateFounderNotes(String id, String notes);
 

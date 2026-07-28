@@ -227,6 +227,8 @@ class CustomerAddressModel {
   final String? state;
   final String? pincode;
   final bool isDefault;
+  final double? latitude;
+  final double? longitude;
 
   CustomerAddressModel({
     required this.id,
@@ -237,6 +239,8 @@ class CustomerAddressModel {
     this.state,
     this.pincode,
     this.isDefault = false,
+    this.latitude,
+    this.longitude,
   });
 
   factory CustomerAddressModel.fromJson(Map<String, dynamic> json) {
@@ -249,6 +253,8 @@ class CustomerAddressModel {
       state: _toString(json['state']),
       pincode: _toString(json['pincode']),
       isDefault: _toBool(json['is_default'], fallback: false),
+      latitude: _toNullableDouble(json['latitude']),
+      longitude: _toNullableDouble(json['longitude']),
     );
   }
 
@@ -261,9 +267,12 @@ class CustomerAddressModel {
       if (pincode != null && pincode!.isNotEmpty) pincode!,
     ];
     return SavedAddress(
+      id: id,
       label: label,
       text: parts.join(', '),
       isDefault: isDefault,
+      latitude: latitude,
+      longitude: longitude,
     );
   }
 }
@@ -454,6 +463,16 @@ double _toDouble(dynamic value) {
   if (value is int) return value.toDouble();
   if (value is String) return double.tryParse(value) ?? 0;
   return 0;
+}
+
+/// Like [_toDouble] but keeps `null` distinct from `0` — a coordinate the
+/// customer never set must not read as the middle of the Atlantic.
+double? _toNullableDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is double) return value;
+  if (value is int) return value.toDouble();
+  if (value is String) return double.tryParse(value);
+  return null;
 }
 
 String? _toString(dynamic value) {

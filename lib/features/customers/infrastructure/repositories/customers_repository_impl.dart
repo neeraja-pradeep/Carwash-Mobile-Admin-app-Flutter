@@ -69,6 +69,21 @@ class CustomersRepositoryImpl implements CustomersRepository {
   }
 
   @override
+  Future<List<SavedAddress>> fetchSavedAddresses(String customerId) async {
+    final userId = int.tryParse(customerId);
+    if (userId == null) return const [];
+
+    final models = await _api.getSavedAddresses(userId);
+    final addresses = models.map((m) => m.toEntity()).toList()
+      // Default first, so the picker can pre-select the obvious choice.
+      ..sort((a, b) {
+        if (a.isDefault == b.isDefault) return 0;
+        return a.isDefault ? -1 : 1;
+      });
+    return addresses;
+  }
+
+  @override
   Future<Customer> updateFounderNotes(String id, String notes) async {
     try {
       final detail = await _api.patchFounderNotes(id, notes);
