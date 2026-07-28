@@ -211,9 +211,10 @@ class _NewServiceRequestScreenState
   /// (fetched from `/api/accounts/v1/addresses/?user_id=…`), so an admin taking
   /// a phone-in request picks the address the customer already saved instead of
   /// re-typing it — which also carries the saved lat/long through to the job.
-  /// Falls back to free text for a brand-new customer, for one with no saved
-  /// addresses, when the fetch fails, or when the admin explicitly chooses to
-  /// type a different address.
+  /// Falls back to free text for a brand-new customer, when the fetch fails, or
+  /// when the admin explicitly chooses to type a different address. A customer
+  /// with no saved addresses gets a disabled field instead — they have to save
+  /// one in the app first.
   Widget _buildLocationField() {
     final customerId = _customer?.id;
     if (customerId == null) return _locationTextField();
@@ -227,7 +228,10 @@ class _NewServiceRequestScreenState
           data: (addresses) {
             if (addresses.isEmpty) {
               return _locationTextField(
-                note: 'No saved addresses for this customer.',
+                enabled: false,
+                note: 'This customer has no saved addresses. Ask them to save '
+                    'one in the Drivey app, then create the request.',
+                noteColor: AppColors.redFg,
               );
             }
             return Column(
@@ -254,10 +258,13 @@ class _NewServiceRequestScreenState
   }
 
   /// Free-text location entry, with an optional explanatory note underneath.
+  /// [enabled] false greys the box out — used when there is nothing valid to
+  /// type because the customer has no saved address yet.
   Widget _locationTextField({
     String label = 'Location',
     String? note,
     Color? noteColor,
+    bool enabled = true,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,7 +272,10 @@ class _NewServiceRequestScreenState
         _FormInput(
           controller: _locationCtrl,
           label: label,
-          hint: 'Pick-up / inspection address',
+          hint: enabled
+              ? 'Pick-up / inspection address'
+              : 'No saved address to pick',
+          enabled: enabled,
           onChanged: (_) => setState(() {}),
           prefixIcon: AppIcons.pin,
         ),
@@ -767,6 +777,7 @@ class _FormInput extends StatelessWidget {
     this.prefixIcon,
     this.keyboardType,
     this.onChanged,
+    this.enabled = true,
   });
 
   final TextEditingController controller;
@@ -776,6 +787,7 @@ class _FormInput extends StatelessWidget {
   final IconData? prefixIcon;
   final TextInputType? keyboardType;
   final ValueChanged<String>? onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
@@ -795,6 +807,7 @@ class _FormInput extends StatelessWidget {
           controller: controller,
           keyboardType: keyboardType,
           onChanged: onChanged,
+          enabled: enabled,
           style: AppText.figtree(size: 14.5, weight: FontWeight.w500),
           decoration: InputDecoration(
             hintText: hint,
@@ -803,7 +816,11 @@ class _FormInput extends StatelessWidget {
             prefixText: prefixText,
             prefixStyle: AppText.figtree(size: 14.5, weight: FontWeight.w600),
             prefixIcon: prefixIcon != null
-                ? Icon(prefixIcon, size: 16.sp, color: AppColors.fgTertiary)
+                ? Icon(
+                    prefixIcon,
+                    size: 16.sp,
+                    color: enabled ? AppColors.fgTertiary : AppColors.fgMuted,
+                  )
                 : null,
             isDense: true,
             contentPadding:
@@ -818,6 +835,10 @@ class _FormInput extends StatelessWidget {
               borderRadius: BorderRadius.circular(9.r),
               borderSide:
                   const BorderSide(color: AppColors.borderDefault, width: 1.5),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(9.r),
+              borderSide: const BorderSide(color: AppColors.borderSoft),
             ),
           ),
         ),

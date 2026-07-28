@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:new_flutter_project/app/theme/dimens.dart';
+import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/features/customers/application/providers/customers_providers.dart';
 import 'package:new_flutter_project/features/customers/domain/entities/customer.dart';
 import 'package:new_flutter_project/features/customers/domain/repositories/customers_repository.dart';
@@ -143,13 +144,35 @@ void main() {
     );
   });
 
-  testWidgets('a customer with no saved addresses keeps free-text entry',
+  testWidgets('a customer with no saved addresses gets a disabled field',
       (tester) async {
     await pumpForm(tester, saved: const []);
     await selectCustomer(tester);
 
     expect(find.text('Select saved address'), findsNothing);
-    expect(find.text('No saved addresses for this customer.'), findsOneWidget);
+    expect(
+      find.text('This customer has no saved addresses. Ask them to save one '
+          'in the Drivey app, then create the request.'),
+      findsOneWidget,
+    );
+
+    // The box is locked, so the request can't be created without an address.
+    final location = tester.widget<TextField>(
+      find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.hintText == 'No saved address to pick',
+      ),
+    );
+    expect(location.enabled, isFalse);
+
+    // The submit button lives at the bottom of the ListView, so it has to be
+    // scrolled into existence before it can be inspected.
+    await tester.dragUntilVisible(
+      find.byType(AppButton),
+      find.byType(ListView),
+      const Offset(0, -200),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<AppButton>(find.byType(AppButton)).disabled, isTrue);
   });
 
   testWidgets('a failed address fetch degrades to free-text entry',
