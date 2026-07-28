@@ -305,7 +305,7 @@ class _TopBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'DriveDeck',
+                  'Drivey',
                   style: AppText.figtree(
                     size: 18,
                     weight: FontWeight.w800,

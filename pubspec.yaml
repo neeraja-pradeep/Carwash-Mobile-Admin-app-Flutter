@@ -1,5 +1,5 @@
 name: new_flutter_project
-description: "DriveDeck Admin — Car Wash booking platform operator app."
+description: "Drivey Admin — Car Wash booking platform operator app."
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -55,6 +55,25 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
+  # Launcher-icon generator (run: dart run flutter_launcher_icons)
+  flutter_launcher_icons: ^0.14.3
+
+# Launcher icons are generated from assets/images/app_icon.png (a 1024×1024 PNG
+# export of assets/images/app_icon.jpeg). The Android adaptive icon uses a
+# padded foreground so the logo survives the launcher's circular/squircle mask.
+flutter_launcher_icons:
+  image_path: "assets/images/app_icon.png"
+  android: "ic_launcher"
+  adaptive_icon_background: "#FABE04"
+  adaptive_icon_foreground: "assets/images/app_icon_foreground.png"
+  ios: true
+  remove_alpha_ios: true
+  web:
+    generate: true
+    image_path: "assets/images/app_icon.png"
+    background_color: "#FABE04"
+    theme_color: "#FABE04"
 
 flutter:
   uses-material-design: true

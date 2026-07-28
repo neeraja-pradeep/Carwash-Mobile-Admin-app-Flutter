@@ -392,7 +392,7 @@ class _Body extends ConsumerWidget {
 
           // ── Version footnote ──────────────────────────────────────────────────
           Text(
-            'DriveDeck Operator Console · ${s.appVersion}',
+            'Drivey Operator Console · ${s.appVersion}',
             textAlign: TextAlign.center,
             style: AppText.figtree(
               size: 11,

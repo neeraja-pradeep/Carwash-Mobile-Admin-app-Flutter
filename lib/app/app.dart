@@ -25,7 +25,7 @@ class DriveDeckApp extends StatelessWidget {
       ensureScreenSize: true,
       builder: (context, child) {
         return MaterialApp.router(
-          title: 'DriveDeck Admin',
+          title: 'Drivey Admin',
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           routerConfig: appRouter,

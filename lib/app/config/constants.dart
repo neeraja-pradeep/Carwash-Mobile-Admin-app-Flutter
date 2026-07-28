@@ -7,7 +7,7 @@
 class AppConstants {
   const AppConstants._();
 
-  static const String appName = 'DriveDeck';
+  static const String appName = 'Drivey';
   static const String appVersion = 'v0.1.0 (build 47)';
 
   // Locale / formatting defaults (IST, INR, English).
