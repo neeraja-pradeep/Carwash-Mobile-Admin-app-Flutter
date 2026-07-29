@@ -1,3 +1,4 @@
+import '../../../../core/utils/media_url.dart';
 import '../../domain/entities/offer_banner.dart';
 
 /// One banner in the `PromotionSerializer` read shape.
@@ -32,7 +33,9 @@ class PromotionModel {
       lifecycleStatus: _str(json['lifecycle_status'], fallback: 'inactive'),
       impressionCount: _int(json['impression_count']),
       tapCount: _int(json['tap_count']),
-      imageUrl: _nullableStr(json['image_url']),
+      // Uploaded files come back as a bare CDN host with no scheme, which no
+      // image loader will fetch — normalise before it reaches the UI.
+      imageUrl: resolveMediaUrl(_nullableStr(json['image_url'])),
       deepLink: _nullableStr(json['deep_link']),
       coupon: json['coupon'] is int
           ? json['coupon'] as int
