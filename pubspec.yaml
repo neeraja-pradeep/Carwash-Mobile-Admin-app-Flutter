@@ -51,6 +51,15 @@ dependencies:
   path_provider: ^2.1.4
   share_plus: ^10.1.2
 
+  # Map location picker (Add/Edit Shop address field).
+  # OpenStreetMap tiles via flutter_map — no API key or billing account needed.
+  # `geocoding` uses the platform geocoder for reverse lookups (pincode); the
+  # picker falls back to Nominatim when the OS geocoder is unavailable.
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
+  geocoding: ^4.0.0
+  geolocator: ^14.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
