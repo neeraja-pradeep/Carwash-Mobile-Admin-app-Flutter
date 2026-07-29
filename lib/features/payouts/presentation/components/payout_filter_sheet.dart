@@ -61,6 +61,34 @@ class _FilterBody extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
+          'DATE',
+          style: AppText.figtree(
+            size: 11,
+            weight: FontWeight.w700,
+            color: AppColors.fgSecondary,
+            letterSpacing: 1.0,
+          ),
+        ),
+        SizedBox(height: 12.h),
+        Wrap(
+          spacing: 9.w,
+          runSpacing: 9.h,
+          children: [
+            for (final d in const [
+              ('any', 'All time'),
+              ('7', 'Last 7 days'),
+              ('30', 'Last 30 days'),
+              ('90', 'Last 90 days'),
+            ])
+              AppChip(
+                label: d.$2,
+                active: filter.date == d.$1,
+                onTap: () => controller.setDate(d.$1),
+              ),
+          ],
+        ),
+        SizedBox(height: 22.h),
+        Text(
           'STATUS',
           style: AppText.figtree(
             size: 11,

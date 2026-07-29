@@ -78,7 +78,7 @@ class _PayoutsScreenState extends ConsumerState<PayoutsScreen> {
               children: [
                 TopBar(
                   title: 'Payout Log',
-                  subtitle: 'Last 90 days',
+                  subtitle: filter.dateLabel,
                   onBack: () => context.pop(),
                 ),
                 Container(
@@ -218,6 +218,16 @@ class _ActiveChips extends ConsumerWidget {
         active: true,
         removable: true,
         onRemove: () => controller.setShop(null),
+      ));
+      chips.add(SizedBox(width: 8.w));
+    }
+
+    if (filter.date != 'any') {
+      chips.add(AppChip(
+        label: filter.dateLabel,
+        active: true,
+        removable: true,
+        onRemove: () => controller.setDate('any'),
       ));
       chips.add(SizedBox(width: 8.w));
     }

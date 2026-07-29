@@ -14,7 +14,11 @@ class PayoutLogFilter {
   final String? status;
   final String? shop;
   final String? sort;
-  final int? days;
+
+  /// `any` | `7` | `30` | `90` — window on the payout date, chosen in the
+  /// filter sheet. Defaults to `any`: the API's own default is 90 days, which
+  /// silently hid older payouts before an admin had chosen anything.
+  final String date;
   final int page;
   final int pageSize;
 
@@ -23,13 +27,30 @@ class PayoutLogFilter {
     this.status,
     this.shop,
     this.sort,
-    this.days,
+    this.date = 'any',
     this.page = 1,
     this.pageSize = 10,
   });
 
   /// Alias for search (UI compatibility)
   String? get query => search;
+
+  /// The API's `days` window. There is no "off" switch — `days=0` returns an
+  /// empty window rather than everything — so all time is a century-wide one.
+  int get days => switch (date) {
+        '7' => 7,
+        '30' => 30,
+        '90' => 90,
+        _ => 36500,
+      };
+
+  /// Human label for the selected window — chip row and top bar subtitle.
+  String get dateLabel => switch (date) {
+        '7' => 'Last 7 days',
+        '30' => 'Last 30 days',
+        '90' => 'Last 90 days',
+        _ => 'All time',
+      };
 
   /// Count of active filters
   int get activeCount {
@@ -38,26 +59,30 @@ class PayoutLogFilter {
     if (status != null && status!.isNotEmpty) count++;
     if (shop != null && shop!.isNotEmpty) count++;
     if (sort != null && sort != 'recent') count++;
-    if (days != null && days != 90) count++;
+    if (date != 'any') count++;
     return count;
   }
 
-  /// CopyWith for filter updates
+  /// CopyWith for filter updates.
+  ///
+  /// [status] and [shop] are nullable *values*, so they take a sentinel —
+  /// passing null must clear them (deselecting a chip), not be read as
+  /// "unchanged".
   PayoutLogFilter copyWith({
     String? search,
-    String? status,
-    String? shop,
+    Object? status = _sentinel,
+    Object? shop = _sentinel,
     String? sort,
-    int? days,
+    String? date,
     int? page,
     int? pageSize,
   }) {
     return PayoutLogFilter(
       search: search ?? this.search,
-      status: status ?? this.status,
-      shop: shop ?? this.shop,
+      status: status == _sentinel ? this.status : status as String?,
+      shop: shop == _sentinel ? this.shop : shop as String?,
       sort: sort ?? this.sort,
-      days: days ?? this.days,
+      date: date ?? this.date,
       page: page ?? this.page,
       pageSize: pageSize ?? this.pageSize,
     );
@@ -67,6 +92,8 @@ class PayoutLogFilter {
   PayoutLogFilter reset() {
     return const PayoutLogFilter();
   }
+
+  static const Object _sentinel = Object();
 }
 
 /// Filter controller with convenient methods for UI
@@ -87,6 +114,11 @@ class PayoutLogFilterController extends StateNotifier<PayoutLogFilter> {
 
   void setShop(String? shop) {
     state = state.copyWith(shop: shop, page: 1);
+  }
+
+  /// `any` | `7` | `30` | `90`.
+  void setDate(String date) {
+    state = state.copyWith(date: date, page: 1);
   }
 
   void reset() {

@@ -124,6 +124,32 @@ class Refund {
       ? reference!
       : id;
 
+  /// True when this is a *synthesized* list entry — a booking sitting in
+  /// `refund_requested` with no `BookingRefund` row behind it yet.
+  ///
+  /// `GET /refunds/detail/{id_or_reference}/` resolves **refund rows only**, so
+  /// these have nothing to fetch: asking for one answers `404 Refund not
+  /// found.`. The detail screen renders them from the list row instead.
+  bool get isRequestOnly => kind == 'request';
+
+  /// Lifecycle steps for the stepper. Real refund rows get these from the
+  /// detail endpoint; a synthesized request has only reached "Requested", so
+  /// its stepper is derived here rather than left empty.
+  List<RefundStep> get displaySteps {
+    if (steps.isNotEmpty) return steps;
+    if (!isRequestOnly) return const [];
+    return [
+      RefundStep(key: 'requested', label: 'Requested', done: true, at: createdAt),
+      const RefundStep(key: 'approved', label: 'Approved', done: false),
+      const RefundStep(key: 'paid', label: 'Paid', done: false),
+    ];
+  }
+
+  /// The footer action. A synthesized request is always awaiting Approve /
+  /// Decline — the API would say `next_action: "approve"` if it had a row.
+  String? get displayNextAction =>
+      nextAction ?? (isRequestOnly ? 'approve' : null);
+
   /// Display label for the booking row (reference preferred over numeric id).
   String get bookingLabel =>
       (bookingReference != null && bookingReference!.isNotEmpty)

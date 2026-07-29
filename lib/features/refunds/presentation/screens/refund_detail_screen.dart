@@ -24,10 +24,18 @@ import '../../domain/entities/refund.dart';
 
 /// Refund detail screen — pushed via Navigator.push from RefundsScreen.
 class RefundDetailScreen extends ConsumerStatefulWidget {
-  const RefundDetailScreen({required this.refundId, super.key});
+  const RefundDetailScreen({required this.refundId, this.seed, super.key});
 
   /// Numeric refund id or `RF-…` reference (the detail key).
   final String refundId;
+
+  /// The list row this screen was opened from, when there is one.
+  ///
+  /// Needed for `kind: "request"` entries: those are synthesized by the list
+  /// endpoint for bookings awaiting a decision and have no refund row, so the
+  /// detail endpoint answers 404 for them. The list row already carries
+  /// everything such an entry can show, so it is rendered directly.
+  final Refund? seed;
 
   @override
   ConsumerState<RefundDetailScreen> createState() => _RefundDetailScreenState();
@@ -36,9 +44,28 @@ class RefundDetailScreen extends ConsumerStatefulWidget {
 class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
   bool _busy = false;
 
+  /// The `RF-…` key of the row created by approving/declining a request here.
+  /// Until then a request has no row to fetch, so this stays null.
+  String? _resolvedKey;
+
+  /// What to resolve against the detail endpoint.
+  String get _detailKey => _resolvedKey ?? widget.refundId;
+
+  /// Whether to render from [RefundDetailScreen.seed] rather than fetching.
+  /// False again once Approve or Decline has created the real row.
+  bool get _seedOnly =>
+      _resolvedKey == null && (widget.seed?.isRequestOnly ?? false);
+
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(refundByIdProvider(widget.refundId));
+    if (_seedOnly) {
+      return Scaffold(
+        backgroundColor: AppColors.bgPage,
+        body: SafeArea(bottom: false, child: _buildLoaded(widget.seed!)),
+      );
+    }
+
+    final async = ref.watch(refundByIdProvider(_detailKey));
 
     return Scaffold(
       backgroundColor: AppColors.bgPage,
@@ -49,307 +76,301 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
           error: (_, __) => _ErrorState(),
           data: (refund) {
             if (refund == null) return _ErrorState();
-            final status = refund.status;
-            final declined = status == 'declined';
-            final tone = _toneFor(status);
-            final label = _labelFor(status);
-            return Column(
+            return _buildLoaded(refund);
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoaded(Refund refund) {
+    final status = refund.status;
+    final declined = status == 'declined';
+    final tone = _toneFor(status);
+    final label = _labelFor(status);
+    return Column(
+      children: [
+        TopBar(
+          title: 'Refund',
+          onBack: () => Navigator.of(context).pop(),
+          actions: [
+            AppIconButton(
+              icon: AppIcons.more,
+              iconSize: 22,
+              semanticLabel: 'More',
+              onTap: () => AppToast.show(context, 'Copy ID · Export breakdown'),
+            ),
+          ],
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: () async {
+              ref.invalidate(refundByIdProvider(_detailKey));
+              await ref.read(refundByIdProvider(_detailKey).future);
+            },
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
               children: [
-                TopBar(
-                  title: 'Refund',
-                  onBack: () => Navigator.of(context).pop(),
-                  actions: [
-                    AppIconButton(
-                      icon: AppIcons.more,
-                      iconSize: 22,
-                      semanticLabel: 'More',
-                      onTap: () =>
-                          AppToast.show(context, 'Copy ID · Export breakdown'),
-                    ),
-                  ],
-                ),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: () async {
-                      ref.invalidate(refundByIdProvider(widget.refundId));
-                      await ref
-                          .read(refundByIdProvider(widget.refundId).future);
-                    },
-                    child: ListView(
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 20.h),
-                      children: [
-                        // Header amount card
-                        AppCard(
-                          padding: EdgeInsets.all(18.r),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  StatusBadge(label: label, tone: tone),
-                                  Text(
-                                    refund.reference ?? refund.id,
-                                    style: AppText.figtree(
-                                      size: 11.5,
-                                      weight: FontWeight.w500,
-                                      color: AppColors.fgTertiary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 12.h),
-                              Text(
-                                'REFUND AMOUNT',
-                                style: AppText.figtree(
-                                  size: 10.5,
-                                  weight: FontWeight.w700,
-                                  color: AppColors.fgTertiary,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                              SizedBox(height: 5.h),
-                              Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    Formatters.money(refund.amount),
-                                    style: AppText.figtree(
-                                      size: 32,
-                                      weight: FontWeight.w800,
-                                      letterSpacing: -1,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Tier: ${refund.tier}',
-                                    style: AppText.figtree(
-                                      size: 12.5,
-                                      weight: FontWeight.w600,
-                                      color: AppColors.fgSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                // Header amount card
+                AppCard(
+                  padding: EdgeInsets.all(18.r),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          StatusBadge(label: label, tone: tone),
+                          Text(
+                            refund.reference ?? refund.id,
+                            style: AppText.figtree(
+                              size: 11.5,
+                              weight: FontWeight.w500,
+                              color: AppColors.fgTertiary,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 14.h),
-
-                        // Workflow stepper (driven by steps[]), only if not declined
-                        if (!declined && refund.steps.isNotEmpty) ...[
-                          _WorkflowStepper(steps: refund.steps),
-                          SizedBox(height: 14.h),
                         ],
-
-                        // Customer + booking ref card
-                        AppCard(
-                          child: Column(
-                            children: [
-                              Padding(
-                                padding: EdgeInsets.only(bottom: 11.h),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'CUSTOMER',
-                                          style: AppText.figtree(
-                                            size: 11,
-                                            weight: FontWeight.w700,
-                                            color: AppColors.fgTertiary,
-                                            letterSpacing: 1.0,
-                                          ),
-                                        ),
-                                        SizedBox(height: 5.h),
-                                        Text(
-                                          refund.customer.name,
-                                          style: AppText.figtree(
-                                            size: 14.5,
-                                            weight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        SizedBox(height: 2.h),
-                                        Text(
-                                          refund.customer.phone,
-                                          style: AppText.figtree(
-                                            size: 12.5,
-                                            weight: FontWeight.w500,
-                                            color: AppColors.fgTertiary,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    GestureDetector(
-                                      onTap: () =>
-                                          AppToast.show(context, 'Calling…'),
-                                      child: Container(
-                                        width: 34.r,
-                                        height: 34.r,
-                                        alignment: Alignment.center,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.bgCard,
-                                          borderRadius:
-                                              BorderRadius.circular(9.r),
-                                          border: Border.all(
-                                              color: AppColors.borderDefault),
-                                        ),
-                                        child: Icon(AppIcons.phone,
-                                            size: 17.sp,
-                                            color: AppColors.fgSecondary),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Divider(height: 1.h, color: AppColors.borderSoft),
-                              _BookingRef(
-                                bookingId: refund.bookingId,
-                                label: refund.bookingLabel,
-                              ),
-                            ],
-                          ),
+                      ),
+                      SizedBox(height: 12.h),
+                      Text(
+                        'REFUND AMOUNT',
+                        style: AppText.figtree(
+                          size: 10.5,
+                          weight: FontWeight.w700,
+                          color: AppColors.fgTertiary,
+                          letterSpacing: 1.0,
                         ),
-                        SizedBox(height: 14.h),
-
-                        // Reason + notes card
-                        AppCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'REASON',
-                                style: AppText.figtree(
-                                  size: 11,
-                                  weight: FontWeight.w700,
-                                  color: AppColors.fgTertiary,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                              SizedBox(height: 8.h),
-                              Text(
-                                refund.reasonDisplay,
-                                style: AppText.figtree(
-                                  size: 14,
-                                  weight: FontWeight.w600,
-                                ),
-                              ),
-                              if ((refund.reasonSubtitle ?? '').isNotEmpty) ...[
-                                SizedBox(height: 6.h),
-                                Text(
-                                  refund.reasonSubtitle!,
-                                  style: AppText.figtree(
-                                    size: 13,
-                                    weight: FontWeight.w400,
-                                    color: AppColors.fgSecondary,
-                                    height: 1.5,
-                                  ),
-                                ),
-                              ],
-                              if (refund.notes.isNotEmpty) ...[
-                                SizedBox(height: 6.h),
-                                Text(
-                                  refund.notes,
-                                  style: AppText.figtree(
-                                    size: 13,
-                                    weight: FontWeight.w400,
-                                    color: AppColors.fgSecondary,
-                                    height: 1.5,
-                                  ),
-                                ),
-                              ],
-                            ],
+                      ),
+                      SizedBox(height: 5.h),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            Formatters.money(refund.amount),
+                            style: AppText.figtree(
+                              size: 32,
+                              weight: FontWeight.w800,
+                              letterSpacing: -1,
+                            ),
                           ),
-                        ),
-                        SizedBox(height: 14.h),
+                          Text(
+                            'Tier: ${refund.tier}',
+                            style: AppText.figtree(
+                              size: 12.5,
+                              weight: FontWeight.w600,
+                              color: AppColors.fgSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 14.h),
 
-                        // Payment proof card
-                        AppCard(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'PAYMENT PROOF',
-                                style: AppText.figtree(
-                                  size: 11,
-                                  weight: FontWeight.w700,
-                                  color: AppColors.fgTertiary,
-                                  letterSpacing: 1.0,
-                                ),
-                              ),
-                              SizedBox(height: 8.h),
-                              if (refund.utr.isNotEmpty) ...[
+                // Workflow stepper (driven by steps[]), only if not declined
+                if (!declined && refund.displaySteps.isNotEmpty) ...[
+                  _WorkflowStepper(steps: refund.displaySteps),
+                  SizedBox(height: 14.h),
+                ],
+
+                // Customer + booking ref card
+                AppCard(
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.only(bottom: 11.h),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
                                 Text(
-                                  refund.utr,
+                                  'CUSTOMER',
                                   style: AppText.figtree(
-                                    size: 13,
-                                    weight: FontWeight.w600,
+                                    size: 11,
+                                    weight: FontWeight.w700,
+                                    color: AppColors.fgTertiary,
+                                    letterSpacing: 1.0,
                                   ),
                                 ),
-                                if (refund.proof) ...[
-                                  SizedBox(height: 5.h),
-                                  Row(
-                                    children: [
-                                      Icon(AppIcons.checkCircle,
-                                          size: 14.sp,
-                                          color: AppColors.greenFg),
-                                      SizedBox(width: 5.w),
-                                      Text(
-                                        'Screenshot on file',
-                                        style: AppText.figtree(
-                                          size: 12,
-                                          weight: FontWeight.w500,
-                                          color: AppColors.greenFg,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ] else
+                                SizedBox(height: 5.h),
                                 Text(
-                                  'Required before marking Paid',
+                                  refund.customer.name,
                                   style: AppText.figtree(
-                                    size: 13,
+                                    size: 14.5,
+                                    weight: FontWeight.w700,
+                                  ),
+                                ),
+                                SizedBox(height: 2.h),
+                                Text(
+                                  refund.customer.phone,
+                                  style: AppText.figtree(
+                                    size: 12.5,
                                     weight: FontWeight.w500,
-                                    color: AppColors.fgMuted,
+                                    color: AppColors.fgTertiary,
                                   ),
                                 ),
-                            ],
+                              ],
+                            ),
+                            GestureDetector(
+                              onTap: () => AppToast.show(context, 'Calling…'),
+                              child: Container(
+                                width: 34.r,
+                                height: 34.r,
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: AppColors.bgCard,
+                                  borderRadius: BorderRadius.circular(9.r),
+                                  border: Border.all(
+                                      color: AppColors.borderDefault),
+                                ),
+                                child: Icon(AppIcons.phone,
+                                    size: 17.sp, color: AppColors.fgSecondary),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Divider(height: 1.h, color: AppColors.borderSoft),
+                      _BookingRef(
+                        bookingId: refund.bookingId,
+                        label: refund.bookingLabel,
+                      ),
+                    ],
+                  ),
+                ),
+                SizedBox(height: 14.h),
+
+                // Reason + notes card
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'REASON',
+                        style: AppText.figtree(
+                          size: 11,
+                          weight: FontWeight.w700,
+                          color: AppColors.fgTertiary,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      SizedBox(height: 8.h),
+                      Text(
+                        refund.reasonDisplay,
+                        style: AppText.figtree(
+                          size: 14,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                      if ((refund.reasonSubtitle ?? '').isNotEmpty) ...[
+                        SizedBox(height: 6.h),
+                        Text(
+                          refund.reasonSubtitle!,
+                          style: AppText.figtree(
+                            size: 13,
+                            weight: FontWeight.w400,
+                            color: AppColors.fgSecondary,
+                            height: 1.5,
                           ),
                         ),
-                        SizedBox(height: 14.h),
-
-                        // Timestamps
+                      ],
+                      if (refund.notes.isNotEmpty) ...[
+                        SizedBox(height: 6.h),
                         Text(
-                          _buildTimestamps(refund),
-                          textAlign: TextAlign.center,
+                          refund.notes,
                           style: AppText.figtree(
-                            size: 11.5,
+                            size: 13,
+                            weight: FontWeight.w400,
+                            color: AppColors.fgSecondary,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                SizedBox(height: 14.h),
+
+                // Payment proof card
+                AppCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PAYMENT PROOF',
+                        style: AppText.figtree(
+                          size: 11,
+                          weight: FontWeight.w700,
+                          color: AppColors.fgTertiary,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                      SizedBox(height: 8.h),
+                      if (refund.utr.isNotEmpty) ...[
+                        Text(
+                          refund.utr,
+                          style: AppText.figtree(
+                            size: 13,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                        if (refund.proof) ...[
+                          SizedBox(height: 5.h),
+                          Row(
+                            children: [
+                              Icon(AppIcons.checkCircle,
+                                  size: 14.sp, color: AppColors.greenFg),
+                              SizedBox(width: 5.w),
+                              Text(
+                                'Screenshot on file',
+                                style: AppText.figtree(
+                                  size: 12,
+                                  weight: FontWeight.w500,
+                                  color: AppColors.greenFg,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ] else
+                        Text(
+                          'Required before marking Paid',
+                          style: AppText.figtree(
+                            size: 13,
                             weight: FontWeight.w500,
                             color: AppColors.fgMuted,
                           ),
                         ),
-                        SizedBox(height: 80.h),
-                      ],
-                    ),
+                    ],
                   ),
                 ),
+                SizedBox(height: 14.h),
 
-                // Sticky footer
-                _buildFooter(context, refund),
+                // Timestamps
+                Text(
+                  _buildTimestamps(refund),
+                  textAlign: TextAlign.center,
+                  style: AppText.figtree(
+                    size: 11.5,
+                    weight: FontWeight.w500,
+                    color: AppColors.fgMuted,
+                  ),
+                ),
+                SizedBox(height: 80.h),
               ],
-            );
-          },
+            ),
+          ),
         ),
-      ),
+
+        // Sticky footer
+        _buildFooter(context, refund),
+      ],
     );
   }
 
@@ -361,7 +382,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
   }
 
   Widget _buildFooter(BuildContext context, Refund refund) {
-    final next = refund.nextAction;
+    final next = refund.displayNextAction;
     return Container(
       padding: EdgeInsets.fromLTRB(16.w, 12.h, 16.w, 16.h),
       decoration: const BoxDecoration(
@@ -443,14 +464,21 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
     }
     setState(() => _busy = true);
     try {
-      await ref.read(refundActionsProvider).approve(
+      final approved = await ref.read(refundActionsProvider).approve(
             bookingReference: bookingRef,
             percent: refund.percent?.round(),
             reason: refund.reason.isNotEmpty ? refund.reason : null,
             comment: refund.notes.isNotEmpty ? refund.notes : null,
-            detailKey: widget.refundId,
+            // A request has no row yet, so there is no key of ours to refresh —
+            // let the action invalidate the one it just created.
+            detailKey: _seedOnly ? null : _detailKey,
           );
-      if (mounted) AppToast.show(context, 'Refund approved');
+      // Approving a request creates the real row: adopt its key so the screen
+      // stops rendering the seed and starts reading the detail endpoint.
+      if (mounted) {
+        setState(() => _resolvedKey = approved.detailKey);
+        AppToast.show(context, 'Refund approved');
+      }
     } catch (e) {
       if (mounted) AppToast.show(context, _msg(e));
     } finally {
@@ -474,13 +502,17 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
     if (!ok || !mounted) return;
     setState(() => _busy = true);
     try {
-      await ref.read(refundActionsProvider).decline(
+      final declinedRow = await ref.read(refundActionsProvider).decline(
             bookingReference: bookingRef,
             reason: refund.reason.isNotEmpty ? refund.reason : null,
             comment: refund.notes.isNotEmpty ? refund.notes : null,
-            detailKey: widget.refundId,
+            detailKey: _seedOnly ? null : _detailKey,
           );
-      if (mounted) AppToast.show(context, 'Refund declined');
+      // Declining a request also writes a real (₹0 audit) row — adopt its key.
+      if (mounted) {
+        setState(() => _resolvedKey = declinedRow.detailKey);
+        AppToast.show(context, 'Refund declined');
+      }
     } catch (e) {
       if (mounted) AppToast.show(context, _msg(e));
     } finally {
@@ -513,7 +545,7 @@ class _RefundDetailScreenState extends ConsumerState<RefundDetailScreen> {
             refundRef: refund.detailKey,
             paymentProofReference: reference,
             screenshotPath: screenshotPath,
-            detailKey: widget.refundId,
+            detailKey: _detailKey,
           );
       if (mounted) AppToast.show(context, 'Refund marked Paid');
     } catch (e) {
