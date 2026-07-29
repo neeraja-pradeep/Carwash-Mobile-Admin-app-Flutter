@@ -11,8 +11,10 @@ import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/skeleton_card.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/core/utils/formatters.dart';
+import 'package:new_flutter_project/features/shops/application/providers/settlement_providers.dart';
 import 'package:new_flutter_project/features/shops/application/providers/shops_providers.dart';
 import 'package:new_flutter_project/features/shops/domain/entities/shop.dart';
+import '../../application/providers/payouts_providers.dart';
 
 /// New Payout creation screen — standalone, or pre-filled for a shop when
 /// opened from that shop's Settlement tab ("Create Payout for This Shop").
@@ -29,6 +31,7 @@ class NewPayoutScreen extends ConsumerStatefulWidget {
 
 class _NewPayoutScreenState extends ConsumerState<NewPayoutScreen> {
   String? _selectedShopId;
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -36,9 +39,38 @@ class _NewPayoutScreenState extends ConsumerState<NewPayoutScreen> {
     _selectedShopId = widget.prefillShopId;
   }
 
-  /// Auto-calculated net preview (matches `fakeNet` in `screen_payouts.jsx`).
-  int _fakeNet(Shop shop) =>
-      (shop.settlement.lifetimePaid * 0.08 + 1200).round();
+  /// Settles every pending booking for the shop into one payout.
+  ///
+  /// `POST /api/booking/v1/admin/settlements/{shop_id}/payout/` — the period and
+  /// the amounts are derived server-side from the bookings that are settleable
+  /// right now, so there is nothing else to send.
+  Future<void> _createPayout(String shopId) async {
+    if (_submitting) return;
+    setState(() => _submitting = true);
+    try {
+      final payout =
+          await ref.read(shopsRepositoryProvider).createPayout(shopId);
+
+      // The new payout has to show up in the log, and the shop's settlement
+      // figures have just moved — drop every cache that reads them.
+      ref.invalidate(payoutLogProvider);
+      ref.invalidate(pendingSettlementsProvider(shopId));
+      ref.invalidate(payoutHistoryProvider(shopId));
+      ref.invalidate(settlementsOverviewProvider);
+      ref.invalidate(shopsProvider);
+
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        'Payout created · ${Formatters.money(payout.totalAmount.round())}',
+      );
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,8 +117,15 @@ class _NewPayoutScreenState extends ConsumerState<NewPayoutScreen> {
         break;
       }
     }
-    final fakeNet = selected != null ? _fakeNet(selected) : 0;
     final prefilled = widget.prefillShopId != null;
+    // The real figure the server will settle — count and net payable come from
+    // the pending-settlements endpoint, not from a local guess.
+    final pendingAsync = selected == null
+        ? null
+        : ref.watch(pendingSettlementsProvider(selected.id));
+    final pending = pendingAsync?.valueOrNull;
+    final net = pending?.netPayable.round() ?? 0;
+    final nothingPending = pending != null && pending.count == 0;
 
     return Column(
       children: [
@@ -207,11 +246,18 @@ class _NewPayoutScreenState extends ConsumerState<NewPayoutScreen> {
                               color: AppColors.fgTertiary,
                             ),
                           ),
-                          Text(
-                            'oldest pending – today',
-                            style: AppText.figtree(
-                              size: 13.5,
-                              weight: FontWeight.w600,
+                          // Flexible so the value ellipsises next to its label
+                          // on a narrow screen instead of overflowing the row.
+                          Flexible(
+                            child: Text(
+                              'oldest pending – today',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.end,
+                              style: AppText.figtree(
+                                size: 13.5,
+                                weight: FontWeight.w600,
+                              ),
                             ),
                           ),
                         ],
@@ -230,7 +276,9 @@ class _NewPayoutScreenState extends ConsumerState<NewPayoutScreen> {
                             ),
                           ),
                           Text(
-                            Formatters.money(fakeNet),
+                            pendingAsync?.isLoading ?? false
+                                ? '—'
+                                : Formatters.money(net),
                             style: AppText.figtree(
                               size: 18,
                               weight: FontWeight.w800,
@@ -240,11 +288,18 @@ class _NewPayoutScreenState extends ConsumerState<NewPayoutScreen> {
                       ),
                       SizedBox(height: 8.h),
                       Text(
-                        'Review bookings and adjust on the next screen after saving.',
+                        pendingAsync?.isLoading ?? false
+                            ? 'Loading pending settlements…'
+                            : nothingPending
+                                ? 'Nothing pending for this shop right now.'
+                                : 'Settles all ${pending?.count ?? 0} pending '
+                                    'booking(s) for this shop.',
                         style: AppText.figtree(
                           size: 12,
                           weight: FontWeight.w500,
-                          color: AppColors.fgTertiary,
+                          color: nothingPending
+                              ? AppColors.redFg
+                              : AppColors.fgTertiary,
                           height: 1.4,
                         ),
                       ),
@@ -264,17 +319,16 @@ class _NewPayoutScreenState extends ConsumerState<NewPayoutScreen> {
           child: SafeArea(
             top: false,
             child: AppButton(
-              label: selected != null
-                  ? 'Create Payout · ${Formatters.money(fakeNet)}'
-                  : 'Create Payout',
+              label: _submitting
+                  ? 'Creating…'
+                  : (selected != null && net > 0
+                      ? 'Create Payout · ${Formatters.money(net)}'
+                      : 'Create Payout'),
               full: true,
-              disabled: selected == null,
-              onPressed: selected == null
+              disabled: selected == null || nothingPending || _submitting,
+              onPressed: selected == null || nothingPending || _submitting
                   ? null
-                  : () {
-                      AppToast.show(context, 'Payout created · Pending');
-                      Navigator.of(context).pop();
-                    },
+                  : () => _createPayout(selected!.id),
             ),
           ),
         ),
