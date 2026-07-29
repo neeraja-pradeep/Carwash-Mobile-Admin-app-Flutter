@@ -434,6 +434,12 @@ class ShopCreateRequest {
   final String? gstin;
   final String? pan;
 
+  /// Coordinates of the point picked on the map. Optional — `location` is
+  /// nullable server-side, but a shop is excluded from distance-sorted /
+  /// nearby results until both are set.
+  final double? latitude;
+  final double? longitude;
+
   ShopCreateRequest({
     required this.name,
     required this.address,
@@ -443,6 +449,8 @@ class ShopCreateRequest {
     required this.phone,
     required this.ownerName,
     required this.ownerPhone,
+    this.latitude,
+    this.longitude,
     this.dailyBookingCap,
     this.supportedVehicleTypes = const [],
     this.commissionType = 'flat',
@@ -466,6 +474,8 @@ class ShopCreateRequest {
         'phone': phone,
         'owner_name': ownerName,
         'owner_phone': ownerPhone,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
         'daily_booking_cap': dailyBookingCap,
         'supported_vehicle_types': supportedVehicleTypes,
         'commission_type': commissionType,

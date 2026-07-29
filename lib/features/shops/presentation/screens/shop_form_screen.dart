@@ -73,7 +73,10 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
 
   bool get _dirty => _isEdit
       ? _touched
-      : _f.name.isNotEmpty || _f.ownerName.isNotEmpty || _f.address.isNotEmpty;
+      : _f.name.isNotEmpty ||
+          _f.ownerName.isNotEmpty ||
+          _f.address.isNotEmpty ||
+          _f.latitude != null;
 
   bool get _valid =>
       _f.name.trim().isNotEmpty && _f.ownerPhone.trim().isNotEmpty;
@@ -82,6 +85,29 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
         _f = updated;
         if (_isEdit) _touched = true;
       });
+
+  /// Opens the map picker for the Address field and folds the picked point back
+  /// into the form: the exact coordinates go to the backend, the reverse-geocoded
+  /// address fills Address and the postal code fills Pincode.
+  ///
+  /// Anything the geocoder could not resolve is left as the admin typed it —
+  /// a picked point never wipes text they already entered.
+  Future<void> _pickLocation() async {
+    FocusScope.of(context).unfocus();
+    final place = await showLocationPicker(context, initial: _f.pickedPlace);
+    if (place == null || !mounted) return;
+
+    _set(_f.copyWith(
+      latitude: place.latitude,
+      longitude: place.longitude,
+      address: place.hasAddress ? place.address : _f.address,
+      pincode: place.hasPincode ? place.pincode : _f.pincode,
+    ));
+
+    if (!place.hasPincode) {
+      AppToast.show(context, 'Pincode not found for this point — enter it manually');
+    }
+  }
 
   /// Map display vehicle type names to API-compatible lowercase values
   List<String> _mapVehicleTypes(List<String> displayTypes) {
@@ -128,6 +154,8 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
         phone: _f.shopPhone.trim().isEmpty ? _f.ownerPhone.trim() : _f.shopPhone.trim(),
         ownerName: _f.ownerName.trim(),
         ownerPhone: _f.ownerPhone.trim(),
+        latitude: _f.latitude,
+        longitude: _f.longitude,
         dailyBookingCap: int.tryParse(_f.cap),
         supportedVehicleTypes: _f.types.isNotEmpty ? _mapVehicleTypes(_f.types) : null,
         commissionType: _mapCommissionType(_f.mode),
@@ -176,6 +204,10 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
   }
 
   /// Edit existing shop (placeholder - not yet implemented in API)
+  ///
+  /// NOTE: this does not call the API, so a location re-picked in edit mode is
+  /// not persisted yet. Wiring it up means a `PATCH /api/shop/v1/shops/{id}/`
+  /// carrying `latitude` / `longitude` alongside the other edited fields.
   void _handleEdit() {
     AppToast.show(context, 'Shop details saved');
     context.pop();
@@ -279,8 +311,14 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
                           _FInput(
                             label: 'Address',
                             value: _f.address,
-                            placeholder: 'Street, locality',
+                            placeholder: 'Pick on map, or type street & locality',
+                            maxLines: 2,
                             onChanged: (v) => _set(_f.copyWith(address: v)),
+                            trailing: _MapPinButton(onTap: _pickLocation),
+                          ),
+                          _LocationHint(
+                            place: _f.pickedPlace,
+                            onTap: _pickLocation,
                           ),
                           _FInput(
                             label: 'Pincode',
@@ -602,7 +640,12 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
 
 // ─── Form field primitives ────────────────────────────────────────────────────
 
-class _FInput extends StatelessWidget {
+/// Labelled text field.
+///
+/// Holds its own [TextEditingController] kept in sync with [value] (same
+/// pattern as `SearchField`) so the form can write into a field the admin isn't
+/// typing in — the map picker fills Address and Pincode this way.
+class _FInput extends StatefulWidget {
   const _FInput({
     required this.label,
     required this.value,
@@ -610,8 +653,10 @@ class _FInput extends StatelessWidget {
     this.placeholder,
     this.prefix,
     this.suffix,
+    this.trailing,
     this.optional = false,
     this.keyboardType,
+    this.maxLines = 1,
   });
 
   final String label;
@@ -620,25 +665,55 @@ class _FInput extends StatelessWidget {
   final String? placeholder;
   final String? prefix;
   final String? suffix;
+
+  /// Rendered inside the field, right of the input (e.g. the map-picker pin).
+  final Widget? trailing;
   final bool optional;
   final TextInputType? keyboardType;
+  final int maxLines;
+
+  @override
+  State<_FInput> createState() => _FInputState();
+}
+
+class _FInputState extends State<_FInput> {
+  late final TextEditingController _controller =
+      TextEditingController(text: widget.value);
+
+  @override
+  void didUpdateWidget(_FInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != _controller.text) {
+      _controller.value = TextEditingValue(
+        text: widget.value,
+        selection: TextSelection.collapsed(offset: widget.value.length),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final multiline = widget.maxLines > 1;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Text(
-              label,
+              widget.label,
               style: AppText.figtree(
                 size: 12.5,
                 weight: FontWeight.w600,
                 color: AppColors.fgSecondary,
               ),
             ),
-            if (optional) ...[
+            if (widget.optional) ...[
               SizedBox(width: 6.w),
               Text(
                 '· optional',
@@ -653,18 +728,20 @@ class _FInput extends StatelessWidget {
         ),
         SizedBox(height: 7.h),
         Container(
-          height: 50.h,
+          constraints: BoxConstraints(minHeight: 50.h),
           decoration: BoxDecoration(
             color: AppColors.bgCard,
             borderRadius: BorderRadius.circular(12.r),
             border: Border.all(color: AppColors.borderDefault),
           ),
           child: Row(
+            crossAxisAlignment:
+                multiline ? CrossAxisAlignment.start : CrossAxisAlignment.center,
             children: [
               SizedBox(width: 13.w),
-              if (prefix != null) ...[
+              if (widget.prefix != null) ...[
                 Text(
-                  prefix!,
+                  widget.prefix!,
                   style: AppText.figtree(
                     size: 15,
                     weight: FontWeight.w600,
@@ -674,13 +751,17 @@ class _FInput extends StatelessWidget {
                 SizedBox(width: 6.w),
               ],
               Expanded(
-                child: TextFormField(
-                  initialValue: value,
-                  onChanged: onChanged,
-                  keyboardType: keyboardType,
+                child: TextField(
+                  controller: _controller,
+                  onChanged: widget.onChanged,
+                  keyboardType: widget.keyboardType,
+                  maxLines: widget.maxLines,
+                  minLines: 1,
                   decoration: InputDecoration(
                     border: InputBorder.none,
-                    hintText: placeholder,
+                    contentPadding: EdgeInsets.symmetric(vertical: 14.h),
+                    isDense: true,
+                    hintText: widget.placeholder,
                     hintStyle: AppText.figtree(
                       size: 15,
                       weight: FontWeight.w500,
@@ -690,10 +771,10 @@ class _FInput extends StatelessWidget {
                   style: AppText.figtree(size: 15, weight: FontWeight.w500),
                 ),
               ),
-              if (suffix != null) ...[
+              if (widget.suffix != null) ...[
                 SizedBox(width: 6.w),
                 Text(
-                  suffix!,
+                  widget.suffix!,
                   style: AppText.figtree(
                     size: 13,
                     weight: FontWeight.w500,
@@ -701,11 +782,113 @@ class _FInput extends StatelessWidget {
                   ),
                 ),
               ],
+              if (widget.trailing != null) ...[
+                SizedBox(width: 6.w),
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: 6.h),
+                  child: widget.trailing,
+                ),
+              ],
               SizedBox(width: 13.w),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// The map affordance that lives inside the Address field.
+class _MapPinButton extends StatelessWidget {
+  const _MapPinButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 7.h),
+        decoration: BoxDecoration(
+          color: AppColors.brandYellow,
+          borderRadius: BorderRadius.circular(9.r),
+          border: Border.all(color: AppColors.brandYellowDeep),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(AppIcons.pin, size: 15.sp, color: AppColors.fgOnBrand),
+            SizedBox(width: 4.w),
+            Text(
+              'Map',
+              style: AppText.figtree(
+                size: 12,
+                weight: FontWeight.w700,
+                color: AppColors.fgOnBrand,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Sits under the Address field: nudges the admin to pin the shop when no
+/// coordinates are set, and shows the exact ones that will be saved once they
+/// are. Tapping either state re-opens the picker.
+class _LocationHint extends StatelessWidget {
+  const _LocationHint({required this.place, required this.onTap});
+
+  final GeoPlace? place;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final located = place != null;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 8.h),
+        decoration: BoxDecoration(
+          color: located ? AppColors.greenBg : AppColors.blueBg,
+          borderRadius: BorderRadius.circular(10.r),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              located ? AppIcons.checkCircle : AppIcons.pin,
+              size: 15.sp,
+              color: located ? AppColors.greenFg : AppColors.blueFg,
+            ),
+            SizedBox(width: 8.w),
+            Expanded(
+              child: Text(
+                located
+                    ? 'Location pinned · ${place!.coordsLabel}'
+                    : 'Tap Map to pin the exact shop location',
+                style: AppText.figtree(
+                  size: 11.5,
+                  weight: FontWeight.w600,
+                  color: located ? AppColors.greenFg : AppColors.blueFg,
+                ),
+              ),
+            ),
+            if (located)
+              Text(
+                'Change',
+                style: AppText.figtree(
+                  size: 11.5,
+                  weight: FontWeight.w700,
+                  color: AppColors.greenFg,
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -804,6 +987,8 @@ class _FormState {
     this.shopPhone = '',
     this.address = '',
     this.pincode = '',
+    this.latitude,
+    this.longitude,
     this.cap = '20',
     this.types = const ['Hatchback', 'Sedan', 'Compact SUV', 'SUV'],
     this.mode = 'percentage',
@@ -820,6 +1005,9 @@ class _FormState {
   factory _FormState.fromShop(Shop s) {
     final c = s.commission;
     final pincodeMatch = RegExp(r'\b\d{6}\b').firstMatch(s.address);
+    // `Shop` defaults unset coordinates to 0/0 rather than null; treat null
+    // island as "no location picked yet" so the picker starts from the device.
+    final located = s.latitude != 0 || s.longitude != 0;
     return _FormState(
       name: s.name,
       ownerName: s.ownerName,
@@ -827,6 +1015,8 @@ class _FormState {
       shopPhone: s.shopPhone,
       address: s.address,
       pincode: pincodeMatch?.group(0) ?? '',
+      latitude: located ? s.latitude : null,
+      longitude: located ? s.longitude : null,
       cap: '${s.cap}',
       types: [...s.vehicleTypes],
       mode: c.mode.name,
@@ -847,6 +1037,11 @@ class _FormState {
   final String shopPhone;
   final String address;
   final String pincode;
+
+  /// Coordinates of the point picked on the map — null until the admin picks
+  /// one. Sent to the backend verbatim so the shop is placed exactly there.
+  final double? latitude;
+  final double? longitude;
   final String cap;
   final List<String> types;
   final String mode;
@@ -859,6 +1054,17 @@ class _FormState {
   final String upi;
   final String gstin;
 
+  /// The picked point as a [GeoPlace], or null when nothing is picked yet.
+  /// Seeds the map picker so re-opening it starts where the pin was left.
+  GeoPlace? get pickedPlace => latitude == null || longitude == null
+      ? null
+      : GeoPlace(
+          latitude: latitude!,
+          longitude: longitude!,
+          address: address,
+          pincode: pincode,
+        );
+
   _FormState copyWith({
     String? name,
     String? ownerName,
@@ -866,6 +1072,8 @@ class _FormState {
     String? shopPhone,
     String? address,
     String? pincode,
+    double? latitude,
+    double? longitude,
     String? cap,
     List<String>? types,
     String? mode,
@@ -885,6 +1093,8 @@ class _FormState {
       shopPhone: shopPhone ?? this.shopPhone,
       address: address ?? this.address,
       pincode: pincode ?? this.pincode,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
       cap: cap ?? this.cap,
       types: types ?? this.types,
       mode: mode ?? this.mode,

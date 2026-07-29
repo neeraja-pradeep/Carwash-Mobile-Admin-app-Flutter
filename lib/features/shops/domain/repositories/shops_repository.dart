@@ -36,6 +36,9 @@ abstract class ShopsRepository {
   Future<Shop> fetchShopDetail(String shopId);
 
   /// Creates a new shop with the provided details.
+  ///
+  /// [latitude] / [longitude] come from the address field's map picker and are
+  /// null when the admin saved without picking a point.
   Future<Shop> createShop({
     required String name,
     required String address,
@@ -45,6 +48,8 @@ abstract class ShopsRepository {
     required String phone,
     required String ownerName,
     required String ownerPhone,
+    double? latitude,
+    double? longitude,
     int? dailyBookingCap,
     List<String>? supportedVehicleTypes,
     required String commissionType,
