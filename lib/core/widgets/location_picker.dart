@@ -39,6 +39,13 @@ Future<GeoPlace?> showLocationPicker(
 const _fallbackCentre = LatLng(9.4981, 76.3388);
 
 const _initialZoom = 16.0;
+const _minZoom = 3.0;
+const _maxZoom = 18.0;
+
+/// One tap of the +/- buttons. A whole level doubles/halves the scale, which is
+/// a large jump on a picker — half a level lands closer to what the admin means.
+const _zoomStep = 0.5;
+
 const _searchDebounce = Duration(milliseconds: 500);
 const _settleDebounce = Duration(milliseconds: 600);
 
@@ -66,6 +73,11 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   GeoPlace? _picked;
   bool _resolving = false;
   bool _locating = false;
+
+  /// Whether the +/- buttons have run out of room. Tracked as booleans rather
+  /// than the raw zoom so a pinch doesn't rebuild on every frame.
+  bool _atMinZoom = false;
+  bool _atMaxZoom = false;
 
   List<GeoPlace> _results = const [];
   bool _searching = false;
@@ -110,6 +122,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
 
   void _onPositionChanged(MapCamera camera, bool hasGesture) {
     _centre = camera.center;
+    _syncZoomLimits(camera.zoom);
     if (!hasGesture) return;
 
     // The address on screen no longer matches the pin — clear it and re-resolve
@@ -122,6 +135,36 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     }
     _settleTimer?.cancel();
     _settleTimer = Timer(_settleDebounce, () => _resolveCentre());
+  }
+
+  // ─── Zoom ───────────────────────────────────────────────────────────────────
+
+  /// Steps the zoom by [delta], keeping the pin where it is.
+  ///
+  /// The centre does not move, so the address already on screen stays valid —
+  /// this deliberately does not re-trigger a reverse lookup.
+  void _zoomBy(double delta) {
+    final camera = _map.camera;
+    final target = (camera.zoom + delta).clamp(_minZoom, _maxZoom);
+    if (target == camera.zoom) return;
+    _map.move(camera.center, target);
+    _syncZoomLimits(target);
+  }
+
+  void _syncZoomLimits(double zoom) {
+    final atMin = zoom <= _minZoom;
+    final atMax = zoom >= _maxZoom;
+    if (atMin == _atMinZoom && atMax == _atMaxZoom) return;
+
+    // `onPositionChanged` can fire while the map is still laying out, so the
+    // flip is deferred rather than applied inline — setState during build throws.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || (atMin == _atMinZoom && atMax == _atMaxZoom)) return;
+      setState(() {
+        _atMinZoom = atMin;
+        _atMaxZoom = atMax;
+      });
+    });
   }
 
   Future<void> _resolveCentre() async {
@@ -270,7 +313,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                   _buildMap(),
                   _buildCentrePin(),
                   _buildSearchOverlay(),
-                  _buildMyLocationButton(),
+                  _buildMapControls(),
                   _buildAttribution(),
                 ],
               ),
@@ -478,34 +521,53 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     );
   }
 
-  Widget _buildMyLocationButton() {
+  /// Zoom in / zoom out / my location, stacked bottom-right. Pinch-to-zoom
+  /// still works — these are for one-handed use and for admins on a mouse.
+  Widget _buildMapControls() {
     return Positioned(
       right: 14.w,
       bottom: 16.h,
-      child: GestureDetector(
-        onTap: _locating ? null : _useMyLocation,
-        child: Container(
-          width: 44.r,
-          height: 44.r,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: AppColors.bgCard,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.borderDefault),
-            boxShadow: const [
-              BoxShadow(
-                  color: Color(0x1F000000), blurRadius: 10, offset: Offset(0, 3)),
-            ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // The zoom pair share one card, split by a hairline, so they read as
+          // a single control rather than two stacked buttons.
+          DecoratedBox(
+            decoration: _controlDecoration(BorderRadius.circular(12.r)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _MapControl(
+                  icon: Icons.add_rounded,
+                  tooltip: 'Zoom in',
+                  disabled: _atMaxZoom,
+                  onTap: () => _zoomBy(_zoomStep),
+                ),
+                Container(
+                  width: 26.r,
+                  height: 1,
+                  color: AppColors.borderSoft,
+                ),
+                _MapControl(
+                  icon: Icons.remove_rounded,
+                  tooltip: 'Zoom out',
+                  disabled: _atMinZoom,
+                  onTap: () => _zoomBy(-_zoomStep),
+                ),
+              ],
+            ),
           ),
-          child: _locating
-              ? SizedBox(
-                  width: 18.r,
-                  height: 18.r,
-                  child: const CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Icon(Icons.my_location_rounded,
-                  size: 20.sp, color: AppColors.fgSecondary),
-        ),
+          SizedBox(height: 10.h),
+          DecoratedBox(
+            decoration: _controlDecoration(BorderRadius.circular(999.r)),
+            child: _MapControl(
+              icon: Icons.my_location_rounded,
+              tooltip: 'Use my location',
+              busy: _locating,
+              onTap: _useMyLocation,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -622,6 +684,66 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               onPressed: _confirm,
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The floating-card look shared by the zoom pair and the my-location button.
+BoxDecoration _controlDecoration(BorderRadius radius) => BoxDecoration(
+      color: AppColors.bgCard,
+      borderRadius: radius,
+      border: Border.all(color: AppColors.borderDefault),
+      boxShadow: const [
+        BoxShadow(color: Color(0x1F000000), blurRadius: 10, offset: Offset(0, 3)),
+      ],
+    );
+
+/// One 44×44 tap target inside a map control card. Carries no decoration of its
+/// own — the parent card owns the border and shadow so the stacked zoom buttons
+/// don't double up their edges.
+class _MapControl extends StatelessWidget {
+  const _MapControl({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.disabled = false,
+    this.busy = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final bool disabled;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final inert = disabled || busy;
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: inert ? null : onTap,
+        behavior: HitTestBehavior.opaque,
+        child: SizedBox(
+          width: 44.r,
+          height: 44.r,
+          child: Center(
+            child: busy
+                ? SizedBox(
+                    width: 18.r,
+                    height: 18.r,
+                    child: const CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(
+                    icon,
+                    size: 20.sp,
+                    color: disabled
+                        ? AppColors.borderDefault
+                        : AppColors.fgSecondary,
+                  ),
+          ),
         ),
       ),
     );
