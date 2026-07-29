@@ -18,6 +18,15 @@ const List<String> kRefundReasons = [
   'Other',
 ];
 
+/// Date windows offered by the filter sheet, mapped to the API's `days` param
+/// by `RefundsFilterState.days`. "All time" is the default — the API's own
+/// default of 30 days hid older refunds before the admin chose anything.
+const List<(String, String)> kRefundDateWindows = [
+  ('any', 'All time'),
+  ('7', 'Last 7 days'),
+  ('30', 'Last 30 days'),
+];
+
 const Map<String, String> kRefundStatusLabels = {
   'requested': 'Requested',
   'approved': 'Approved',
@@ -75,15 +84,26 @@ class _FilterBody extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'STATUS',
-          style: AppText.figtree(
-            size: 11,
-            weight: FontWeight.w700,
-            color: AppColors.fgSecondary,
-            letterSpacing: 1.0,
-          ),
+        // Date leads: it is the only filter the API applies, so it decides
+        // which rows the other two get to narrow.
+        const _SectionLabel('DATE'),
+        SizedBox(height: 12.h),
+        Wrap(
+          spacing: 9.w,
+          runSpacing: 9.h,
+          children: [
+            for (final (value, label) in kRefundDateWindows)
+              AppChip(
+                label: label,
+                active: filter.date == value,
+                // Unlike status/reason, tapping the active window does not
+                // clear it — "All time" is already the cleared state.
+                onTap: () => controller.apply(filter.copyWith(date: value)),
+              ),
+          ],
         ),
+        SizedBox(height: 22.h),
+        const _SectionLabel('STATUS'),
         SizedBox(height: 12.h),
         Wrap(
           spacing: 9.w,
@@ -100,15 +120,7 @@ class _FilterBody extends ConsumerWidget {
           }).toList(),
         ),
         SizedBox(height: 22.h),
-        Text(
-          'REASON',
-          style: AppText.figtree(
-            size: 11,
-            weight: FontWeight.w700,
-            color: AppColors.fgSecondary,
-            letterSpacing: 1.0,
-          ),
-        ),
+        const _SectionLabel('REASON'),
         SizedBox(height: 12.h),
         Wrap(
           spacing: 9.w,
@@ -126,6 +138,25 @@ class _FilterBody extends ConsumerWidget {
         ),
         SizedBox(height: 8.h),
       ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: AppText.figtree(
+        size: 11,
+        weight: FontWeight.w700,
+        color: AppColors.fgSecondary,
+        letterSpacing: 1.0,
+      ),
     );
   }
 }

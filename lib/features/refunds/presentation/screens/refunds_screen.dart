@@ -73,7 +73,7 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> {
               children: [
                 TopBar(
                   title: 'Refund Log',
-                  subtitle: 'All time',
+                  subtitle: filter.dateLabel,
                   onBack: () => context.pop(),
                 ),
                 Container(
@@ -210,6 +210,15 @@ class _ActiveChips extends ConsumerWidget {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
+            if (filter.date != 'any') ...[
+              AppChip(
+                label: filter.dateLabel,
+                active: true,
+                removable: true,
+                onRemove: controller.removeDate,
+              ),
+              SizedBox(width: 8.w),
+            ],
             if (filter.status != null) ...[
               AppChip(
                 label: kRefundStatusLabels[filter.status] ?? filter.status!,

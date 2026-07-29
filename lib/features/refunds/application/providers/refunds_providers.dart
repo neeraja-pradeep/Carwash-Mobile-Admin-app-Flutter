@@ -12,12 +12,17 @@ final refundsRepositoryProvider = Provider<RefundsRepository>(
 
 /// All refunds (read). Auto-dispose to prevent unwanted API calls.
 ///
-/// The list is not date-scoped: the API windows `created_at` to 30 days unless
-/// told otherwise, which silently hid every older refund, so `days: 0` (all
-/// time) is always sent.
-final refundsProvider = FutureProvider.autoDispose<List<Refund>>(
-  (ref) => ref.watch(refundsRepositoryProvider).fetchRefunds(days: 0),
-);
+/// The window is always sent explicitly. The API defaults `days` to 30, which
+/// silently hid every older refund, so the default here is `0` (all time) and
+/// only narrows when the admin picks a window in the filter sheet.
+///
+/// Watches `days` alone rather than the whole filter — status, reason, search
+/// and sort are applied locally, and refetching on every keystroke would be
+/// both wasteful and visibly janky.
+final refundsProvider = FutureProvider.autoDispose<List<Refund>>((ref) {
+  final days = ref.watch(refundsFilterProvider.select((f) => f.days));
+  return ref.watch(refundsRepositoryProvider).fetchRefunds(days: days);
+});
 
 /// Single refund by id or `RF-…` reference — hits the detail endpoint.
 /// `.family` keyed by the detail key (reference preferred over numeric id).
@@ -50,6 +55,7 @@ class RefundsFilterController extends StateNotifier<RefundsFilterState> {
   void reset() => state = const RefundsFilterState();
   void removeStatus() => state = state.copyWith(status: null);
   void removeReason() => state = state.copyWith(reason: null);
+  void removeDate() => state = state.copyWith(date: 'any');
 }
 
 /// Mutations (approve / mark-paid / create / decline) live on the repository.

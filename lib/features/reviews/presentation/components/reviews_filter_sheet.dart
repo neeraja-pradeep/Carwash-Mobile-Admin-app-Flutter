@@ -9,7 +9,7 @@ import '../../../../core/widgets/app_chip.dart';
 import '../../application/providers/reviews_providers.dart';
 import '../../application/states/reviews_filter_state.dart';
 
-/// Opens the Reviews filter sheet (rating / shop / date / content). The draft
+/// Opens the Reviews filter sheet (rating / date / content). The draft
 /// lives in [reviewsFilterDraftProvider] so the pinned footer can apply it.
 Future<void> showReviewsFilterSheet(BuildContext context, WidgetRef ref) {
   // Seed the draft from the committed filter each time we open.
@@ -41,15 +41,6 @@ class _ReviewsFilterBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final draft = ref.watch(reviewsFilterDraftProvider);
-    final shops = ref
-            .watch(reviewsProvider)
-            .value
-            ?.reviews
-            .map((r) => r.shop)
-            .toSet()
-            .toList() ??
-        const <String>[];
-
     void update(ReviewsFilterState next) =>
         ref.read(reviewsFilterDraftProvider.notifier).state = next;
 
@@ -64,23 +55,6 @@ class _ReviewsFilterBody extends ConsumerWidget {
                 label: r.$2,
                 active: draft.rating == r.$1,
                 onTap: () => update(draft.copyWith(rating: r.$1)),
-              ),
-          ],
-        ),
-        _Group(
-          label: 'Shop',
-          children: [
-            for (final shop in shops)
-              AppChip(
-                label: shop.split(' ').first,
-                active: draft.shops.contains(shop),
-                onTap: () => update(
-                  draft.copyWith(
-                    shops: draft.shops.contains(shop)
-                        ? (draft.shops.where((s) => s != shop).toList())
-                        : [...draft.shops, shop],
-                  ),
-                ),
               ),
           ],
         ),

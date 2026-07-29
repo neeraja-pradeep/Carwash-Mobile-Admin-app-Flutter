@@ -15,9 +15,9 @@ import 'package:new_flutter_project/features/reviews/presentation/screens/review
 
 /// Reviews and Refunds used to load behind a date window the admin never chose
 /// (the API defaults to 7 days / 30 days), which hid older rows and produced a
-/// "try clearing your filters" dead end. Both now open on all time. Reviews
-/// keeps the designed Date filter — it just defaults to "All time" and counts
-/// as a chip once narrowed; Refunds has no date control at all.
+/// "try clearing your filters" dead end. Both now open on all time and both
+/// offer a Date filter that defaults to "All time" and counts as a chip once
+/// narrowed — chosen by the admin, never assumed.
 void main() {
   Future<void> pump(
     WidgetTester tester,
@@ -92,6 +92,24 @@ void main() {
       expect(find.text('Last 30 days'), findsOneWidget);
     });
 
+    testWidgets('the sheet offers only server-backed filters', (tester) async {
+      final repo = _StubReviewsRepository(all: [_review]);
+      await pump(tester, const ReviewsScreen(),
+          [reviewsRepositoryProvider.overrideWithValue(repo)]);
+
+      await tester.tap(find.text('Filter'));
+      await tester.pumpAndSettle();
+
+      // Rating / Date / Content map to `rating`, `date` and `has_comment`.
+      expect(find.text('RATING'), findsOneWidget);
+      expect(find.text('DATE'), findsOneWidget);
+      expect(find.text('CONTENT'), findsOneWidget);
+      // Shop was filtered locally over the fetched page only — it is gone,
+      // along with its chip built from the loaded rows.
+      expect(find.text('SHOP'), findsNothing);
+      expect(find.text('BubbleJet'), findsNothing);
+    });
+
     testWidgets('choosing a window narrows the request and shows a chip',
         (tester) async {
       final repo = _StubReviewsRepository(all: [_review]);
@@ -137,6 +155,61 @@ void main() {
 
       expect(find.text('No refunds yet'), findsOneWidget);
       expect(find.text('Reset filters'), findsNothing);
+    });
+
+    testWidgets('the filter sheet offers the date scope, defaulting to all time',
+        (tester) async {
+      final repo = _StubRefundsRepository(all: [_refund]);
+      await pump(tester, const RefundsScreen(),
+          [refundsRepositoryProvider.overrideWithValue(repo)]);
+
+      await tester.tap(find.text('Filter'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('DATE'), findsOneWidget);
+      expect(find.text('All time'), findsWidgets);
+      expect(find.text('Last 7 days'), findsOneWidget);
+      expect(find.text('Last 30 days'), findsOneWidget);
+      // The window the admin has not narrowed is still all time.
+      expect(repo.days, [0]);
+    });
+
+    testWidgets('choosing a window narrows the request and shows a chip',
+        (tester) async {
+      final repo = _StubRefundsRepository(all: [_refund]);
+      await pump(tester, const RefundsScreen(),
+          [refundsRepositoryProvider.overrideWithValue(repo)]);
+
+      await tester.tap(find.text('Filter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Last 7 days'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Apply filters'));
+      await tester.pumpAndSettle();
+
+      // The window reached the API, and it is visible as a removable chip.
+      expect(repo.days.last, 7);
+      expect(find.text('Last 7 days'), findsWidgets);
+      // Rows outside the window are gone, and Reset filters widens again.
+      expect(find.text('No refunds match'), findsOneWidget);
+      await tester.tap(find.text('Reset filters'));
+      await tester.pumpAndSettle();
+      expect(repo.days.last, 0);
+      expect(find.text('Priya Menon'), findsOneWidget);
+    });
+
+    testWidgets('typing in search does not refetch behind a new window',
+        (tester) async {
+      final repo = _StubRefundsRepository(all: [_refund]);
+      await pump(tester, const RefundsScreen(),
+          [refundsRepositoryProvider.overrideWithValue(repo)]);
+
+      await tester.enterText(find.byType(TextField).first, 'Priya');
+      await tester.pumpAndSettle();
+
+      // Search is applied locally; only the date window drives a refetch.
+      expect(repo.days, [0]);
+      expect(find.text('Priya Menon'), findsOneWidget);
     });
   });
 }

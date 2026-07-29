@@ -151,13 +151,6 @@ class _ActiveChips extends ConsumerWidget {
           removable: true,
           onRemove: controller.removeRating,
         ),
-      for (final shop in filter.shops)
-        AppChip(
-          label: shop.split(' ').first,
-          active: true,
-          removable: true,
-          onRemove: () => controller.removeShop(shop),
-        ),
       if (filter.hasText)
         AppChip(
           label: 'Has text',

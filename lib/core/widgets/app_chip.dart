@@ -45,12 +45,20 @@ class AppChip extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (leading != null) ...[leading!, SizedBox(width: 6.w)],
-            Text(
-              label,
-              style: AppText.figtree(
-                size: 13,
-                weight: active ? FontWeight.w700 : FontWeight.w500,
-                color: AppColors.fgPrimary,
+            // Flexible, not a bare Text: a chip laid out in a Wrap is given the
+            // Wrap's full width as its constraint, so a label longer than one
+            // line (e.g. "Cancellation by customer" on a narrow phone) would
+            // otherwise overflow the pill rather than shrink inside it.
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.figtree(
+                  size: 13,
+                  weight: active ? FontWeight.w700 : FontWeight.w500,
+                  color: AppColors.fgPrimary,
+                ),
               ),
             ),
             if (removable) ...[

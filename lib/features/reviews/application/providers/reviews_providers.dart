@@ -33,17 +33,12 @@ final reviewsFilterProvider =
   (ref) => ReviewsFilterController(),
 );
 
-/// Derived, filtered reviews. The server handles search/rating/date/has_comment/
-/// sort; the shop chips (selected by name, multi-select) are applied here since
-/// the API only filters by a single shop id.
+/// The rows to render. Every filter (search / rating / date / has_comment /
+/// sort) is applied by the API, so this just unwraps the page — nothing is
+/// filtered locally, which would only ever cover the rows already fetched.
 final filteredReviewsProvider =
     Provider.autoDispose<AsyncValue<List<Review>>>((ref) {
-  final page = ref.watch(reviewsProvider);
-  final filter = ref.watch(reviewsFilterProvider);
-  return page.whenData((p) {
-    if (filter.shops.isEmpty) return p.reviews;
-    return p.reviews.where((r) => filter.shops.contains(r.shop)).toList();
-  });
+  return ref.watch(reviewsProvider).whenData((page) => page.reviews);
 });
 
 /// Single review detail (full record from the detail endpoint).
@@ -72,10 +67,6 @@ class ReviewsFilterController extends StateNotifier<ReviewsFilterState> {
   void reset() => state = const ReviewsFilterState();
 
   void removeRating() => state = state.copyWith(rating: 'any');
-
-  void removeShop(String shop) => state = state.copyWith(
-        shops: state.shops.where((s) => s != shop).toList(),
-      );
 
   void removeHasText() => state = state.copyWith(hasText: false);
 
