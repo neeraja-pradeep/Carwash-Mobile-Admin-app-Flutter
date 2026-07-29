@@ -1,44 +1,59 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/top_bar.dart';
+import '../../application/providers/offers_providers.dart';
 import '../../domain/entities/offer_banner.dart';
 import 'form_helpers.dart';
 
 /// Add / Edit banner form — pushed intra-module via Navigator.
-class BannerFormScreen extends StatefulWidget {
+///
+/// Writes to `/api/shop/v1/promotions/`. Artwork goes up as a multipart
+/// `image` file and comes back as a CDN `image_url`; there is no way to set a
+/// URL directly.
+class BannerFormScreen extends ConsumerStatefulWidget {
   const BannerFormScreen({this.banner, super.key});
 
   /// Null when creating a new banner.
   final OfferBanner? banner;
 
   @override
-  State<BannerFormScreen> createState() => _BannerFormScreenState();
+  ConsumerState<BannerFormScreen> createState() => _BannerFormScreenState();
 }
 
-class _BannerFormScreenState extends State<BannerFormScreen> {
+class _BannerFormScreenState extends ConsumerState<BannerFormScreen> {
   late final TextEditingController _titleCtrl;
   late final TextEditingController _subtitleCtrl;
+  late final TextEditingController _badgeCtrl;
   late final TextEditingController _linkCtrl;
   late final TextEditingController _orderCtrl;
   late String _placement;
   late bool _active;
+  DateTime? _from;
+  DateTime? _to;
+
+  bool _saving = false;
 
   /// Filesystem path of an image picked on this device, or null when the form
   /// is still showing the banner's existing artwork (or nothing at all).
   String? _imagePath;
 
   /// Set when the admin clears the existing artwork without picking a
-  /// replacement — distinguishes "no image yet" from "remove the current one".
+  /// replacement — this is what sends an empty `image` on save so the server
+  /// deletes the CDN file, as opposed to omitting it and keeping the artwork.
   bool _imageCleared = false;
+
+  bool get _isEdit => widget.banner != null;
 
   @override
   void initState() {
@@ -46,17 +61,20 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
     final b = widget.banner;
     _titleCtrl = TextEditingController(text: b?.title ?? '');
     _subtitleCtrl = TextEditingController(text: b?.subtitle ?? '');
-    _linkCtrl = TextEditingController(text: b?.link ?? '');
-    _orderCtrl = TextEditingController(text: b != null ? '${b.order}' : '1');
-    _placement =
-        (b != null && b.placement.contains('Strip')) ? 'strip' : 'hero';
-    _active = b?.status == 'active';
+    _badgeCtrl = TextEditingController(text: b?.badgeText ?? '');
+    _linkCtrl = TextEditingController(text: b?.deepLink ?? '');
+    _orderCtrl = TextEditingController(text: '${b?.displayOrder ?? 0}');
+    _placement = b?.placement ?? 'home_hero';
+    _active = b?.isActive ?? true;
+    _from = b?.startsAt;
+    _to = b?.endsAt;
   }
 
   @override
   void dispose() {
     _titleCtrl.dispose();
     _subtitleCtrl.dispose();
+    _badgeCtrl.dispose();
     _linkCtrl.dispose();
     _orderCtrl.dispose();
     super.dispose();
@@ -64,15 +82,17 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
 
   bool get _valid => _titleCtrl.text.trim().isNotEmpty;
 
+  // ─── Image ──────────────────────────────────────────────────────────────────
+
   /// The artwork the preview should show: a freshly picked file wins, then the
-  /// banner's existing asset unless it has been cleared.
+  /// banner's CDN image unless it has been cleared.
   ImageProvider? get _previewImage {
     final picked = _imagePath;
     if (picked != null) return FileImage(File(picked));
     if (_imageCleared) return null;
-    final existing = widget.banner?.image;
+    final existing = widget.banner?.imageUrl;
     if (existing == null || existing.trim().isEmpty) return null;
-    return AssetImage(existing);
+    return NetworkImage(existing);
   }
 
   bool get _hasImage => _previewImage != null;
@@ -105,9 +125,125 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
     });
   }
 
+  // ─── Dates ──────────────────────────────────────────────────────────────────
+
+  String _fmt(DateTime? d) {
+    if (d == null) return '';
+    return '${d.day.toString().padLeft(2, '0')}-'
+        '${_month(d.month)}-${d.year}';
+  }
+
+  static String _month(int m) => const [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      ][m - 1];
+
+  Future<void> _pickDate({required bool isFrom}) async {
+    final initial = (isFrom ? _from : _to) ?? DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      if (isFrom) {
+        // Start of day for the window start.
+        _from = DateTime(picked.year, picked.month, picked.day);
+      } else {
+        // End of day, so a banner stays live through its final date.
+        _to = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+      }
+    });
+  }
+
+  // ─── Save ───────────────────────────────────────────────────────────────────
+
+  /// Client-side checks mirroring the serializer, so an obvious mistake costs a
+  /// toast rather than a round trip.
+  String? _validate() {
+    if (_titleCtrl.text.trim().isEmpty) return 'Give the banner a title.';
+    if (_from == null || _to == null) return 'Please set both validity dates.';
+    if (!_to!.isAfter(_from!)) return 'End date must be after start date.';
+    return null;
+  }
+
+  /// `coupon` is deliberately absent: the form's single "Links to" control maps
+  /// to `deep_link`, and omitting `coupon` leaves any linked coupon untouched
+  /// rather than clearing it.
+  Map<String, dynamic> _buildPayload() => {
+        'title': _titleCtrl.text.trim(),
+        'subtitle': _subtitleCtrl.text.trim(),
+        'badge_text': _badgeCtrl.text.trim(),
+        'deep_link': _linkCtrl.text.trim(),
+        'placement': _placement,
+        'starts_at': _from!.toUtc().toIso8601String(),
+        'ends_at': _to!.toUtc().toIso8601String(),
+        'is_active': _active,
+        'display_order': int.tryParse(_orderCtrl.text.trim()) ?? 0,
+      };
+
+  Future<void> _submit() async {
+    final error = _validate();
+    if (error != null) {
+      AppToast.show(context, error);
+      return;
+    }
+
+    setState(() => _saving = true);
+    final actions = ref.read(bannerActionsProvider);
+    try {
+      if (_isEdit) {
+        await actions.update(
+          widget.banner!.id,
+          _buildPayload(),
+          imagePath: _imagePath,
+          removeImage: _imageCleared && _imagePath == null,
+        );
+      } else {
+        await actions.create(_buildPayload(), imagePath: _imagePath);
+      }
+      if (!mounted) return;
+      AppToast.show(context, _isEdit ? 'Banner saved' : 'Banner created');
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    final ok = await showConfirmDialog(
+      context: context,
+      title: 'Delete this banner?',
+      body: 'It will disappear from the customer Home, and its image is '
+          "removed from the CDN. This can't be undone.",
+      confirmLabel: 'Delete',
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+
+    setState(() => _saving = true);
+    try {
+      await ref.read(bannerActionsProvider).delete(widget.banner!.id);
+      if (!mounted) return;
+      AppToast.show(context, 'Banner deleted');
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (mounted) {
+        AppToast.show(context, e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isEdit = widget.banner != null;
     return Scaffold(
       backgroundColor: AppColors.bgPage,
       body: SafeArea(
@@ -115,7 +251,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
         child: Column(
           children: [
             TopBar(
-              title: isEdit ? 'Edit Banner' : 'Add Banner',
+              title: _isEdit ? 'Edit Banner' : 'Add Banner',
               onBack: () => Navigator.of(context).pop(),
             ),
             Expanded(
@@ -149,6 +285,38 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                         placeholder: 'Short supporting line',
                         optional: true,
                       ),
+                      SizedBox(height: 14.h),
+                      OfferFInput(
+                        label: 'Badge text',
+                        controller: _badgeCtrl,
+                        placeholder: 'e.g. SPECIAL OFFER',
+                        optional: true,
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 14.h),
+                  OfferFCard(
+                    label: 'Validity',
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _DateField(
+                              label: 'Live from',
+                              value: _fmt(_from),
+                              onTap: () => _pickDate(isFrom: true),
+                            ),
+                          ),
+                          SizedBox(width: 12.w),
+                          Expanded(
+                            child: _DateField(
+                              label: 'Live until',
+                              value: _fmt(_to),
+                              onTap: () => _pickDate(isFrom: false),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                   SizedBox(height: 14.h),
@@ -167,8 +335,8 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                       OfferSegControl(
                         value: _placement,
                         options: const [
-                          ('hero', 'Home — Hero'),
-                          ('strip', 'Home — Strip'),
+                          ('home_hero', 'Home — Hero'),
+                          ('home_strip', 'Home — Strip'),
                         ],
                         onChanged: (v) => setState(() => _placement = v),
                       ),
@@ -176,7 +344,7 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                       OfferFInput(
                         label: 'Links to',
                         controller: _linkCtrl,
-                        placeholder: 'Coupon, service, or screen',
+                        placeholder: 'Screen or URL opened on tap',
                         optional: true,
                       ),
                       SizedBox(height: 14.h),
@@ -217,6 +385,16 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
                       ),
                     ],
                   ),
+                  if (_isEdit) ...[
+                    SizedBox(height: 14.h),
+                    AppButton(
+                      label: 'Delete banner',
+                      kind: AppButtonKind.danger,
+                      full: true,
+                      disabled: _saving,
+                      onPressed: _saving ? null : _delete,
+                    ),
+                  ],
                   SizedBox(height: 100.h),
                 ],
               ),
@@ -232,18 +410,12 @@ class _BannerFormScreenState extends State<BannerFormScreen> {
             border: Border(top: BorderSide(color: AppColors.borderSoft)),
           ),
           child: AppButton(
-            label: isEdit ? 'Save Changes' : 'Create Banner',
+            label: _saving
+                ? 'Saving…'
+                : (_isEdit ? 'Save Changes' : 'Create Banner'),
             full: true,
-            disabled: !_valid,
-            onPressed: _valid
-                ? () {
-                    AppToast.show(
-                      context,
-                      isEdit ? 'Banner saved' : 'Banner created',
-                    );
-                    Navigator.of(context).pop();
-                  }
-                : null,
+            disabled: !_valid || _saving,
+            onPressed: (_valid && !_saving) ? _submit : null,
           ),
         ),
       ),
@@ -282,8 +454,9 @@ class _BannerImageField extends StatelessWidget {
             height: 130.h,
             decoration: BoxDecoration(
               borderRadius: radius,
-              border:
-                  picked == null ? Border.all(color: AppColors.borderDefault) : null,
+              border: picked == null
+                  ? Border.all(color: AppColors.borderDefault)
+                  : null,
               color: picked == null
                   ? AppColors.bgCard
                   : AppColors.fgPrimary.withValues(alpha: 0.1),
@@ -292,7 +465,7 @@ class _BannerImageField extends StatelessWidget {
                   : DecorationImage(
                       image: picked,
                       fit: BoxFit.cover,
-                      // A missing asset or a file the gallery has since removed
+                      // A dead CDN link or a file the gallery has since removed
                       // must not take the form down — the prompt still shows.
                       onError: (_, __) {},
                     ),
@@ -367,6 +540,58 @@ class _BannerImageField extends StatelessWidget {
             size: 11.5,
             weight: FontWeight.w500,
             color: AppColors.fgTertiary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Tappable date cell, matching the coupon form's validity row.
+class _DateField extends StatelessWidget {
+  const _DateField({
+    required this.label,
+    required this.value,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: AppText.figtree(
+            size: 12.5,
+            weight: FontWeight.w600,
+            color: AppColors.fgSecondary,
+          ),
+        ),
+        SizedBox(height: 7.h),
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            height: 46.h,
+            padding: EdgeInsets.symmetric(horizontal: 12.w),
+            alignment: Alignment.centerLeft,
+            decoration: BoxDecoration(
+              color: AppColors.bgCard,
+              borderRadius: BorderRadius.circular(11.r),
+              border: Border.all(color: AppColors.borderDefault),
+            ),
+            child: Text(
+              value.isEmpty ? 'Pick date' : value,
+              style: AppText.figtree(
+                size: 14,
+                weight: FontWeight.w500,
+                color: value.isEmpty ? AppColors.fgMuted : AppColors.fgPrimary,
+              ),
+            ),
           ),
         ),
       ],

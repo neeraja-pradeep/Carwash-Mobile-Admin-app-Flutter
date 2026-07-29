@@ -354,19 +354,10 @@ class _BannersList extends ConsumerWidget {
   final OffersFilterController controller;
   final List<SortOption> sortOptions;
 
-  List<OfferBanner> _apply(List<OfferBanner> all) {
-    final q = filter.query.trim().toLowerCase();
-    final st = filter.status;
-    final filtered = all.where((b) {
-      if (q.isNotEmpty && !b.title.toLowerCase().contains(q)) return false;
-      if (st != null && b.status != st) return false;
-      return true;
-    }).toList();
-    if (filter.sort == 'az') {
-      filtered.sort((a, b) => a.title.compareTo(b.title));
-    }
-    return filtered;
-  }
+  /// Search, status and order are applied by `/promotions/` itself — filtering
+  /// again here would only ever narrow the page already fetched. Kept as a
+  /// pass-through so the list body below reads the same as the coupons tab.
+  List<OfferBanner> _apply(List<OfferBanner> all) => all;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

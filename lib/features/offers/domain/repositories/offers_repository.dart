@@ -9,6 +9,14 @@ class CouponPage {
   final int count;
 }
 
+/// A page of banners + the total server count (DRF envelope).
+class BannerPage {
+  const BannerPage({required this.banners, required this.count});
+
+  final List<OfferBanner> banners;
+  final int count;
+}
+
 /// Abstract contract — implemented in infrastructure; called from application.
 abstract interface class OffersRepository {
   /// Coupons (remote). Filters/sort are applied server-side.
@@ -31,6 +39,33 @@ abstract interface class OffersRepository {
   /// Delete a coupon.
   Future<void> deleteCoupon(String id);
 
-  /// Banners (local — out of scope for the API integration).
-  Future<List<OfferBanner>> fetchBanners();
+  /// Banners (remote). Search / filter / sort are applied server-side.
+  Future<BannerPage> fetchBanners({
+    String? search,
+    String? placement,
+    String? lifecycle,
+    String? ordering,
+    int page,
+  });
+
+  /// Single banner by id (for the Edit form).
+  Future<OfferBanner> fetchBannerDetail(String id);
+
+  /// Create a banner. [imagePath] is a local file uploaded as the artwork.
+  Future<OfferBanner> createBanner(
+    Map<String, dynamic> body, {
+    String? imagePath,
+  });
+
+  /// Partial-update a banner. Pass [imagePath] to replace the artwork or
+  /// [removeImage] to clear it; pass neither to leave it untouched.
+  Future<OfferBanner> updateBanner(
+    String id,
+    Map<String, dynamic> body, {
+    String? imagePath,
+    bool removeImage,
+  });
+
+  /// Delete a banner (also removes its CDN image).
+  Future<void> deleteBanner(String id);
 }

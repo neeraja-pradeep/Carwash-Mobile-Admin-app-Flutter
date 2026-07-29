@@ -3,17 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/coupon.dart';
 import '../../domain/entities/offer_banner.dart';
 import '../../domain/repositories/offers_repository.dart';
-import '../../infrastructure/data_sources/local/offers_local_ds.dart';
 import '../../infrastructure/repositories/offers_repository_impl.dart';
 import '../states/offers_filter_state.dart';
 
-final _offersLocalDsProvider = Provider<OffersLocalDs>(
-  (ref) => const OffersLocalDs(),
-);
-
 /// The offers repository (domain contract → infrastructure impl).
 final offersRepositoryProvider = Provider<OffersRepository>(
-  (ref) => OffersRepositoryImpl(ref.watch(_offersLocalDsProvider)),
+  (ref) => OffersRepositoryImpl(),
 );
 
 /// Coupons (remote) — driven by the current filter/sort/search state.
@@ -40,10 +35,73 @@ final couponCountProvider = Provider.autoDispose<int>(
   (ref) => ref.watch(_couponCountProvider),
 );
 
-/// All banners (local).
+/// Banners (remote) — driven by the same filter/sort/search state as coupons.
+///
+/// The Banners tab's status chips share the coupon lifecycle vocabulary except
+/// for `paused`, which promotions call `inactive`; anything the promotions
+/// endpoint would reject is dropped rather than sent.
 final bannersProvider = FutureProvider.autoDispose<List<OfferBanner>>(
-  (ref) => ref.watch(offersRepositoryProvider).fetchBanners(),
+  (ref) async {
+    final filter = ref.watch(offersFilterProvider);
+    final page = await ref.watch(offersRepositoryProvider).fetchBanners(
+          search: filter.query.trim().isEmpty ? null : filter.query.trim(),
+          lifecycle: filter.bannerLifecycle,
+          ordering: filter.bannerOrdering,
+        );
+    ref.read(_bannerCountProvider.notifier).state = page.count;
+    return page.banners;
+  },
 );
+
+final _bannerCountProvider = StateProvider.autoDispose<int>((ref) => 0);
+
+/// Total server count for the current banner query.
+final bannerCountProvider = Provider.autoDispose<int>(
+  (ref) => ref.watch(_bannerCountProvider),
+);
+
+/// Create / update / delete for banners. Each call refetches the list so the
+/// tab reflects the server rather than a locally patched copy.
+class BannerActions {
+  const BannerActions(this._ref);
+
+  final Ref _ref;
+
+  OffersRepository get _repo => _ref.read(offersRepositoryProvider);
+
+  Future<OfferBanner> create(
+    Map<String, dynamic> body, {
+    String? imagePath,
+  }) async {
+    final banner = await _repo.createBanner(body, imagePath: imagePath);
+    _ref.invalidate(bannersProvider);
+    return banner;
+  }
+
+  Future<OfferBanner> update(
+    String id,
+    Map<String, dynamic> body, {
+    String? imagePath,
+    bool removeImage = false,
+  }) async {
+    final banner = await _repo.updateBanner(
+      id,
+      body,
+      imagePath: imagePath,
+      removeImage: removeImage,
+    );
+    _ref.invalidate(bannersProvider);
+    return banner;
+  }
+
+  Future<void> delete(String id) async {
+    await _repo.deleteBanner(id);
+    _ref.invalidate(bannersProvider);
+  }
+}
+
+final bannerActionsProvider =
+    Provider<BannerActions>((ref) => BannerActions(ref));
 
 /// Temporary UI filter/sort/search state — autoDispose (resets when screen is gone).
 final offersFilterProvider =

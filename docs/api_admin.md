@@ -3526,8 +3526,8 @@ over the `Coupons` model
   customers get read-only access). **create / update / delete** require `IsAdmin`
   (admin or superadmin).
 
-> **Banners tab is OUT OF SCOPE.** The Offers screen also has a **Banners** tab —
-> it is not covered here; this section documents **Coupons** only.
+> The Offers screen's other tab, **Banners**, is documented in
+> [§12.1 · Banners tab](#121--banners-tab) below.
 
 Mapping the screens → endpoints:
 
@@ -3765,3 +3765,664 @@ The progress bar = `usage` / `limit` (and `usage_remaining` = `limit − usage`)
 > surface — not part of admin Offers). It previews the rupee discount for a
 > coupon code + order amount via the same `Coupons.validate_redemption` logic; it
 > does **not** create or modify coupons. Not re-documented here.
+
+
+---
+
+### 12.1 · Banners tab
+
+The **Offers → Banners** tab — the searchable, sortable **list** of hero/offer
+banner cards plus **Add Banner** and **Edit Banner** forms. Banners are the
+promo cards shown on the customer Home screen (and fanned out to the bell feed
+via broadcast). Served by `PromotionViewSet`
+([shop/views/promotion.py](../shop/views/promotion.py)) with `PromotionSerializer`
+([shop/serializers/promotion.py](../shop/serializers/promotion.py)) over the
+`Promotion` model ([shop/models/promotion.py](../shop/models/promotion.py)). The
+router registers `promotions` → basename `promotion` under `/api/shop/v1/`.
+
+- **Permissions:** **list / retrieve / active** require `IsAuthenticated`
+  (admins manage; customers read the active set). **create / update / delete /
+  broadcast** require `IsAdmin` (admin or superadmin).
+
+Mapping the screen → endpoints:
+
+| Screen element | Endpoint |
+|---|---|
+| Banners list (cards) | `GET /api/shop/v1/promotions/` |
+| Add Banner (create) | `POST /api/shop/v1/promotions/` |
+| Open Edit form (retrieve) | `GET /api/shop/v1/promotions/{id}/` |
+| Edit Banner (save) | `PATCH /api/shop/v1/promotions/{id}/` |
+| Delete banner | `DELETE /api/shop/v1/promotions/{id}/` |
+| Record a view (impression) | `POST /api/shop/v1/promotions/{id}/impression/` |
+| Record a tap | `POST /api/shop/v1/promotions/{id}/tap/` |
+| Broadcast to bell feed | `POST /api/shop/v1/promotions/{id}/broadcast/` |
+| Customer Home active set | `GET /api/shop/v1/promotions/active/` |
+
+> **Search / Filter / Sort.** The list supports the tab's controls server-side:
+> `?search=` matches the banner **title** or **subtitle** (`icontains`);
+> `?ordering=` accepts `display_order` (default), `starts_at`, `created_at` (and
+> their `-` descending forms — "Most recent" = `-created_at`); the **Filter**
+> sheet maps to `?placement=` and `?lifecycle=` (see below).
+
+> **Placement (Home — Hero / Home — Strip).** Stored on `Promotion.placement`
+> (`home_hero` · `home_strip`, default `home_hero`). Round-trips through create /
+> update and is filterable via `?placement=`.
+
+> **"N views · N taps" analytics.** Backed by `impression_count` / `tap_count` on
+> the model (**read-only** in the serializer). The customer app increments them by
+> firing `POST …/{id}/impression/` on render and `POST …/{id}/tap/` on tap — both
+> are atomic `F()` bumps (no lost-update race). Admin cards read the counts
+> straight off the banner payload.
+
+> **"Links to" → `deep_link` OR `coupon`.** The form's single **Links to** control
+> maps to **two** fields: `coupon` (FK to `booking.Coupons`, e.g. "Coupon:
+> MONSOON100") and `deep_link` (free-text client route/URL, e.g. "Screen:
+> Referrals"). The app sends whichever applies; there is no unified link field.
+
+> **Status chips are computed server-side.** The read serializer returns a
+> **`lifecycle_status`** string (mirrors `Coupons.lifecycle_status`), so the badge
+> needn't be derived on the client:
+> - **inactive** — `is_active=false` (wins regardless of window).
+> - **scheduled** — `is_active=true` **and** now `<` `starts_at`.
+> - **active** — `is_active=true` **and** `starts_at ≤ now ≤ ends_at`.
+> - **expired** — `is_active=true` **and** now `>` `ends_at`.
+>
+> The Filter sheet's chips map 1:1 via `?lifecycle=` (comma-separated, OR-ed). The
+> **`active/`** endpoint applies the same window + `is_active` filter for the
+> customer Home feed.
+
+---
+
+**1. Banners list — `GET /api/shop/v1/promotions/`**
+
+- **Permissions:** `IsAuthenticated`.
+- **Pagination:** standard DRF envelope (`{count, next, previous, results}`).
+- **Query params:**
+
+  | Param | Type | Purpose |
+  |---|---|---|
+  | `search` | string | Matches banner `title` **or** `subtitle` (`icontains`). |
+  | `placement` | enum | `home_hero` · `home_strip`. |
+  | `lifecycle` | enum (csv) | Filter chips — subset of `active` · `scheduled` · `inactive` · `expired`; OR-ed. |
+  | `is_active` | bool | Raw toggle filter. |
+  | `ordering` | enum | `display_order` (**default**) · `starts_at` · `created_at`, with `-` for descending. "Most recent" = `-created_at`. |
+  | `page` | int | Standard DRF page number. |
+
+- **Default order:** `display_order` ascending, then `starts_at` descending.
+- **Response (200)** — standard DRF paginated envelope; each `results[]` entry is
+  a banner card:
+```json
+{
+  "count": 4,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 1,
+      "title": "Up to 40% Off Premium Wash",
+      "subtitle": "Limited-time monsoon deal",
+      "badge_text": "SPECIAL OFFER",
+      "image_url": "https://cdn.example.com/promotions/ab12….webp",
+      "deep_link": null,
+      "coupon": 7,
+      "placement": "home_hero",
+      "starts_at": "2026-07-01T00:00:00Z",
+      "ends_at": "2026-07-31T23:59:59Z",
+      "is_active": true,
+      "display_order": 1,
+      "impression_count": 3240,
+      "tap_count": 412,
+      "lifecycle_status": "active"
+    }
+  ]
+}
+```
+
+---
+
+**2. Add Banner — `POST /api/shop/v1/promotions/`**
+
+- **Permissions:** `IsAdmin` (admin or superadmin).
+- **Content-Type:** `multipart/form-data` when uploading an image (the `image`
+  field is a file); `application/json` is fine if you omit `image`.
+- **Body fields** (`PromotionSerializer`):
+
+  | Field | Type | Required | Notes |
+  |---|---|---|---|
+  | `title` | string (≤120) | ✅ | Big banner text. |
+  | `subtitle` | string (≤255) | — | Caption under the title. |
+  | `badge_text` | string (≤40) | — | Pill text, e.g. `SPECIAL OFFER`. |
+  | `image` | file (multipart, **write-only**) | — | Uploaded to BunnyCDN under `promotions/` (compressed → WEBP, max width 1920). The stored URL is returned as `image_url`. |
+  | `deep_link` | string (≤255) | — | Internal route / URL opened on tap ("Links to"). |
+  | `coupon` | int (FK `Coupons`) | — | Links the banner to a coupon (nullable) — the other half of "Links to". |
+  | `placement` | enum | — | `home_hero` (**default**) · `home_strip`. |
+  | `starts_at` | datetime | ✅ | Window start. |
+  | `ends_at` | datetime | ✅ | Window end. |
+  | `is_active` | bool | — | Defaults `true`. The "Active · Visible in app" toggle. |
+  | `display_order` | int | — | Defaults `0`. Lower sorts first. |
+
+  `impression_count`, `tap_count`, and `lifecycle_status` are **read-only** —
+  returned in the response but ignored on write.
+
+- **Response (201):** the created banner in `PromotionSerializer` shape (with
+  `image_url`, no `image`).
+
+> **Note.** `image_url` is **read-only** — you cannot set it directly; send the
+> `image` file and the server derives the CDN URL. There is no way to set a URL
+> without uploading a file.
+
+---
+
+**3. Open Edit form — `GET /api/shop/v1/promotions/{id}/`**
+
+- **Permissions:** `IsAuthenticated`.
+- **Response (200):** the banner in `PromotionSerializer` shape (same as a list
+  entry above).
+
+---
+
+**4. Edit Banner — `PATCH /api/shop/v1/promotions/{id}/`**
+
+- **Permissions:** `IsAdmin` (admin or superadmin).
+- **Content-Type:** `multipart/form-data` to replace the image; else JSON.
+- **Body:** any subset of the create fields. Image handling maps to the form's
+  Image controls:
+  - **Replace image** — send a new `image` file → the old CDN file is deleted and
+    the new one uploaded.
+  - **Remove image (✕)** — send `image: null` (present but empty) → the CDN file
+    is deleted and `image_url` is set to `null`.
+  - **Keep image** — omit `image` entirely → the existing `image_url` is untouched.
+- **Response (200):** the updated banner in `PromotionSerializer` shape.
+
+---
+
+**5. Delete banner — `DELETE /api/shop/v1/promotions/{id}/`**
+
+- **Permissions:** `IsAdmin` (admin or superadmin).
+- **Behavior:** removes the banner **and** deletes its image from BunnyCDN so it
+  isn't orphaned.
+- **Response (204):** no content.
+
+---
+
+**6. Record a view — `POST /api/shop/v1/promotions/{id}/impression/`**
+
+- **Permissions:** `IsAuthenticated` (fired by the customer app on render).
+- **Behavior:** atomically increments `impression_count` (`F()`-based, no
+  read-modify-write race). No body required.
+- **Response (200):** `{"status": "ok"}`.
+
+---
+
+**7. Record a tap — `POST /api/shop/v1/promotions/{id}/tap/`**
+
+- **Permissions:** `IsAuthenticated` (fired by the customer app on tap).
+- **Behavior:** atomically increments `tap_count`. No body required.
+- **Response (200):** `{"status": "ok"}`.
+
+---
+
+**8. Broadcast to bell feed — `POST /api/shop/v1/promotions/{id}/broadcast/`**
+
+- **Permissions:** `IsAdmin` (admin or superadmin).
+- **Behavior:** fans this promotion out to **every active customer's**
+  notification (bell) feed via a `django_q` async task
+  (`accounts.notifications.broadcast.broadcast_promotion`). **Idempotency is the
+  caller's responsibility** — each call queues a fresh batch.
+- **Rejected `400`** if the promotion is not active (`is_active=false`):
+  `{"error": "Promotion is not active."}`.
+- **Response (202):**
+```json
+{
+  "message": "Promotion broadcast queued.",
+  "promotion_id": 1,
+  "task_id": "a1b2c3…"
+}
+```
+
+---
+
+**9. Customer active set — `GET /api/shop/v1/promotions/active/`**
+
+- **Permissions:** `IsAuthenticated`.
+- **Behavior:** the banners currently live on the customer Home — filtered to
+  `is_active=true` **and** `starts_at ≤ now ≤ ends_at`, in the same default order.
+  `?placement=` / `?search=` still apply. Not paginated — returns a plain
+  `{count, results}` envelope.
+- **Response (200):**
+```json
+{
+  "count": 2,
+  "results": [ /* PromotionSerializer cards, as above */ ]
+}
+```
+
+> This is a **customer-surface** read included here because it's the counterpart
+> to the admin banner list — admins see all banners, customers see only the
+> currently-live window.
+
+
+---
+
+## 13 · Settings
+
+The operator console's **Settings** screen, scoped to the **superadmin**. It is a
+grouped list spanning a few backends — the org **singleton** (`OrgInfo`), the
+**hiring-rates** singleton, the **serviceability-area** CRUD, and the per-user
+**notification toggles**. Each group below maps a screen row to its endpoint.
+
+> **Roles.** Writes here are **superadmin-only**, except the NOTIFICATIONS
+> toggles which are **per-user** (any `admin`/`superadmin` edits their own).
+> `OrgInfo` GET is public (it also feeds the customer Receipt/Help screens).
+
+Mapping the screen → endpoints:
+
+| Settings row | Read | Write |
+|---|---|---|
+| Support contact (phone · email) | `GET /api/accounts/v1/org-info/` | `PATCH /api/accounts/v1/org-info/` (superadmin) |
+| Default slot interval (60 min) | — (fixed, see note) | — |
+| Default commission (15%) | `GET /api/accounts/v1/org-info/` | `PATCH /api/accounts/v1/org-info/` (superadmin) |
+| Hiring rates (Driver / Inspector) | `GET /api/booking/v1/hiring-rates/` | `PATCH /api/booking/v1/hiring-rates/` (superadmin) |
+| Service areas (Carwash / Hire) | `GET /api/shop/v1/serviceability-areas/` | `POST` / `PATCH` / `DELETE …/serviceability-areas/{id}/` (admin) |
+| Refund tiers (Full / partial / none) | — (manual, see note) | — |
+| Notifications (New booking / Refund / Low ratings) | `GET /api/accounts/v1/notification-preferences/` | `PATCH /api/accounts/v1/notification-preferences/` |
+
+> **🟡 Default slot interval is fixed at 30 minutes, not 60.** The screen renders
+> "60 min" but the platform slot grid is hardcoded to **30-minute** blocks
+> (`booking/slots.py` → `BLOCKS_PER_DAY = 48`, seeded by
+> `shop/migrations/0002_seed_slots_30min.py`). There is **no endpoint** to change
+> it — render it read-only (or correct the copy to "30 min"). Making it
+> configurable would require a new config field + re-seeding the slot grid.
+
+---
+
+### 13.1 · Support contact · Default commission · refund policy (`OrgInfo`)
+
+The SUPPORT, OPERATIONS → *Default commission*, and refund-policy rows all read
+and write the singleton `OrgInfo` row. Served by `OrgInfoView`
+([accounts/views/org_info.py](../accounts/views/org_info.py)).
+
+**Read — `GET /api/accounts/v1/org-info/`** (public; `OrgInfoSerializer`):
+```json
+{
+  "legal_name": "DriveTo Mobility Pvt. Ltd",
+  "gstin": "29AABCD1234E1Z5",
+  "registered_address": null,
+  "support_email": "ops@drivedeck.in",
+  "support_phone": "+919847022119",
+  "support_hours": "9 AM – 9 PM IST",
+  "cancellation_window_minutes": 60,
+  "cancellation_fee_percent": 25,
+  "refund_eta_days": "3-5 business days",
+  "default_commission_percent": "15.00"
+}
+```
+
+**Write — `PATCH /api/accounts/v1/org-info/`** (superadmin; `OrgSettingsSerializer`).
+Partial — send only the changed fields. Writable: `legal_name`, `gstin`,
+`registered_address`, `support_email`, `support_phone`, `support_hours`,
+`cancellation_window_minutes`, `cancellation_fee_percent`, `refund_eta_days`,
+`default_commission_percent`, `overdue_grace_minutes`, `unassigned_alert_minutes`.
+
+| Screen row | Field(s) |
+|---|---|
+| Support contact — phone | `support_phone` |
+| Support contact — email | `support_email` |
+| Default commission — Percentage | `default_commission_percent` (0–100) |
+
+```
+PATCH /api/accounts/v1/org-info/
+{ "support_phone": "+919847022119", "support_email": "ops@drivedeck.in", "default_commission_percent": "15.00" }
+→ 200, the updated OrgSettings shape.
+```
+
+- `403` for a non-superadmin; `400` if `default_commission_percent` or
+  `cancellation_fee_percent` is outside `0–100`.
+
+> **Default commission is the fallback, not an override.** A shop with its own
+> `commission_type` (flat / percentage / percent_floor) uses **that**. Only a
+> shop with **no** commission rule falls back to
+> `OrgInfo.default_commission_percent` (applied as a percentage). See
+> `Shop.commission_for` → `_default_commission_for`
+> ([shop/models/shop.py](../shop/models/shop.py)). A `0` default restores the old
+> "no rule → no commission" behaviour.
+
+---
+
+### 13.2 · Hiring rates (Driver & Inspector)
+
+The **Hiring rates** sheet (Driver / Inspector tabs). Read/write the
+`HiringRates` singleton. Served by `HiringRatesView`
+([booking/views/hiring_rates_view.py](../booking/views/hiring_rates_view.py)). Platform-level (not
+shop-scoped).
+
+- **Read — `GET /api/booking/v1/hiring-rates/`** (any authenticated user).
+- **Write — `PATCH /api/booking/v1/hiring-rates/`** (superadmin). Partial.
+
+```json
+{
+  "driver_first_hour": "180.00", "driver_per_extra_hour": "120.00",
+  "driver_full_day": "1200.00", "driver_per_km": "12.00",
+  "driver_min_hours": 2, "driver_night_surcharge": "150.00",
+  "driver_travel_band_km": 10, "driver_travel_base_per_km": "12.00",
+  "driver_travel_step_per_km": "8.00", "driver_avg_speed_kmph": "30.00",
+  "driver_traffic_buffer": "1.30",
+  "inspector_base_fee": "800.00", "inspector_per_km": "10.00",
+  "inspector_written_report": "200.00", "inspector_premium_suv_addon": "300.00",
+  "night_window_start": "22:00:00", "night_window_end": "06:00:00",
+  "updated_at": "2026-06-25T…Z"
+}
+```
+
+**Driver tab → fields:**
+
+| Screen field | Field |
+|---|---|
+| First hour | `driver_first_hour` |
+| Per extra hour | `driver_per_extra_hour` |
+| Min hours | `driver_min_hours` |
+| Night surcharge | `driver_night_surcharge` |
+| Travel allowance · day | *(no flat field — see mapping note)* |
+| Travel allowance · night | *(no flat field — see mapping note)* |
+
+**Inspector tab → fields:**
+
+| Screen field | Field |
+|---|---|
+| Base fee | `inspector_base_fee` |
+| Written report | `inspector_written_report` |
+| Travel allowance · working day | *(no flat field — see mapping note)* |
+| Travel allowance · holiday | *(no flat field — see mapping note)* |
+
+> **🟡 Travel-allowance mismatch — the screen's flat "day / night" (driver) and
+> "working day / holiday" (inspector) allowances do not exist as flat fields.**
+> The backend instead computes travel allowance from a **tiered, distance-based**
+> model: each `driver_travel_band_km`-wide band is charged at
+> `driver_travel_base_per_km`, rising by `driver_travel_step_per_km` per band
+> (see [booking/pricing.py](../booking/pricing.py) `compute_travel_allowance`).
+> Night cost is handled by the flat `driver_night_surcharge` plus the
+> `night_window_start`/`night_window_end` window, **not** a separate night travel
+> allowance. There is no working-day-vs-holiday split for inspectors at all.
+> **Map the screen as:** "Travel allowance · day" → `driver_travel_base_per_km`,
+> "night" → covered by `driver_night_surcharge`; inspector travel → its own
+> `inspector_per_km`. To honour the screen literally, add
+> `driver_travel_allowance_day/night` and
+> `inspector_travel_allowance_workday/holiday` fields first (decision: keep tiered
+> for now, document the mapping).
+
+---
+
+### 13.3 · Service areas (Carwash / Hire coverage)
+
+The **Service Areas** screen, with a **Carwash / Hire** segmented control. Each
+area is a name, pincode, pinned point (lat/lng) and a radius (km), scoped to one
+or more booking **types**. Full CRUD via `ServiceabilityAreaViewSet`
+([shop/views/serviceability_area.py](../shop/views/serviceability_area.py)).
+
+- **Scope:** read = any authenticated user; create/update/delete = `admin` /
+  `superadmin` (`IsAdmin`).
+- The **Carwash** tab filters `?type=carwash`; the **Hire** tab covers the
+  driver/inspection types (`?type=driver` / `?type=inspector`). `types` is a list
+  — an area can serve several.
+
+| Screen element | Endpoint |
+|---|---|
+| Carwash tab list | `GET …/serviceability-areas/?type=carwash` |
+| Hire tab list | `GET …/serviceability-areas/?type=driver` (and `inspector`) |
+| Area card (name · pincode · N km radius) | list item |
+| **Add Area** | `POST …/serviceability-areas/` |
+| Edit (pencil) | `PATCH …/serviceability-areas/{id}/` |
+| Delete | `DELETE …/serviceability-areas/{id}/` |
+| (coverage check) | `GET …/serviceability-areas/covers/?lat=&lng=&type=` |
+
+**List item / body shape:**
+```json
+{
+  "id": 5, "name": "Mullackal", "latitude": 9.49, "longitude": 76.33,
+  "pincode": "688011", "radius_km": "5.00",
+  "types": ["carwash"], "active": true,
+  "created_at": "2026-…Z", "updated_at": "2026-…Z"
+}
+```
+
+| Add-area field | Body field | Notes |
+|---|---|---|
+| Search location on map (pin) | `latitude`, `longitude` | The pinned point; `location` Point is auto-synced. |
+| Area / locality name | `name` | e.g. "Mullackal". |
+| Pincode | `pincode` | Required. |
+| Radius (km) slider | `radius_km` | Must be `> 0`. |
+| (segmented tab) | `types` | `["carwash"]` on the Carwash tab; `["driver"]`/`["inspector"]` on Hire. |
+
+- **Filters:** `?pincode=`, `?type=`, `?active=true|false`.
+- `400` for an unknown `types` value or `radius_km ≤ 0`; `403` for a non-admin
+  write.
+
+---
+
+### 13.4 · Notifications toggles (per-user)
+
+The **NOTIFICATIONS** section — three toggles the operator flips for themselves.
+Backed by the per-user `NotificationPreference` row, served by
+`NotificationPreferenceView`
+([accounts/views/notification_preference.py](../accounts/views/notification_preference.py)).
+`IsAdmin` (admin/superadmin); each user reads/writes **their own** row, which is
+auto-created (all ON) on first read.
+
+- **Read — `GET /api/accounts/v1/notification-preferences/`**
+- **Write — `PATCH /api/accounts/v1/notification-preferences/`** (partial)
+
+```json
+{ "new_booking": true, "refund_requests": true, "low_ratings": true, "updated_at": "2026-…Z" }
+```
+
+| Toggle | Field | Gates |
+|---|---|---|
+| New booking | `new_booking` | the owner's "New booking from …" notification. |
+| Refund requests | `refund_requests` | the owner's refund notification. |
+| Low ratings (≤ 3★) | `low_ratings` | the owner's review notification **for ≤ 3★ reviews only** (higher ratings always notify). |
+
+> When a toggle is **off**, the matching owner notification is **not created**
+> (the dispatch path checks the flag via `owner_wants` in
+> [accounts/notifications/service.py](../accounts/notifications/service.py)). It
+> does not retroactively delete past notifications, and it never affects
+> customer-facing notifications.
+
+---
+
+### Flagged gaps (Settings)
+
+| # | Gap | Resolution |
+|---|---|---|
+| 1 | **Default slot interval** shown as "60 min" — platform is fixed at **30 min**, not configurable. | Render read-only / fix copy. No backend change (fixed by design). |
+| 2 | **Default commission** had **no platform-level field** (only per-shop). | ✅ Added `OrgInfo.default_commission_percent` + writable `PATCH /org-info/`; wired as the per-shop fallback. |
+| 3 | **OrgInfo was read-only** — Support contact / refund policy / default commission could not be saved. | ✅ Added superadmin `PATCH /org-info/` (`OrgSettingsSerializer`). |
+| 4 | **Notification toggles** had **no model/endpoint**. | ✅ Added `NotificationPreference` + `GET`/`PATCH /notification-preferences/`, gating owner notifications. |
+| 5 | **Hiring rates** travel allowance — screen's flat day/night & workday/holiday fields don't map 1:1 to the tiered model. | Documented the mapping (kept tiered). Add flat fields later if the screen must be honoured literally. |
+| 6 | **Refund tiers** — screen implies multi-tier (full/partial/none) rules. | **No model by design** — refunds are set **manually** by an admin/superadmin per request at their discretion (see [§5 · Refunds](#5--refunds-new-refund) / [§10 · Refund Log](#10--refund-log)). The screen's tier editor has no backing config. |
+
+---
+
+## 14 · Reports
+
+The operator console's **Reports** screen — a list of 6 report cards, each
+opening a report with a **period filter** (Today / Last 7 days / Last 30 days /
+This month) and an **Export this report** (CSV) action. **Superadmin-only**
+(`IsSuperAdmin`). Served by the dedicated **`reports`** app
+([reports/](../reports/)); routes are mounted at **`/api/reports/v1/…`**.
+
+Every report exposes **two endpoints**:
+
+| | URL | Returns |
+|---|---|---|
+| Screen (JSON) | `GET /api/reports/v1/<name>/` | `{ period, kpis, rows }` |
+| Export (CSV) | `GET /api/reports/v1/<name>/export/` | a hierarchical CSV download |
+
+`<name>` ∈ `revenue`, `drivers-inspectors`, `shop-performance`, `commission`,
+`cancellations`, `inspections`.
+
+### Period parameter (all reports)
+
+| Param | Values | Notes |
+|---|---|---|
+| `period` | `today` (default) · `last_7` · `last_30` · `this_month` | Maps to an inclusive local-date window (`reports/periods.py`). |
+| `date_from` + `date_to` | `YYYY-MM-DD` (both required together) | Explicit custom range; **overrides** `period`. |
+
+The response echoes the resolved window:
+```json
+"period": { "key": "last_7", "label": "Last 7 days (2026-06-23 → 2026-06-29)", "start": "2026-06-23", "end": "2026-06-29" }
+```
+Errors (`400`): unknown `period`; only one of `date_from`/`date_to`;
+`date_from > date_to`; malformed date.
+
+> **Money** is returned as 2-dp **decimal strings** (`"1200.00"`), matching the
+> rest of the admin API.
+
+---
+
+### 14.1 · Revenue — `/api/reports/v1/revenue/`
+
+Completed carwash bookings in the period (by `appointment_date`,
+`washing_status='completed'`). Commission is computed per booking via
+`Shop.commission_for`; refunds are non-failed/declined `BookingRefund`s created
+in the period.
+
+```json
+{
+  "period": { … },
+  "kpis": { "net_revenue": "1020.00", "gross": "1200.00", "commission": "180.00", "refunds": "0.00" },
+  "rows": [ { "service": "Exterior Wash", "count": 3, "revenue": "1200.00" } ]
+}
+```
+`net_revenue = gross − commission − refunds`. `rows` = the **BY SERVICE** list.
+
+### 14.2 · Drivers & Inspectors — `/api/reports/v1/drivers-inspectors/`
+
+Worker earnings (`WorkerEarning`, by `earned_on`) grouped by worker + role, plus
+driver-hire job counts. Ratings come from `Drivers.rating` / `Inspectors.rating`.
+
+```json
+{
+  "kpis": { "active_drivers": 2, "hire_jobs": 1, "driver_payout": "1300.00", "inspector_payout": "1600.00" },
+  "rows": {
+    "drivers": [ { "name": "Manoj Kumar", "wash": 3, "hire": 0, "rating": 4.7, "earnings": "540.00" } ],
+    "inspectors": [ { "name": "Ravi Menon", "inspections": 2, "rating": 4.8, "payout": "1600.00" } ]
+  }
+}
+```
+
+### 14.3 · Shop Performance — `/api/reports/v1/shop-performance/`
+
+```json
+{
+  "kpis": { "shops_active": 4, "total_bookings": 55, "total_revenue": "4520.00" },
+  "rows": [ { "shop": "SparkleWash Mullackal", "bookings": 12, "revenue": "1670.00" } ]
+}
+```
+`rows` = **REVENUE BY SHOP** (completed bookings).
+
+### 14.4 · Commission / Settlement — `/api/reports/v1/commission/`
+
+```json
+{
+  "kpis": { "platform_commission": "642.00", "shop_earnings": "3878.00", "refunds_deducted": "1100.00", "net_settled": "2778.00" },
+  "rows": [ { "shop": "SparkleWash Mullackal", "gross": "1670.00", "commission": "251.00" } ]
+}
+```
+`shop_earnings = gross − commission`; `net_settled = shop_earnings − refunds_deducted`.
+`rows` = **COMMISSION BY SHOP**.
+
+### 14.5 · Cancellations — `/api/reports/v1/cancellations/`
+
+Cancelled bookings in the period (by `cancelled_at`), grouped by the **actual**
+`cancellation_reason`.
+
+```json
+{
+  "kpis": { "cancelled": 1, "cancel_rate_percent": 11.0, "refunds_issued": "1100.00", "total_bookings": 9 },
+  "rows": [ { "reason": "Schedule change", "count": 1 } ]
+}
+```
+`cancel_rate_percent = cancelled ÷ total_bookings × 100` (bookings whose
+`appointment_date` is in the period).
+
+> **🟡 Cancellation-reason label mismatch.** The mockup's REASONS list shows
+> "Cancelled by customer / Damage during wash / No driver available", but the
+> backend's `cancellation_reason` choices are `booked_by_mistake`,
+> `found_better_option`, `schedule_change`, `weather_concerns`,
+> `vehicle_unavailable`, `other`. `damage_during_wash` exists only as a **refund**
+> reason, and there is **no** `no_driver_available` anywhere. The report returns
+> the real cancellation-reason groups (humanised labels); the app should map its
+> chips onto these, or the enum must be extended first. We did **not** invent
+> enum values.
+
+### 14.6 · Inspections — `/api/reports/v1/inspections/`
+
+`DriverAndInspectionBooking` with `request_type='inspection'` (by
+`appointment_date`); payout from `WorkerEarning` with `kind='inspection'`.
+
+```json
+{
+  "kpis": { "inspections": 2, "inspector_payout": "1600.00", "avg_fee": "800.00", "active_inspectors": 1 },
+  "rows": [ { "name": "Ravi Menon", "inspections": 2, "payout": "1600.00" } ]
+}
+```
+`avg_fee` = mean of each inspection's fee (`final_total` if completed, else
+`quoted_fee` / `estimated_fee`).
+
+---
+
+### 14.7 · CSV export format (all reports)
+
+`GET …/<name>/export/?period=…` streams a **`text/csv`** download
+(`Content-Disposition: attachment`), built by `reports/csv_export.py`. The format
+is **sectioned and hierarchical** so it represents the company and reads cleanly
+in any spreadsheet:
+
+```
+Company,DriveTo Mobility Pvt. Ltd
+GSTIN,29AABCD1234E1Z5
+Support,ops@drivedeck.in · +919847022119
+Report,Commission / Settlement
+Period,Last 30 days (2026-06-01 → 2026-06-30)
+Generated At,2026-06-30 13:30 IST
+Generated By,superadmin (superadmin)
+
+Section,Level,Group,Reference,Date,Shop,Customer,Customer Phone,Service,Vehicle,Qty,Gross,Commission,Net,Refund,Status,Payment,Worker,Notes
+KPI,0,Platform Commission,,,,,,,,,775.22,,,,,,,
+COMMISSION BY SHOP,1,Mirror Finish Detailing,,,Mirror Finish Detailing,,,,,,2398.00,359.70,,,,,,
+DETAIL,2,BubbleJet Express,DT-0042-GM,2026-06-12,BubbleJet Express,,,Express Foam Wash,,1,199.00,23.88,175.12,,,,,
+```
+
+Structure:
+1. **Metadata block** — `Company`/`GSTIN`/`Support` (from `OrgInfo`), `Report`,
+   `Period`, `Generated At`, `Generated By` (the requesting superadmin).
+2. A blank separator row.
+3. **One shared column header** (the union schema above) for every report.
+4. **`KPI` rows** (`Level 0`) — the report's KPI cards.
+5. **Breakdown rows** (`Level 1`) — the on-screen list (BY SERVICE / DRIVER &
+   INSPECTOR PERFORMANCE / REVENUE BY SHOP / COMMISSION BY SHOP / REASONS / BY
+   INSPECTOR).
+6. **`DETAIL` rows** (`Level 2`) — the underlying records (one per booking /
+   earning / inspection), tied to their Level-1 parent via the **`Group`** column.
+
+Hierarchy is encoded by the **(`Section`, `Level`, `Group`)** columns — a flat
+CSV that still expresses the tree. Columns not relevant to a given report/row are
+left blank. Detail rows carry as much as the source supports: references, dates,
+shop, customer (+phone), service, vehicle, gross/commission/net/refund, status,
+payment mode/status, worker, and notes. Rows stream out
+(`StreamingHttpResponse`) so large exports never buffer fully in memory.
+
+> **No new dependency.** Export uses the Python stdlib `csv` module — there is no
+> XLSX/openpyxl path.
+
+---
+
+### Gaps fixed (Reports)
+
+| # | Gap (before) | Resolution |
+|---|---|---|
+| 1 | No report/analytics endpoints — all 6 reports were unbacked. | New `reports` app: 6 JSON endpoints under `/api/reports/v1/`. |
+| 2 | No period filtering (Today / 7 / 30 / month). | `reports/periods.py` resolver on every report (+ custom `date_from`/`date_to`). |
+| 3 | No CSV export anywhere in the codebase. | `reports/csv_export.py` streaming hierarchical CSV + 6 `/export/` routes. |
+| 4 | Cancellation reasons on the screen don't match the backend enum (`no_driver_available` absent; `damage_during_wash` is a refund reason). | Report the **actual** `cancellation_reason` groups; mismatch documented (§14.5). No invented enum values. |
+| 5 | DI bookings have no rating field. | Driver/inspector ratings sourced from `Drivers.rating` / `Inspectors.rating`. |

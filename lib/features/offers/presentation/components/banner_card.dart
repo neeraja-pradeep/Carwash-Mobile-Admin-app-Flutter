@@ -55,15 +55,19 @@ class BannerCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // Background image or colour placeholder
+                  // CDN artwork, or a flat placeholder when the banner has none.
                   Container(
                     decoration: BoxDecoration(
                       color: AppColors.fgSecondary.withValues(alpha: 0.25),
-                      image: DecorationImage(
-                        image: AssetImage(banner.image),
-                        fit: BoxFit.cover,
-                        onError: (_, __) {},
-                      ),
+                      image: banner.hasImage
+                          ? DecorationImage(
+                              image: NetworkImage(banner.imageUrl!),
+                              fit: BoxFit.cover,
+                              // A dead CDN link must not take the list down —
+                              // the placeholder colour shows through instead.
+                              onError: (_, __) {},
+                            )
+                          : null,
                     ),
                   ),
                   // Dark gradient at bottom for text legibility
@@ -97,7 +101,7 @@ class BannerCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6.r),
                       ),
                       child: Text(
-                        '#${banner.order} · ${banner.placement}',
+                        '#${banner.displayOrder} · ${banner.placementLabel}',
                         style: AppText.figtree(
                           size: 10,
                           weight: FontWeight.w700,
@@ -156,7 +160,7 @@ class BannerCard extends StatelessWidget {
                   SizedBox(width: 6.w),
                   Expanded(
                     child: Text(
-                      banner.link,
+                      banner.linkLabel,
                       style: AppText.figtree(
                         size: 12,
                         weight: FontWeight.w500,
@@ -167,7 +171,7 @@ class BannerCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${_fmt(banner.impressions)} views · ${banner.taps} taps',
+                    '${_fmt(banner.impressionCount)} views · ${banner.tapCount} taps',
                     style: AppText.figtree(
                       size: 12,
                       weight: FontWeight.w500,
