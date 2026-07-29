@@ -43,9 +43,7 @@ class ReviewsScreen extends ConsumerWidget {
           children: [
             TopBar(
               title: 'Reviews',
-              // Tracks the selected window — it used to read "Last 7 days"
-              // even after the sheet switched to 30 days / all time.
-              subtitle: filter.dateLabel,
+              subtitle: 'All time',
               onBack: () => context.pop(),
             ),
             Container(
@@ -74,10 +72,9 @@ class ReviewsScreen extends ConsumerWidget {
                 ),
                 data: (reviews) {
                   if (reviews.isEmpty) {
-                    // Three different reasons for an empty list, three
-                    // different fixes — telling an admin to clear filters they
-                    // never set (and offering a reset that restores the same
-                    // date window) is a dead end.
+                    // Only blame filters when the admin actually set one —
+                    // the list itself is unscoped, so otherwise there simply
+                    // are no reviews.
                     if (filter.hasUserFilter) {
                       return EmptyState(
                         icon: AppIcons.message,
@@ -87,19 +84,7 @@ class ReviewsScreen extends ConsumerWidget {
                         onAction: controller.reset,
                       );
                     }
-                    if (filter.isDateLimited) {
-                      return EmptyState(
-                        icon: AppIcons.message,
-                        title: 'No reviews in the '
-                            '${filter.dateLabel.toLowerCase()}',
-                        body: 'This list is scoped to the '
-                            '${filter.dateLabel.toLowerCase()}. '
-                            'Older reviews are still there.',
-                        actionLabel: 'Show all time',
-                        onAction: () => controller.setDate('any'),
-                      );
-                    }
-                    return EmptyState(
+                    return const EmptyState(
                       icon: AppIcons.message,
                       title: 'No reviews yet',
                       body: 'Customer reviews will show up here once they '

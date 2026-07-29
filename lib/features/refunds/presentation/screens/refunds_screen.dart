@@ -73,8 +73,7 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> {
               children: [
                 TopBar(
                   title: 'Refund Log',
-                  // Tracks the window so "All time" is visible once selected.
-                  subtitle: filter.dateLabel,
+                  subtitle: 'All time',
                   onBack: () => context.pop(),
                 ),
                 Container(
@@ -119,9 +118,9 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> {
                     },
                     data: (refunds) {
                       if (refunds.isEmpty) {
-                        // Same three cases as Reviews: a filter the admin set,
-                        // the date window they never chose, or genuinely no
-                        // refunds at all.
+                        // Only blame filters when the admin actually set one —
+                        // the list itself is unscoped, so otherwise there
+                        // simply are no refunds.
                         if (filter.hasUserFilter) {
                           return EmptyState(
                             icon: AppIcons.receipt,
@@ -129,18 +128,6 @@ class _RefundsScreenState extends ConsumerState<RefundsScreen> {
                             body: 'Try clearing your search or filters.',
                             actionLabel: 'Reset filters',
                             onAction: controller.reset,
-                          );
-                        }
-                        if (filter.isDateLimited) {
-                          return EmptyState(
-                            icon: AppIcons.receipt,
-                            title: 'No refunds in the '
-                                '${filter.dateLabel.toLowerCase()}',
-                            body: 'This list is scoped to the '
-                                '${filter.dateLabel.toLowerCase()}. '
-                                'Older refunds are still there.',
-                            actionLabel: 'Show all time',
-                            onAction: () => controller.setDays(0),
                           );
                         }
                         return const EmptyState(

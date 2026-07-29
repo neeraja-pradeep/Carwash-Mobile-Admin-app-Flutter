@@ -7,7 +7,6 @@ class RefundsFilterState {
     this.reason,
     this.query = '',
     this.sort = 'recent',
-    this.days = 30,
   });
 
   /// `null` = all; `requested` | `approved` | `paid` | `declined`
@@ -20,18 +19,8 @@ class RefundsFilterState {
   /// `recent` | `amount_hi` | `amount_lo` | `status`
   final String sort;
 
-  /// Server-side `created_at` window in days; `0` disables it (all time).
-  /// Not a chip — it is the list's scope, shown in the top bar.
-  final int days;
-
   int get activeCount =>
       (status != null ? 1 : 0) + (reason != null ? 1 : 0);
-
-  /// True when the window may be hiding older refunds.
-  bool get isDateLimited => days > 0;
-
-  /// Human label for the current window — top bar subtitle and empty state.
-  String get dateLabel => days > 0 ? 'Last $days days' : 'All time';
 
   /// True when the admin has actually narrowed the list themselves.
   bool get hasUserFilter => activeCount > 0 || query.trim().isNotEmpty;
@@ -41,14 +30,12 @@ class RefundsFilterState {
     Object? reason = _sentinel,
     String? query,
     String? sort,
-    int? days,
   }) {
     return RefundsFilterState(
       status: status == _sentinel ? this.status : status as String?,
       reason: reason == _sentinel ? this.reason : reason as String?,
       query: query ?? this.query,
       sort: sort ?? this.sort,
-      days: days ?? this.days,
     );
   }
 

@@ -13,12 +13,17 @@ import 'package:new_flutter_project/features/reviews/domain/entities/review.dart
 import 'package:new_flutter_project/features/reviews/domain/repositories/reviews_repository.dart';
 import 'package:new_flutter_project/features/reviews/presentation/screens/reviews_screen.dart';
 
-/// Reviews and Refunds both load behind a date window the admin never chose
-/// (7 and 30 days). When that window is what empties the list, the screen must
-/// say so and offer a way out — not "try clearing your filters" plus a reset
-/// that re-applies the very same window.
+/// Reviews and Refunds used to load behind a date window the admin never chose
+/// (the API defaults to 7 days / 30 days), which hid older rows and produced a
+/// "try clearing your filters" dead end. Both lists are now unscoped: the
+/// window-disabling value is always sent, and an empty list only blames filters
+/// when the admin actually set one.
 void main() {
-  Future<void> pump(WidgetTester tester, Widget screen, List<Override> overrides) async {
+  Future<void> pump(
+    WidgetTester tester,
+    Widget screen,
+    List<Override> overrides,
+  ) async {
     tester.view.physicalSize = const Size(1560, 2400);
     tester.view.devicePixelRatio = 3.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -37,85 +42,77 @@ void main() {
   }
 
   group('Reviews', () {
-    testWidgets('names the date window instead of blaming filters',
+    testWidgets('asks the API for all time, never a 7-day window',
         (tester) async {
-      final repo = _StubReviewsRepository();
+      final repo = _StubReviewsRepository(all: [_review]);
       await pump(tester, const ReviewsScreen(),
           [reviewsRepositoryProvider.overrideWithValue(repo)]);
 
-      expect(find.text('No reviews in the last 7 days'), findsOneWidget);
-      expect(find.textContaining('clearing your search'), findsNothing);
-      expect(find.text('Reset filters'), findsNothing);
-      expect(repo.lastDate, '7d');
-    });
-
-    testWidgets('"Show all time" widens the window and refetches',
-        (tester) async {
-      final repo = _StubReviewsRepository(allTime: [_review]);
-      await pump(tester, const ReviewsScreen(),
-          [reviewsRepositoryProvider.overrideWithValue(repo)]);
-
-      await tester.tap(find.text('Show all time'));
-      await tester.pumpAndSettle();
-
-      expect(repo.lastDate, 'all');
+      expect(repo.dates, ['all']);
       expect(find.text('Priya Menon'), findsOneWidget);
-      // The top bar reflects the widened scope.
       expect(find.text('All time'), findsOneWidget);
     });
 
-    testWidgets('still blames the filter when the admin set one',
-        (tester) async {
-      final repo = _StubReviewsRepository();
+    testWidgets('filtering does not re-introduce a window', (tester) async {
+      final repo = _StubReviewsRepository(all: [_review]);
       await pump(tester, const ReviewsScreen(),
           [reviewsRepositoryProvider.overrideWithValue(repo)]);
 
       await tester.enterText(find.byType(TextField).first, 'nobody');
       await tester.pumpAndSettle();
 
+      expect(repo.dates.toSet(), {'all'});
       expect(find.text('No reviews match'), findsOneWidget);
       expect(find.text('Reset filters'), findsOneWidget);
     });
 
-    testWidgets('says "no reviews yet" when all time is also empty',
+    testWidgets('an empty list with no filter reads as "no reviews yet"',
         (tester) async {
       final repo = _StubReviewsRepository();
       await pump(tester, const ReviewsScreen(),
           [reviewsRepositoryProvider.overrideWithValue(repo)]);
 
-      await tester.tap(find.text('Show all time'));
+      expect(find.text('No reviews yet'), findsOneWidget);
+      expect(find.textContaining('clearing your search'), findsNothing);
+      expect(find.text('Reset filters'), findsNothing);
+    });
+
+    testWidgets('the filter sheet no longer offers a date scope',
+        (tester) async {
+      final repo = _StubReviewsRepository(all: [_review]);
+      await pump(tester, const ReviewsScreen(),
+          [reviewsRepositoryProvider.overrideWithValue(repo)]);
+
+      await tester.tap(find.text('Filter'));
       await tester.pumpAndSettle();
 
-      expect(find.text('No reviews yet'), findsOneWidget);
-      expect(find.text('Show all time'), findsNothing);
+      expect(find.text('RATING'), findsOneWidget);
+      expect(find.text('DATE'), findsNothing);
+      expect(find.text('Last 7 days'), findsNothing);
+      expect(find.text('Last 30 days'), findsNothing);
     });
   });
 
   group('Refunds', () {
-    testWidgets('names the date window instead of blaming filters',
+    testWidgets('asks the API for all time, never a 30-day window',
+        (tester) async {
+      final repo = _StubRefundsRepository(all: [_refund]);
+      await pump(tester, const RefundsScreen(),
+          [refundsRepositoryProvider.overrideWithValue(repo)]);
+
+      expect(repo.days, [0]);
+      expect(find.text('Priya Menon'), findsOneWidget);
+      expect(find.text('All time'), findsOneWidget);
+    });
+
+    testWidgets('an empty list with no filter reads as "no refunds yet"',
         (tester) async {
       final repo = _StubRefundsRepository();
       await pump(tester, const RefundsScreen(),
           [refundsRepositoryProvider.overrideWithValue(repo)]);
 
-      expect(find.text('No refunds in the last 30 days'), findsOneWidget);
+      expect(find.text('No refunds yet'), findsOneWidget);
       expect(find.text('Reset filters'), findsNothing);
-      expect(repo.lastDays, 30);
-    });
-
-    testWidgets('"Show all time" drops the window and refetches',
-        (tester) async {
-      final repo = _StubRefundsRepository(allTime: [_refund]);
-      await pump(tester, const RefundsScreen(),
-          [refundsRepositoryProvider.overrideWithValue(repo)]);
-
-      await tester.tap(find.text('Show all time'));
-      await tester.pumpAndSettle();
-
-      expect(repo.lastDays, 0);
-      expect(find.text('All time'), findsOneWidget);
-      // The row itself is rendered (the card leads with customer + amount).
-      expect(find.text('Priya Menon'), findsOneWidget);
     });
   });
 }
@@ -150,12 +147,13 @@ const _refund = Refund(
   proof: false,
 );
 
-/// Empty inside the 7/30-day window; returns [allTime] only for `date=all`.
+/// Records every `date` the screen asks for; the rows are old enough that a
+/// 7-day window would have excluded them.
 class _StubReviewsRepository implements ReviewsRepository {
-  _StubReviewsRepository({this.allTime = const []});
+  _StubReviewsRepository({this.all = const []});
 
-  final List<Review> allTime;
-  String? lastDate;
+  final List<Review> all;
+  final List<String?> dates = [];
 
   @override
   Future<ReviewsPage> fetchReviews({
@@ -168,8 +166,16 @@ class _StubReviewsRepository implements ReviewsRepository {
     int page = 1,
     int pageSize = 20,
   }) async {
-    lastDate = date;
-    final rows = date == 'all' ? allTime : const <Review>[];
+    dates.add(date);
+    var rows = date == 'all' ? all : const <Review>[];
+    if (search != null && search.isNotEmpty) {
+      final q = search.toLowerCase();
+      rows = rows
+          .where((r) =>
+              r.customer.toLowerCase().contains(q) ||
+              r.shop.toLowerCase().contains(q))
+          .toList();
+    }
     return ReviewsPage(reviews: rows, count: rows.length);
   }
 
@@ -178,12 +184,12 @@ class _StubReviewsRepository implements ReviewsRepository {
       throw UnimplementedError('${invocation.memberName} not stubbed');
 }
 
-/// Empty inside the 30-day window; returns [allTime] only for `days=0`.
+/// Records every `days` window the screen asks for; only `0` returns rows.
 class _StubRefundsRepository implements RefundsRepository {
-  _StubRefundsRepository({this.allTime = const []});
+  _StubRefundsRepository({this.all = const []});
 
-  final List<Refund> allTime;
-  int? lastDays;
+  final List<Refund> all;
+  final List<int> days = [];
 
   @override
   Future<List<Refund>> fetchRefunds({
@@ -195,8 +201,8 @@ class _StubRefundsRepository implements RefundsRepository {
     String? sort,
     int days = 30,
   }) async {
-    lastDays = days;
-    return days == 0 ? allTime : const <Refund>[];
+    this.days.add(days);
+    return days == 0 ? all : const <Refund>[];
   }
 
   @override

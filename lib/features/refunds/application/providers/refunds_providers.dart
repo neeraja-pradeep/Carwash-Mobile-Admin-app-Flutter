@@ -12,13 +12,12 @@ final refundsRepositoryProvider = Provider<RefundsRepository>(
 
 /// All refunds (read). Auto-dispose to prevent unwanted API calls.
 ///
-/// Only the date window is watched — status/reason/search are applied
-/// client-side by [filteredRefundsProvider], so watching the whole filter
-/// would refetch on every keystroke.
-final refundsProvider = FutureProvider.autoDispose<List<Refund>>((ref) {
-  final days = ref.watch(refundsFilterProvider.select((f) => f.days));
-  return ref.watch(refundsRepositoryProvider).fetchRefunds(days: days);
-});
+/// The list is not date-scoped: the API windows `created_at` to 30 days unless
+/// told otherwise, which silently hid every older refund, so `days: 0` (all
+/// time) is always sent.
+final refundsProvider = FutureProvider.autoDispose<List<Refund>>(
+  (ref) => ref.watch(refundsRepositoryProvider).fetchRefunds(days: 0),
+);
 
 /// Single refund by id or `RF-…` reference — hits the detail endpoint.
 /// `.family` keyed by the detail key (reference preferred over numeric id).
@@ -47,10 +46,6 @@ class RefundsFilterController extends StateNotifier<RefundsFilterState> {
 
   void setQuery(String value) => state = state.copyWith(query: value);
   void setSort(String value) => state = state.copyWith(sort: value);
-
-  /// Widens or narrows the server-side window (`0` = all time) — also the
-  /// escape hatch when the default 30 days hides every refund.
-  void setDays(int value) => state = state.copyWith(days: value);
   void apply(RefundsFilterState next) => state = next;
   void reset() => state = const RefundsFilterState();
   void removeStatus() => state = state.copyWith(status: null);
