@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../network/connectivity.dart';
+
 /// Refetches a screen's data whenever the user navigates back to it.
 ///
 /// Marking providers `autoDispose` is not enough on its own: every bottom-nav
@@ -78,15 +80,17 @@ class _RevisitRefresherState extends ConsumerState<RevisitRefresher> {
     // Fire only on the transition back *into* this route, never on the
     // repeated notifications while it stays current.
     if (isCurrent && !_wasCurrent) {
-      _refresh();
+      _refresh('Revisited');
     }
     _wasCurrent = isCurrent;
   }
 
-  Future<void> _refresh() async {
+  /// [reason] only labels the log line; the guard makes concurrent triggers
+  /// (a route change landing at the same moment as a reconnect) collapse to one.
+  Future<void> _refresh(String reason) async {
     if (_refreshing) return;
     _refreshing = true;
-    debugPrint('🔄 Revisited ${widget.path} — refetching');
+    debugPrint('🔄 $reason ${widget.path} — refetching');
     try {
       await widget.onRevisit(ref);
     } catch (_) {
@@ -98,5 +102,18 @@ class _RevisitRefresherState extends ConsumerState<RevisitRefresher> {
   }
 
   @override
-  Widget build(BuildContext context) => widget.child;
+  Widget build(BuildContext context) {
+    // Auto-retry once when the connection comes back, per
+    // `docs/HIVE implementation.md` — listen to the stream, don't poll.
+    //
+    // Guarded on `_isCurrentRoute` because bottom-nav branches all stay alive
+    // inside the indexed stack: without it, reconnecting would refetch every
+    // tab at once instead of the one being looked at.
+    ref.listen<bool>(isOnlineProvider, (wasOnline, isOnline) {
+      if (isOnline && wasOnline == false && _isCurrentRoute) {
+        _refresh('Back online on');
+      }
+    });
+    return widget.child;
+  }
 }

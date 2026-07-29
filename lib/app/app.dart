@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 
+import '../core/widgets/offline_banner.dart';
 import 'router/app_router.dart';
 import 'theme/dimens.dart';
 import 'theme/theme.dart';
@@ -31,7 +32,13 @@ class DriveDeckApp extends StatelessWidget {
           routerConfig: appRouter,
           builder: (context, routerChild) {
             // Pin text scaling so the design renders 1:1 with ScreenUtil sizing.
-            return MediaQuery.withNoTextScaling(child: routerChild ?? const SizedBox.shrink());
+            return MediaQuery.withNoTextScaling(
+              // Mounted here rather than per screen so every route — including
+              // pushed details and bottom-nav branches — shows the same strip.
+              child: OfflineBanner(
+                child: routerChild ?? const SizedBox.shrink(),
+              ),
+            );
           },
         );
       },
