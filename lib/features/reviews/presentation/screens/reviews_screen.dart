@@ -43,7 +43,7 @@ class ReviewsScreen extends ConsumerWidget {
           children: [
             TopBar(
               title: 'Reviews',
-              subtitle: 'All time',
+              subtitle: filter.dateLabel,
               onBack: () => context.pop(),
             ),
             Container(
@@ -72,9 +72,9 @@ class ReviewsScreen extends ConsumerWidget {
                 ),
                 data: (reviews) {
                   if (reviews.isEmpty) {
-                    // Only blame filters when the admin actually set one —
-                    // the list itself is unscoped, so otherwise there simply
-                    // are no reviews.
+                    // Only blame filters when the admin actually set one. The
+                    // date window counts as one (it defaults to all time), so
+                    // Reset filters genuinely widens the list here.
                     if (filter.hasUserFilter) {
                       return EmptyState(
                         icon: AppIcons.message,
@@ -164,6 +164,13 @@ class _ActiveChips extends ConsumerWidget {
           active: true,
           removable: true,
           onRemove: controller.removeHasText,
+        ),
+      if (filter.date != 'any')
+        AppChip(
+          label: filter.dateLabel,
+          active: true,
+          removable: true,
+          onRemove: controller.removeDate,
         ),
     ];
 

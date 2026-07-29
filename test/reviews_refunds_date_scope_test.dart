@@ -15,9 +15,9 @@ import 'package:new_flutter_project/features/reviews/presentation/screens/review
 
 /// Reviews and Refunds used to load behind a date window the admin never chose
 /// (the API defaults to 7 days / 30 days), which hid older rows and produced a
-/// "try clearing your filters" dead end. Both lists are now unscoped: the
-/// window-disabling value is always sent, and an empty list only blames filters
-/// when the admin actually set one.
+/// "try clearing your filters" dead end. Both now open on all time. Reviews
+/// keeps the designed Date filter — it just defaults to "All time" and counts
+/// as a chip once narrowed; Refunds has no date control at all.
 void main() {
   Future<void> pump(
     WidgetTester tester,
@@ -42,7 +42,7 @@ void main() {
   }
 
   group('Reviews', () {
-    testWidgets('asks the API for all time, never a 7-day window',
+    testWidgets('opens on all time rather than the API default 7-day window',
         (tester) async {
       final repo = _StubReviewsRepository(all: [_review]);
       await pump(tester, const ReviewsScreen(),
@@ -77,7 +77,7 @@ void main() {
       expect(find.text('Reset filters'), findsNothing);
     });
 
-    testWidgets('the filter sheet no longer offers a date scope',
+    testWidgets('the filter sheet offers the date scope, defaulting to all time',
         (tester) async {
       final repo = _StubReviewsRepository(all: [_review]);
       await pump(tester, const ReviewsScreen(),
@@ -86,10 +86,34 @@ void main() {
       await tester.tap(find.text('Filter'));
       await tester.pumpAndSettle();
 
-      expect(find.text('RATING'), findsOneWidget);
-      expect(find.text('DATE'), findsNothing);
-      expect(find.text('Last 7 days'), findsNothing);
-      expect(find.text('Last 30 days'), findsNothing);
+      expect(find.text('DATE'), findsOneWidget);
+      expect(find.text('All time'), findsWidgets);
+      expect(find.text('Last 7 days'), findsOneWidget);
+      expect(find.text('Last 30 days'), findsOneWidget);
+    });
+
+    testWidgets('choosing a window narrows the request and shows a chip',
+        (tester) async {
+      final repo = _StubReviewsRepository(all: [_review]);
+      await pump(tester, const ReviewsScreen(),
+          [reviewsRepositoryProvider.overrideWithValue(repo)]);
+
+      await tester.tap(find.text('Filter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Last 7 days'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Apply filters'));
+      await tester.pumpAndSettle();
+
+      // The window reached the API, and it is visible as a removable chip.
+      expect(repo.dates.last, '7d');
+      expect(find.text('Last 7 days'), findsWidgets);
+      // Rows outside the window are gone, and Reset filters widens again.
+      expect(find.text('No reviews match'), findsOneWidget);
+      await tester.tap(find.text('Reset filters'));
+      await tester.pumpAndSettle();
+      expect(repo.dates.last, 'all');
+      expect(find.text('Priya Menon'), findsOneWidget);
     });
   });
 

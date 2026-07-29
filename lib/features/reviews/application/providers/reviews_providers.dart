@@ -13,14 +13,14 @@ final reviewsRepositoryProvider = Provider<ReviewsRepository>(
 /// Reviews list page (server-side filtered/sorted). Re-fetches whenever the
 /// committed filter changes. autoDispose so it resets when the screen is gone.
 ///
-/// The list is not date-scoped: the API defaults `date` to `7d`, which silently
-/// hid every older review, so `all` is always sent explicitly.
+/// The window is always sent explicitly — the API defaults `date` to `7d`,
+/// which would hide older reviews before the admin has chosen anything.
 final reviewsProvider = FutureProvider.autoDispose<ReviewsPage>((ref) {
   final filter = ref.watch(reviewsFilterProvider);
   return ref.watch(reviewsRepositoryProvider).fetchReviews(
         search: filter.query.trim().isEmpty ? null : filter.query.trim(),
         rating: _ratingParam(filter.rating),
-        date: 'all',
+        date: _dateParam(filter.date),
         hasComment: filter.hasText ? true : null,
         sort: _sortParam(filter.sort),
       );
@@ -78,7 +78,18 @@ class ReviewsFilterController extends StateNotifier<ReviewsFilterState> {
       );
 
   void removeHasText() => state = state.copyWith(hasText: false);
+
+  void removeDate() => state = state.copyWith(date: 'any');
 }
+
+/// Maps the UI date value (`7`/`30`/`any`) to the API `date` enum
+/// (`7d`/`30d`/`all`). Always sent because the API would otherwise default
+/// to `7d`.
+String _dateParam(String date) => switch (date) {
+      '7' => '7d',
+      '30' => '30d',
+      _ => 'all',
+    };
 
 /// Maps the UI rating value to the API `rating` enum (`any` → no filter).
 String? _ratingParam(String rating) => rating == 'any' ? null : rating;

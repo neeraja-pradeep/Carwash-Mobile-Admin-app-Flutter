@@ -9,7 +9,7 @@ import '../../../../core/widgets/app_chip.dart';
 import '../../application/providers/reviews_providers.dart';
 import '../../application/states/reviews_filter_state.dart';
 
-/// Opens the Reviews filter sheet (rating / shop / content). The draft
+/// Opens the Reviews filter sheet (rating / shop / date / content). The draft
 /// lives in [reviewsFilterDraftProvider] so the pinned footer can apply it.
 Future<void> showReviewsFilterSheet(BuildContext context, WidgetRef ref) {
   // Seed the draft from the committed filter each time we open.
@@ -26,6 +26,11 @@ Future<void> showReviewsFilterSheet(BuildContext context, WidgetRef ref) {
 class _ReviewsFilterBody extends ConsumerWidget {
   const _ReviewsFilterBody();
 
+  static const List<(String, String)> _dates = [
+    ('any', 'All time'),
+    ('7', 'Last 7 days'),
+    ('30', 'Last 30 days'),
+  ];
   static const List<(String, String)> _ratings = [
     ('any', 'Any'),
     ('5', '5★ only'),
@@ -76,6 +81,17 @@ class _ReviewsFilterBody extends ConsumerWidget {
                         : [...draft.shops, shop],
                   ),
                 ),
+              ),
+          ],
+        ),
+        _Group(
+          label: 'Date',
+          children: [
+            for (final d in _dates)
+              AppChip(
+                label: d.$2,
+                active: draft.date == d.$1,
+                onTap: () => update(draft.copyWith(date: d.$1)),
               ),
           ],
         ),
