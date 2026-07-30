@@ -19,6 +19,7 @@ drivers see only their assigned jobs and earnings.
 - **go_router** — routing (admin + driver bottom-nav shells)
 - **google_fonts** (Figtree) · **intl** — typography & formatting
 - **hive** / **synchronized** / **connectivity_plus** — wired in the API phase
+- **sentry_flutter** — crash & error reporting
 
 ## Architecture — feature-first, 4 layers
 
@@ -49,6 +50,27 @@ flutter run
 
 Login screen defaults to the **Driver** toggle (OTP demo `1234`); switch to
 **Admin** and sign in (password prefilled `drivedeck`) for the operator app.
+
+## Crash reporting (Sentry)
+
+`SentryFlutter.init` wraps startup in `lib/app/bootstrap/app_bootstrap.dart`, so
+unhandled errors, Flutter framework errors and native crashes are captured
+automatically. Options live in `lib/core/monitoring/sentry_config.dart`; feature
+code reports handled failures through `ErrorReporter` (or `AppLogger.error`,
+which forwards to it) rather than importing the SDK.
+
+The DSN defaults to the compiled-in project value and can be overridden per
+build with `--dart-define=SENTRY_DSN=…` or per machine with a `SENTRY_DSN` entry
+in `.env`; setting it to an empty value turns reporting off.
+
+To verify the pipeline:
+
+```sh
+dart run tool/sentry_first_event.dart   # sends a real event, no device needed
+```
+
+Debug builds also expose a **Diagnostics** group at the bottom of Settings with
+"Send test error" and "Throw a test crash" rows; both are hidden in release.
 
 ## Notes
 

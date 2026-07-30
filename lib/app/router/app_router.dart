@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../core/utils/screen_refresh.dart';
 import '../../features/auth/presentation/screens/auth_check_screen.dart';
@@ -111,6 +112,9 @@ final GlobalKey<NavigatorState> _rootNavigatorKey =
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
   initialLocation: '/auth-check',
+  // Records a breadcrumb per route change so a crash report shows the screens
+  // the operator passed through on the way there.
+  observers: [SentryNavigatorObserver()],
   routes: [
     // Auth check screen — checks for existing session on startup
     GoRoute(

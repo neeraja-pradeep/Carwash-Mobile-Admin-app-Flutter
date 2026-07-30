@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/monitoring/error_reporter.dart';
+import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../infrastructure/repositories/auth_repository_impl.dart';
 import '../states/auth_state.dart';
@@ -62,6 +64,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         otpCode: otpCode,
         role: role,
       );
+      _identify(user);
       state = AuthSuccess(user: user);
     } catch (e) {
       state = AuthError(message: e.toString());
@@ -81,14 +84,18 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       );
 
       // Validate role for admin console - only admin and superadmin are allowed
-      if (validateAdminRole && user.role != 'admin' && user.role != 'superadmin') {
+      if (validateAdminRole &&
+          user.role != 'admin' &&
+          user.role != 'superadmin') {
         await _repository.logout();
         state = AuthError(
-          message: 'Access denied. Only admins and superadmins can access this console.',
+          message:
+              'Access denied. Only admins and superadmins can access this console.',
         );
         return;
       }
 
+      _identify(user);
       state = AuthSuccess(user: user);
     } catch (e) {
       state = AuthError(message: e.toString());
@@ -97,7 +104,18 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _repository.logout();
+    ErrorReporter.clearOperator();
     state = const AuthInitial();
+  }
+
+  /// Attaches the signed-in operator to crash reports so an issue can be traced
+  /// back to the account that hit it.
+  void _identify(User user) {
+    ErrorReporter.setOperator(
+      id: user.id.toString(),
+      username: user.username,
+      role: user.role,
+    );
   }
 
   /// Check if user has valid session on app startup
@@ -107,6 +125,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       if (isValid) {
         final user = await _repository.getCurrentUser();
         if (user != null) {
+          _identify(user);
           state = AuthSuccess(user: user);
           return;
         }

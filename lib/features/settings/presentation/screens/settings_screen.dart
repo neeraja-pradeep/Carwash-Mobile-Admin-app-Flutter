@@ -15,6 +15,7 @@ import '../../../../core/widgets/top_bar.dart';
 import '../../../auth/application/providers/auth_provider.dart';
 import '../../application/providers/settings_providers.dart';
 import '../../domain/entities/app_settings.dart';
+import '../components/diagnostics_section.dart';
 import '../components/edit_field_sheet.dart';
 import '../components/hiring_rates_sheet.dart';
 import '../components/settings_group_section.dart';
@@ -360,6 +361,12 @@ class _Body extends ConsumerWidget {
             ],
           ),
           SizedBox(height: 18.h),
+
+          // ── Diagnostics (debug builds only) ───────────────────────────────────
+          if (DiagnosticsSection.isVisible) ...[
+            const DiagnosticsSection(),
+            SizedBox(height: 18.h),
+          ],
 
           // ── Logout ────────────────────────────────────────────────────────────
           SettingsGroupSection(

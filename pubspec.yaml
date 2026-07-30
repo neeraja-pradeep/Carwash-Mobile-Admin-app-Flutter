@@ -60,6 +60,9 @@ dependencies:
   geocoding: ^4.0.0
   geolocator: ^14.0.2
 
+  # Crash / error reporting. DSN + init live in lib/core/monitoring/.
+  sentry_flutter: ^9.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -67,6 +70,10 @@ dev_dependencies:
 
   # Launcher-icon generator (run: dart run flutter_launcher_icons)
   flutter_launcher_icons: ^0.14.3
+
+  # Pure-Dart Sentry SDK — used only by tool/sentry_first_event.dart, which
+  # verifies the DSN from a terminal without needing a device attached.
+  sentry: ^9.25.0
 
 # Launcher icons are generated from assets/images/app_icon.png (a 1024×1024 PNG
 # export of assets/images/Logo Admin JPEG.jpg.jpeg). The adaptive foreground is the
