@@ -52,7 +52,8 @@ void main() {
 
   Future<void> fillRequired(WidgetTester tester, {required String license}) async {
     await enterInto(tester, 'As on license', 'Ramesh Kurup');
-    await enterInto(tester, '+91 …', '9876543210');
+    // The field holds the national digits only — the +91 is a static prefix.
+    await enterInto(tester, '98765 43210', '9876543210');
     await enterInto(tester, 'KL-07-2011-0001234', license);
   }
 

@@ -64,6 +64,8 @@ class DriverDocument {
     this.backFileUrl,
     this.frontVerified = false,
     this.backVerified = false,
+    this.localFrontPath,
+    this.localBackPath,
   });
 
   final String id;
@@ -78,6 +80,20 @@ class DriverDocument {
   final String? backFileUrl;
   final bool frontVerified;
   final bool backVerified;
+
+  /// Files picked on the Hire form, before the worker exists and can own an
+  /// upload. They are sent as soon as the hire call returns an id; documents
+  /// that already live on the server leave these null.
+  final String? localFrontPath;
+  final String? localBackPath;
+
+  /// Sides still waiting to be uploaded, as `(side, path)` pairs.
+  List<(String, String)> get pendingUploads => [
+        if (localFrontPath != null && localFrontPath!.isNotEmpty)
+          ('front', localFrontPath!),
+        if (localBackPath != null && localBackPath!.isNotEmpty)
+          ('back', localBackPath!),
+      ];
 }
 
 /// Live location of a driver who is currently on a job.

@@ -293,12 +293,14 @@ class _DocumentsSectionState extends ConsumerState<DocumentsSection> {
 
   Future<void> _openLocalSheet(BuildContext context, DriverDocument? existingDoc) {
     String type = existingDoc?.type ?? kDocTypes.first;
-    String customTitle = '';
-    final frontNotifier = ValueNotifier<bool>(existingDoc?.front ?? false);
-    bool back = existingDoc?.back ?? false;
+    String customTitle = existingDoc?.name ?? '';
+    // The picked file paths, held until the worker exists and can own them.
+    final frontNotifier = ValueNotifier<String?>(existingDoc?.localFrontPath);
+    String? backPath = existingDoc?.localBackPath;
 
     void doSave(BuildContext sheetCtx) {
-      final finalType = type == 'Other'
+      final isOther = type == 'Other';
+      final finalType = isOther
           ? (customTitle.trim().isEmpty ? 'Other' : customTitle.trim())
           : type;
       final id =
@@ -306,9 +308,16 @@ class _DocumentsSectionState extends ConsumerState<DocumentsSection> {
       final updated = DriverDocument(
         id: id,
         type: finalType,
-        front: frontNotifier.value,
-        back: back,
+        front: frontNotifier.value != null,
+        back: backPath != null,
         kind: docKindFromLabel(finalType),
+        // Custom names ride along so the upload names the document the same
+        // way the remote sheet would.
+        name: isOther && customTitle.trim().isNotEmpty
+            ? customTitle.trim()
+            : existingDoc?.name,
+        localFrontPath: frontNotifier.value,
+        localBackPath: backPath,
       );
       final docs = List<DriverDocument>.from(widget.documents);
       final idx = docs.indexWhere((d) => d.id == id);
@@ -327,10 +336,10 @@ class _DocumentsSectionState extends ConsumerState<DocumentsSection> {
       context: context,
       title: existingDoc != null ? 'Edit document' : 'Add document',
       maxHeightFactor: 0.85,
-      footer: ValueListenableBuilder<bool>(
+      footer: ValueListenableBuilder<String?>(
         valueListenable: frontNotifier,
         builder: (ctx, frontVal, _) => _DocSheetFooter(
-          canSave: frontVal,
+          canSave: frontVal != null,
           hasDelete: existingDoc != null,
           onSave: () => doSave(ctx),
           onDeleteRequest: existingDoc != null
@@ -356,20 +365,26 @@ class _DocumentsSectionState extends ConsumerState<DocumentsSection> {
               : null,
         ),
       ),
-      builder: (ctx) => ValueListenableBuilder<bool>(
+      builder: (ctx) => ValueListenableBuilder<String?>(
         valueListenable: frontNotifier,
         builder: (ctx2, frontVal, _) => StatefulBuilder(
           builder: (ctx3, setSheet) => _DocSheetBody(
             type: type,
             customTitle: customTitle,
-            front: frontVal,
-            back: back,
+            front: frontVal != null,
+            back: backPath != null,
             onTypeChanged: (t) => setSheet(() => type = t),
             onTitleChanged: (t) => setSheet(() => customTitle = t),
-            onFrontToggle: () {
-              frontNotifier.value = !frontNotifier.value;
+            // Same picker the remote sheet uses — the file is held here and
+            // uploaded once the hire call hands back a worker id.
+            onFrontToggle: () async {
+              final path = await _pickFile();
+              if (path != null) frontNotifier.value = path;
             },
-            onBackToggle: () => setSheet(() => back = !back),
+            onBackToggle: () async {
+              final path = await _pickFile();
+              if (path != null) setSheet(() => backPath = path);
+            },
           ),
         ),
       ),
@@ -705,6 +720,9 @@ class _DocSheetBody extends StatelessWidget {
   final bool back;
   final ValueChanged<String> onTypeChanged;
   final ValueChanged<String> onTitleChanged;
+
+  /// Open the picker for that side. Named "toggle" historically, when the tiles
+  /// only flipped a flag and no file was ever attached.
   final VoidCallback onFrontToggle;
   final VoidCallback onBackToggle;
 
@@ -778,7 +796,8 @@ class _DocSheetBody extends StatelessWidget {
         ),
         SizedBox(height: 10.h),
         Text(
-          'Front is required. Add back only if the document has two sides.',
+          'Tap a side to pick a photo. Front is required; add back only if the '
+          'document has two sides. Photos upload when the driver is saved.',
           style: AppText.figtree(
             size: 11.5,
             weight: FontWeight.w500,

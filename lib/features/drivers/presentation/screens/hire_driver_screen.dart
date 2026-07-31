@@ -13,7 +13,9 @@ import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
 import 'package:new_flutter_project/core/utils/license_number.dart';
+import 'package:new_flutter_project/core/utils/phone_number.dart';
 
+import '../../application/pending_document_upload.dart';
 import '../../application/providers/drivers_providers.dart';
 import '../../domain/entities/field_driver.dart';
 import '../../infrastructure/models/driver_response_model.dart';
@@ -73,7 +75,9 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
     super.initState();
     final d = widget.driver;
     _name = d?.name ?? '';
-    _phone = d?.phone ?? '';
+    // Stored numbers may already carry the country code — the field shows the
+    // ten national digits and the +91 prefix supplies the rest.
+    _phone = PhoneNumber.national(d?.phone ?? '');
     _email = d?.email ?? '';
     _role = d != null
         ? roleLabelFromSubRole(d.subRole)
@@ -87,7 +91,9 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
 
   bool get _valid =>
       _name.trim().isNotEmpty &&
-      _phone.trim().length >= 10 &&
+      // A complete 10-digit Indian mobile — it is the driver's OTP sign-in
+      // number, so a partial one must not reach the backend.
+      PhoneNumber.isValid(_phone) &&
       // A complete, well-formed licence number — a partial or malformed one
       // blocks the CTA rather than being stored as typed.
       LicenseNumber.isValid(_licenseNo) &&
@@ -138,6 +144,40 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
     return v;
   }
 
+  /// Sends the documents attached on the form now that the worker exists and
+  /// can own them. Returns the number of sides that failed.
+  Future<int> _uploadPendingDocuments({
+    required String workerId,
+    required bool isInspector,
+  }) {
+    final mutations = ref.read(driverMutationsProvider);
+    return uploadPendingDocuments(
+      _docs,
+      ({
+        required String filePath,
+        required String kind,
+        required String side,
+        String? name,
+      }) =>
+          mutations.uploadDocument(
+        workerId,
+        isInspector: isInspector,
+        filePath: filePath,
+        kind: kind,
+        side: side,
+        name: name,
+      ),
+    );
+  }
+
+  /// "Driver added", plus what happened to the photos when some didn't make it.
+  String _createdMessage(String noun, int failed) {
+    if (failed == 0) return '$noun added';
+    final sides = failed == 1 ? 'photo' : 'photos';
+    return '$noun added — $failed $sides failed to upload. '
+        'Re-add them from the profile.';
+  }
+
   Future<void> _submit() async {
     if (!_valid || _submitting) return;
     setState(() => _submitting = true);
@@ -156,26 +196,31 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
           licenseNumber: LicenseNumber.format(_licenseNo),
           licenseExpiry: _expiryForPatch(_licenseExpiry),
           licenseVerified: _verified,
-          phone: _phone.trim(),
+          phone: PhoneNumber.e164(_phone),
         );
         if (!mounted) return;
         AppToast.show(context, 'Driver updated');
       } else if (isInspector) {
-        await mutations.hireInspector(
+        final created = await mutations.hireInspector(
           fullName: _name.trim(),
-          phone: _phone.trim(),
+          phone: PhoneNumber.e164(_phone),
           email: _email.trim().isEmpty ? null : _email.trim(),
           vehicleClasses: _classes,
           licenseNumber: LicenseNumber.format(_licenseNo),
           licenseExpiry: _licenseExpiry.trim(),
           licenseVerified: _verified,
         );
+        // Documents can only be attached once the worker has an id.
+        final failed = await _uploadPendingDocuments(
+          workerId: created.id,
+          isInspector: true,
+        );
         if (!mounted) return;
-        AppToast.show(context, 'Inspector added');
+        AppToast.show(context, _createdMessage('Inspector', failed));
       } else {
-        await mutations.hireDriver(
+        final created = await mutations.hireDriver(
           fullName: _name.trim(),
-          phone: _phone.trim(),
+          phone: PhoneNumber.e164(_phone),
           email: _email.trim().isEmpty ? null : _email.trim(),
           subRole: subRoleFromLabel(_role),
           vehicleClasses: _classes,
@@ -183,8 +228,12 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
           licenseExpiry: _licenseExpiry.trim(),
           licenseVerified: _verified,
         );
+        final failed = await _uploadPendingDocuments(
+          workerId: created.id,
+          isInspector: false,
+        );
         if (!mounted) return;
-        AppToast.show(context, 'Driver added');
+        AppToast.show(context, _createdMessage('Driver', failed));
       }
       Navigator.of(context).pop();
     } catch (e) {
@@ -231,9 +280,14 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
                       ),
                       _LabeledField(
                         label: 'Phone (sign-in number)',
+                        // Holds the ten national digits only — the +91 is a
+                        // fixed prefix, not something the admin can type over.
                         value: _phone,
-                        placeholder: '+91 …',
+                        placeholder: '98765 43210',
+                        prefixText: PhoneNumber.dialCode,
                         keyboardType: TextInputType.phone,
+                        inputFormatters: const [PhoneNumberInputFormatter()],
+                        errorText: PhoneNumber.errorFor(_phone),
                         onChanged: (v) => setState(() => _phone = v),
                       ),
                       _LabeledField(
@@ -486,6 +540,7 @@ class _LabeledField extends StatefulWidget {
     this.inputFormatters,
     this.errorText,
     this.helperText,
+    this.prefixText,
   });
 
   final String label;
@@ -495,6 +550,10 @@ class _LabeledField extends StatefulWidget {
   final bool optional;
   final TextInputType keyboardType;
   final List<TextInputFormatter>? inputFormatters;
+
+  /// A fixed, non-editable lead-in rendered inside the field (e.g. `+91`). It
+  /// is never part of [value] — the caller adds it when building the payload.
+  final String? prefixText;
 
   /// Shown in red under the field — the value is present but unusable.
   final String? errorText;
@@ -556,22 +615,46 @@ class _LabeledFieldState extends State<_LabeledField> {
             ),
           ),
           padding: EdgeInsets.symmetric(horizontal: 14.w, vertical: 12.h),
-          child: TextField(
-            controller: _ctrl,
-            onChanged: widget.onChanged,
-            keyboardType: widget.keyboardType,
-            inputFormatters: widget.inputFormatters,
-            decoration: InputDecoration(
-              isDense: true,
-              border: InputBorder.none,
-              hintText: widget.placeholder,
-              hintStyle: AppText.figtree(
-                size: 14.5,
-                weight: FontWeight.w400,
-                color: AppColors.fgMuted,
+          child: Row(
+            children: [
+              if (widget.prefixText != null) ...[
+                Text(
+                  widget.prefixText!,
+                  style: AppText.figtree(
+                    size: 14.5,
+                    weight: FontWeight.w600,
+                    color: AppColors.fgSecondary,
+                  ),
+                ),
+                SizedBox(width: 8.w),
+                Container(
+                  width: 1,
+                  height: 18.h,
+                  color: AppColors.borderDefault,
+                ),
+                SizedBox(width: 10.w),
+              ],
+              Expanded(
+                child: TextField(
+                  controller: _ctrl,
+                  onChanged: widget.onChanged,
+                  keyboardType: widget.keyboardType,
+                  inputFormatters: widget.inputFormatters,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                    border: InputBorder.none,
+                    hintText: widget.placeholder,
+                    hintStyle: AppText.figtree(
+                      size: 14.5,
+                      weight: FontWeight.w400,
+                      color: AppColors.fgMuted,
+                    ),
+                  ),
+                  style: AppText.figtree(size: 14.5, weight: FontWeight.w400),
+                ),
               ),
-            ),
-            style: AppText.figtree(size: 14.5, weight: FontWeight.w400),
+            ],
           ),
         ),
         if (widget.errorText != null || widget.helperText != null) ...[
