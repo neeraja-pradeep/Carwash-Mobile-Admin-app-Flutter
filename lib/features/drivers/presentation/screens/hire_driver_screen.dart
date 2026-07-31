@@ -171,11 +171,14 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
   }
 
   /// "Driver added", plus what happened to the photos when some didn't make it.
-  String _createdMessage(String noun, int failed) {
+  ///
+  /// Only drivers get the "re-add" hint: inspectors are list-only in this
+  /// console, so there is no profile screen to send the admin to.
+  String _createdMessage(String noun, int failed, {required bool isInspector}) {
     if (failed == 0) return '$noun added';
     final sides = failed == 1 ? 'photo' : 'photos';
-    return '$noun added — $failed $sides failed to upload. '
-        'Re-add them from the profile.';
+    final retry = isInspector ? '' : ' Re-add from the profile.';
+    return '$noun added — $failed $sides failed to upload.$retry';
   }
 
   Future<void> _submit() async {
@@ -216,7 +219,10 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
           isInspector: true,
         );
         if (!mounted) return;
-        AppToast.show(context, _createdMessage('Inspector', failed));
+        AppToast.show(
+          context,
+          _createdMessage('Inspector', failed, isInspector: true),
+        );
       } else {
         final created = await mutations.hireDriver(
           fullName: _name.trim(),
@@ -233,7 +239,10 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
           isInspector: false,
         );
         if (!mounted) return;
-        AppToast.show(context, _createdMessage('Driver', failed));
+        AppToast.show(
+          context,
+          _createdMessage('Driver', failed, isInspector: false),
+        );
       }
       Navigator.of(context).pop();
     } catch (e) {

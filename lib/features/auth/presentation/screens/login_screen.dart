@@ -9,6 +9,7 @@ import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/auth/auth_session_signal.dart';
+import '../../../../core/utils/phone_number.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_icons.dart';
 import '../../../auth/application/providers/auth_provider.dart';
@@ -83,12 +84,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() => _driverError = 'Enter your phone number to continue.');
       return;
     }
+    if (!PhoneNumber.isValid(phone)) {
+      setState(() => _driverError =
+          PhoneNumber.errorFor(phone) ?? 'Enter a valid mobile number.');
+      return;
+    }
 
     setState(() => _driverError = null);
 
     try {
       ref.read(authStateProvider.notifier).sendOtp(
-            phone: phone,
+            // E.164 — the same shape the admin console registers the driver
+            // with, so the server's lookup finds them.
+            phone: PhoneNumber.e164(phone),
             role: 'driver',
           );
       // Don't set _otpSent here — wait for state listener to handle OtpSent state
@@ -108,7 +116,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       ref.read(authStateProvider.notifier).verifyOtp(
-            phone: phone,
+            // Must match the number send-otp was called with, or the server
+            // treats this as a different person.
+            phone: PhoneNumber.e164(phone),
             otpCode: otp,
             role: 'driver',
           );
@@ -314,7 +324,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         SizedBox(height: 6.h),
         Text(
           _otpSent
-              ? 'Sent to ${_phoneController.text}.'
+              ? 'Sent to ${PhoneNumber.dialCode} ${_phoneController.text}.'
               : "Use the mobile number your admin registered. "
                   "We'll send a one-time code.",
           style: AppText.figtree(
@@ -332,9 +342,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           SizedBox(height: 7.h),
           _TextField(
             controller: _phoneController,
-            hint: '+91 00000 00000',
+            // The field holds the ten national digits; +91 is fixed, so the
+            // number sent here matches the one the admin registered.
+            hint: '00000 00000',
+            prefixText: PhoneNumber.dialCode,
             icon: AppIcons.phone,
             keyboardType: TextInputType.phone,
+            inputFormatters: const [PhoneNumberInputFormatter()],
+            onChanged: (_) => setState(() => _driverError = null),
             onSubmitted: (_) => _handleSendOtp(),
           ),
           SizedBox(height: 12.h),
@@ -787,6 +802,9 @@ class _TextField extends StatelessWidget {
     required this.icon,
     this.keyboardType,
     this.onSubmitted,
+    this.onChanged,
+    this.inputFormatters,
+    this.prefixText,
   });
 
   final TextEditingController controller;
@@ -794,6 +812,13 @@ class _TextField extends StatelessWidget {
   final IconData icon;
   final TextInputType? keyboardType;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
+  final List<TextInputFormatter>? inputFormatters;
+
+  /// A fixed, non-editable lead-in shown after the icon (e.g. `+91`). Never
+  /// part of the controller's text — the caller adds it when building the
+  /// payload, so what is typed and what is sent can't drift apart.
+  final String? prefixText;
 
   @override
   Widget build(BuildContext context) {
@@ -801,6 +826,8 @@ class _TextField extends StatelessWidget {
       controller: controller,
       keyboardType: keyboardType,
       onSubmitted: onSubmitted,
+      onChanged: onChanged,
+      inputFormatters: inputFormatters,
       style: AppText.figtree(size: 15, weight: FontWeight.w500),
       decoration: InputDecoration(
         hintText: hint,
@@ -809,7 +836,27 @@ class _TextField extends StatelessWidget {
           weight: FontWeight.w400,
           color: AppColors.fgMuted,
         ),
-        prefixIcon: Icon(icon, size: 18.sp, color: AppColors.fgTertiary),
+        prefixIcon: prefixText == null
+            ? Icon(icon, size: 18.sp, color: AppColors.fgTertiary)
+            : Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(width: 14.w),
+                  Icon(icon, size: 18.sp, color: AppColors.fgTertiary),
+                  SizedBox(width: 8.w),
+                  Text(
+                    prefixText!,
+                    style: AppText.figtree(size: 15, weight: FontWeight.w600),
+                  ),
+                  SizedBox(width: 8.w),
+                  Container(
+                    width: 1,
+                    height: 18.h,
+                    color: AppColors.borderDefault,
+                  ),
+                  SizedBox(width: 10.w),
+                ],
+              ),
         filled: true,
         fillColor: AppColors.bgInput,
         contentPadding: EdgeInsets.symmetric(vertical: 16.h, horizontal: 14.w),
