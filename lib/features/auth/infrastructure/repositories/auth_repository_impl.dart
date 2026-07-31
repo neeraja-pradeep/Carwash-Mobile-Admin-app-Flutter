@@ -1,3 +1,4 @@
+import '../../../../core/network/http_client.dart';
 import '../../domain/entities/session.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -63,9 +64,28 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<void> clearLocalSession() async {
+    HttpClient.clearSessionId();
+    await _localDataSource.clearAuthData();
+  }
+
+  @override
   Future<bool> isSessionValid() async {
     final session = await _localDataSource.getSession();
-    return session != null && !session.isExpired;
+    if (session == null || session.isExpired) return false;
+
+    // The stored expiry is client-side bookkeeping we invent at login — the
+    // server can drop the session long before it lapses (signed out elsewhere,
+    // server restart, password change). Trusting it alone let the app restore a
+    // dead session and land on a dashboard where every call 401s.
+    try {
+      return await _authApi.validateSession();
+    } catch (e) {
+      // Transport failure, not a rejection — stay signed in so an offline
+      // launch still works. The 401 interceptor bounces us if the session is
+      // genuinely gone once the network is back.
+      return true;
+    }
   }
 
   Future<void> _saveUserAndSession(AuthResponseModel response) async {

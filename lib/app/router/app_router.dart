@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import '../../core/auth/auth_session_signal.dart';
 import '../../core/utils/screen_refresh.dart';
 import '../../features/auth/presentation/screens/auth_check_screen.dart';
 import '../../features/bookings/application/providers/bookings_providers.dart';
@@ -61,6 +62,11 @@ class Routes {
   const Routes._();
 
   static const String login = '/login';
+  static const String authCheck = '/auth-check';
+
+  /// Routes reachable without a session. Everything else is behind the
+  /// redirect guard below.
+  static const Set<String> public = {login, authCheck};
 
   // Admin bottom-nav branches.
   static const String dashboard = '/admin/dashboard';
@@ -105,20 +111,36 @@ class Routes {
   static String driverCarwash(String id) => '/driver/carwash/$id';
 }
 
+/// Where to send a navigation given the current session state — `null` means
+/// "stay put". Pulled out of [appRouter] so it can be exercised directly.
+String? authGuard({required bool isAuthenticated, required String location}) {
+  if (isAuthenticated) return null;
+  if (Routes.public.contains(location)) return null;
+  return Routes.login;
+}
+
 final GlobalKey<NavigatorState> _rootNavigatorKey =
     GlobalKey<NavigatorState>(debugLabel: 'root');
 
 /// The application's GoRouter configuration.
 final GoRouter appRouter = GoRouter(
   navigatorKey: _rootNavigatorKey,
-  initialLocation: '/auth-check',
+  initialLocation: Routes.authCheck,
   // Records a breadcrumb per route change so a crash report shows the screens
   // the operator passed through on the way there.
   observers: [SentryNavigatorObserver()],
+  // Re-runs `redirect` whenever the session is established or dropped, which is
+  // what pulls the operator out of a protected route the moment the server
+  // rejects their session mid-use.
+  refreshListenable: AuthSessionSignal.instance,
+  redirect: (context, state) => authGuard(
+    isAuthenticated: AuthSessionSignal.instance.isAuthenticated,
+    location: state.matchedLocation,
+  ),
   routes: [
     // Auth check screen — checks for existing session on startup
     GoRoute(
-      path: '/auth-check',
+      path: Routes.authCheck,
       builder: (context, state) => const AuthCheckScreen(),
     ),
 

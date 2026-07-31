@@ -28,6 +28,7 @@ class _AuthCheckScreenState extends ConsumerState<AuthCheckScreen> {
     Future.delayed(const Duration(seconds: 10), () {
       if (mounted && !_navigationCompleted) {
         debugPrint('Auth check timeout - navigating to login');
+        _navigationCompleted = true;
         context.go(Routes.login);
       }
     });

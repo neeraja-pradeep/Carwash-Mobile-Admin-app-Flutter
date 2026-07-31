@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive/hive.dart';
 
+import '../auth/auth_session_signal.dart';
+
 /// Singleton HTTP client shared across the app with session management.
 class HttpClient {
   static final HttpClient _instance = HttpClient._internal();
@@ -11,14 +13,18 @@ class HttpClient {
   static String? _sessionId;
   static String? _csrfToken;
 
+  /// Completes once the stored session/CSRF pair has been read back from Hive.
+  /// Requests await this so the first call after launch still carries the
+  /// cookie — otherwise it goes out bare and comes back 401.
+  static late final Future<void> _restored;
+
   factory HttpClient() {
     return _instance;
   }
 
   HttpClient._internal() {
     _initDio();
-    // Load session/CSRF asynchronously on startup
-    _loadSessionAndCsrfFromStorage();
+    _restored = _loadSessionAndCsrfFromStorage();
   }
 
   /// Load session ID and CSRF token from local storage (no server calls on startup).
@@ -76,6 +82,8 @@ class HttpClient {
     // Add session and CSRF interceptor
     _dio.interceptors.add(_SessionInterceptor());
     _dio.interceptors.add(_CsrfInterceptor());
+    // Must come after the two above so it sees the final outcome of the call.
+    _dio.interceptors.add(_UnauthorizedInterceptor());
 
     // Enable detailed logging in debug mode only
     if (kDebugMode) {
@@ -132,7 +140,14 @@ class HttpClient {
 /// Interceptor to add session ID to all requests.
 class _SessionInterceptor extends Interceptor {
   @override
-  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+  void onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    // The Hive read kicked off in the constructor may still be in flight on the
+    // very first request after launch.
+    await HttpClient._restored;
+
     // Add session ID as cookie if available
     if (HttpClient._sessionId != null && HttpClient._sessionId!.isNotEmpty) {
       options.headers['Cookie'] = 'sessionid=${HttpClient._sessionId}';
@@ -237,6 +252,53 @@ class _CsrfInterceptor extends Interceptor {
     }
 
     super.onResponse(response, handler);
+  }
+}
+
+/// Turns a rejected session into an app-wide sign-out.
+///
+/// Without this a dead session just produced an error state on whatever screen
+/// happened to make the call: the operator sat on a permanently empty dashboard
+/// with no way back to login.
+class _UnauthorizedInterceptor extends Interceptor {
+  /// The sign-in endpoints authenticate you — a 401/403 from them means "bad
+  /// credentials", not "your session died", so they must not trigger a bounce.
+  static const List<String> _authPaths = [
+    '/api/accounts/v1/login/',
+    '/api/accounts/v1/send-otp/',
+    '/api/accounts/v1/verify-otp/',
+    '/api/accounts/v1/logout/',
+  ];
+
+  @override
+  void onError(DioException err, ErrorInterceptorHandler handler) {
+    final path = err.requestOptions.path;
+    if (_isSessionRejection(err) && !_authPaths.any(path.contains)) {
+      debugPrint('🚪 Session rejected by $path — signing out');
+      HttpClient.clearSessionId();
+      AuthSessionSignal.instance.markSessionExpired();
+    }
+    super.onError(err, handler);
+  }
+
+  bool _isSessionRejection(DioException err) {
+    final status = err.response?.statusCode;
+    if (status == 401) return true;
+    // DRF's SessionAuthentication answers unauthenticated requests with 403
+    // rather than 401 (no WWW-Authenticate header to send), so 403 has to be
+    // read from the body — a genuine permission denial must not sign us out.
+    if (status != 403) return false;
+
+    final data = err.response?.data;
+    if (data is! Map) return false;
+    final detail =
+        '${data['detail'] ?? data['error'] ?? data['message'] ?? ''}'
+            .toLowerCase();
+    return detail.contains('authentication credentials were not provided') ||
+        detail.contains('not authenticated') ||
+        detail.contains('invalid session') ||
+        detail.contains('session expired') ||
+        detail.contains('login required');
   }
 }
 

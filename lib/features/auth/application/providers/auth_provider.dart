@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/auth/auth_session_signal.dart';
 import '../../../../core/monitoring/error_reporter.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
@@ -105,17 +106,29 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   Future<void> logout() async {
     await _repository.logout();
     ErrorReporter.clearOperator();
+    AuthSessionSignal.instance.markSignedOut();
+    state = const AuthInitial();
+  }
+
+  /// The server rejected the session while the app was in use (see the 401
+  /// interceptor). Drops the cached user/session so the next launch starts at
+  /// login instead of restoring a session the server no longer honours. No
+  /// logout call — the session is already gone server-side.
+  Future<void> handleSessionExpired() async {
+    await _repository.clearLocalSession();
+    ErrorReporter.clearOperator();
     state = const AuthInitial();
   }
 
   /// Attaches the signed-in operator to crash reports so an issue can be traced
-  /// back to the account that hit it.
+  /// back to the account that hit it, and opens the router's auth gate.
   void _identify(User user) {
     ErrorReporter.setOperator(
       id: user.id.toString(),
       username: user.username,
       role: user.role,
     );
+    AuthSessionSignal.instance.markAuthenticated();
   }
 
   /// Check if user has valid session on app startup
@@ -130,9 +143,18 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
           return;
         }
       }
-      state = const AuthInitial();
+      _markNoSession();
     } catch (e) {
-      state = const AuthInitial();
+      _markNoSession();
     }
+  }
+
+  /// Closes the router's auth gate after a failed session restore, without
+  /// clearing an expiry notice the 401 interceptor may have just raised.
+  void _markNoSession() {
+    if (!AuthSessionSignal.instance.wasExpired) {
+      AuthSessionSignal.instance.markSignedOut();
+    }
+    state = const AuthInitial();
   }
 }

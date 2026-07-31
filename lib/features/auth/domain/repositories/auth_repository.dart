@@ -29,6 +29,10 @@ abstract class AuthRepository {
   /// Clear the current session and user data.
   Future<void> logout();
 
-  /// Check if a session exists and is valid.
+  /// Drop the cached user/session locally without calling the server. Used when
+  /// the server has already rejected the session, so a logout call is pointless.
+  Future<void> clearLocalSession();
+
+  /// Check if a session exists and the server still accepts it.
   Future<bool> isSessionValid();
 }

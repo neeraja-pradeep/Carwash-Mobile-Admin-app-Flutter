@@ -8,6 +8,7 @@ import '../../../../app/config/constants.dart';
 import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
+import '../../../../core/auth/auth_session_signal.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_icons.dart';
 import '../../../auth/application/providers/auth_provider.dart';
@@ -48,6 +49,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _showPassword = false;
   bool _showForgotMessage = false;
   String? _adminError;
+
+  @override
+  void initState() {
+    super.initState();
+    // Explain the bounce when the router sent us here because the server
+    // rejected the session, rather than the operator signing out.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!AuthSessionSignal.instance.consumeExpiredFlag()) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your session expired. Please sign in again.'),
+        ),
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -157,7 +174,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen(authStateProvider, (previous, state) {
+      if (!mounted) return;
       if (state is AuthSuccess) {
+        // `_identify` has already opened the router's auth gate by this point,
+        // so these targets are reachable.
         if (state.user.role == 'driver') {
           context.go(Routes.driverToday);
         } else {

@@ -11,6 +11,7 @@ class AuthApi {
   static const String _verifyOtpPath = '/api/accounts/v1/verify-otp/';
   static const String _loginPath = '/api/accounts/v1/login/';
   static const String _logoutPath = '/api/accounts/v1/logout/';
+  static const String _profilePath = '/api/accounts/v1/profile/';
 
   AuthApi() {
     // Use shared HTTP client to maintain session cookies across the app
@@ -52,10 +53,19 @@ class AuthApi {
       );
 
       final setCookieHeaders = response.headers[HttpHeaders.setCookieHeader];
-      return AuthResponseModel.fromJson(
+      final authResponse = AuthResponseModel.fromJson(
         response.data,
         setCookieHeaders,
       );
+
+      // Same as the password flow: without this the driver is "logged in" but
+      // every subsequent request goes out with no session cookie.
+      if (authResponse.sessionId != null &&
+          authResponse.sessionId!.isNotEmpty) {
+        HttpClient.setSessionId(authResponse.sessionId!);
+      }
+
+      return authResponse;
     } on DioException catch (e) {
       throw _handleError(e);
     }
@@ -102,6 +112,21 @@ class AuthApi {
       // Clear session ID even if logout fails
       HttpClient.clearSessionId();
       throw _handleError(e);
+    }
+  }
+
+  /// Ask the server whether the stored session is still good.
+  ///
+  /// Returns `false` when the server rejects it, and rethrows transport errors
+  /// so the caller can tell "signed out" apart from "no network".
+  Future<bool> validateSession() async {
+    try {
+      await _dio.get(_profilePath);
+      return true;
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      if (status == 401 || status == 403) return false;
+      rethrow;
     }
   }
 
