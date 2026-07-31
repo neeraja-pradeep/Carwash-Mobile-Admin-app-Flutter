@@ -90,6 +90,28 @@ class ShopsApi {
     }
   }
 
+  /// Update an existing shop — PATCH /api/shop/v1/shops/{id}/
+  ///
+  /// Partial by design: only the keys present in [request] are sent, so a field
+  /// the form does not manage keeps its stored value.
+  Future<ShopDetailResponseModel> updateShop(
+    String shopId,
+    ShopUpdateRequest request,
+  ) async {
+    try {
+      final response = await _dio.patch(
+        '$_shopsPath$shopId/',
+        data: request.toJson(),
+      );
+
+      return ShopDetailResponseModel.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Handle DioException and throw appropriate error.
   Exception _handleError(DioException e) {
     if (e.response != null) {

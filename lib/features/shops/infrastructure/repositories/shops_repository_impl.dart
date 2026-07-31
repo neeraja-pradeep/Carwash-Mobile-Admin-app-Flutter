@@ -134,6 +134,66 @@ class ShopsRepositoryImpl implements ShopsRepository {
   }
 
   @override
+  Future<Shop> updateShop(
+    String shopId, {
+    String? name,
+    String? address,
+    String? pincode,
+    String? city,
+    String? state,
+    String? phone,
+    String? ownerName,
+    String? ownerPhone,
+    double? latitude,
+    double? longitude,
+    int? dailyBookingCap,
+    List<String>? supportedVehicleTypes,
+    String? commissionType,
+    String? commissionPercentage,
+    String? commissionAmount,
+    String? commissionFloor,
+    String? bankAccountName,
+    String? bankAccountNumber,
+    String? bankIfsc,
+    String? upiId,
+    String? gstin,
+    String? pan,
+  }) async {
+    try {
+      final request = ShopUpdateRequest(
+        name: name,
+        address: address,
+        pincode: pincode,
+        city: city,
+        state: state,
+        phone: phone,
+        ownerName: ownerName,
+        ownerPhone: ownerPhone,
+        latitude: latitude,
+        longitude: longitude,
+        dailyBookingCap: dailyBookingCap,
+        supportedVehicleTypes: supportedVehicleTypes,
+        commissionType: commissionType,
+        commissionPercentage: commissionPercentage,
+        commissionAmount: commissionAmount,
+        commissionFloor: commissionFloor,
+        bankAccountName: bankAccountName,
+        bankAccountNumber: bankAccountNumber,
+        bankIfsc: bankIfsc,
+        upiId: upiId,
+        gstin: gstin,
+        pan: pan,
+      );
+      final response = await _api.updateShop(shopId, request);
+      return response.toDomain();
+    } catch (e, stackTrace) {
+      debugPrint('❌ ERROR updating shop: $e');
+      debugPrint('StackTrace: $stackTrace');
+      rethrow;
+    }
+  }
+
+  @override
   Future<List<ShopService>> fetchShopServices(String shopId) async {
     final response = await _servicesApi.getServices(shopId);
     return response.results.map((r) => r.toDomain()).toList();

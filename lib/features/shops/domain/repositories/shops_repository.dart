@@ -64,6 +64,36 @@ abstract class ShopsRepository {
     String? pan,
   });
 
+  /// Applies the edited details to an existing shop.
+  ///
+  /// Partial: omitted arguments are not sent, so a column the form has no input
+  /// for keeps its stored value rather than being blanked.
+  Future<Shop> updateShop(
+    String shopId, {
+    String? name,
+    String? address,
+    String? pincode,
+    String? city,
+    String? state,
+    String? phone,
+    String? ownerName,
+    String? ownerPhone,
+    double? latitude,
+    double? longitude,
+    int? dailyBookingCap,
+    List<String>? supportedVehicleTypes,
+    String? commissionType,
+    String? commissionPercentage,
+    String? commissionAmount,
+    String? commissionFloor,
+    String? bankAccountName,
+    String? bankAccountNumber,
+    String? bankIfsc,
+    String? upiId,
+    String? gstin,
+    String? pan,
+  });
+
   /// Returns services for a shop.
   Future<List<ShopService>> fetchShopServices(String shopId);
 

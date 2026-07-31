@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
@@ -74,77 +76,7 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
               _FieldRow(label: 'Address', value: s.address, isLast: true),
               // Map preview
               SizedBox(height: 12.h),
-              GestureDetector(
-                onTap: () async {
-                  final mapsUrl = 'https://maps.google.com/?q=${s.latitude},${s.longitude}';
-                  final uri = Uri.parse(mapsUrl);
-                  if (await canLaunchUrl(uri)) {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  } else {
-                    _toast('Cannot open maps');
-                  }
-                },
-                child: Container(
-                  height: 110.h,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12.r),
-                    gradient: const LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFFE9EFE7), Color(0xFFDFE6EA)],
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      // Grid overlay
-                      Positioned.fill(
-                        child: CustomPaint(painter: _GridPainter()),
-                      ),
-                      Center(
-                        child: Icon(
-                          AppIcons.pin,
-                          size: 30.sp,
-                          color: AppColors.danger,
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 10.h,
-                        right: 10.w,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 12.w,
-                            vertical: 7.h,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.bgCard.withValues(alpha: 0.9),
-                            borderRadius: BorderRadius.circular(999.r),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.12),
-                                blurRadius: 8.r,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(AppIcons.nav, size: 14.sp),
-                              SizedBox(width: 5.w),
-                              Text(
-                                'View location',
-                                style: AppText.figtree(
-                                  size: 12,
-                                  weight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _MapPreview(shop: s, onTap: () => _openInMaps(s)),
             ],
           ),
         ),
@@ -481,6 +413,30 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
     );
   }
 
+  /// Opens the shop's pin in the device's map app.
+  ///
+  /// Coordinates win when the shop has them. A shop that was never pinned
+  /// carries 0/0, which is a real point in the Atlantic — search the address
+  /// instead of dropping the admin in the ocean.
+  Future<void> _openInMaps(Shop s) async {
+    final located = s.latitude != 0 || s.longitude != 0;
+    final query = located
+        ? '${s.latitude},${s.longitude}'
+        : (s.address.trim().isNotEmpty ? s.address.trim() : '');
+
+    if (query.isEmpty) {
+      _toast('No location saved for this shop');
+      return;
+    }
+
+    final uri = Uri.https('www.google.com', '/maps/search/', {'api': '1', 'query': query});
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else if (mounted) {
+      _toast('Cannot open maps');
+    }
+  }
+
   String _commissionDesc(CommissionMode mode) => switch (mode) {
         CommissionMode.percentage => 'Percentage of each booking',
         CommissionMode.flat => 'Flat fee per booking',
@@ -549,6 +505,170 @@ class _OpStrip extends StatelessWidget {
             ),
           );
         }),
+      ),
+    );
+  }
+}
+
+/// The shop's pin on a real map, under the address rows.
+///
+/// Deliberately static: this is a preview, so the map swallows no gestures and
+/// a tap anywhere on it hands off to the device's map app via [onTap]. A shop
+/// with no coordinates falls back to the placeholder rather than showing a map
+/// of the wrong place.
+class _MapPreview extends StatelessWidget {
+  const _MapPreview({required this.shop, required this.onTap});
+
+  final Shop shop;
+  final VoidCallback onTap;
+
+  bool get _located => shop.latitude != 0 || shop.longitude != 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12.r),
+        child: SizedBox(
+          height: 110.h,
+          width: double.infinity,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (_located) _buildMap() else _buildUnpinnedPlaceholder(),
+              Positioned(bottom: 10.h, right: 10.w, child: _buildViewPill()),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMap() {
+    final point = LatLng(shop.latitude, shop.longitude);
+
+    // IgnorePointer, not just disabled flags: it keeps every gesture flowing to
+    // the GestureDetector above so the whole preview stays one tap target.
+    return IgnorePointer(
+      child: FlutterMap(
+        options: MapOptions(
+          initialCenter: point,
+          initialZoom: 15.5,
+          backgroundColor: AppColors.bgPage,
+          interactionOptions:
+              const InteractionOptions(flags: InteractiveFlag.none),
+        ),
+        children: [
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'cc.nexotech.new_flutter_project',
+            maxNativeZoom: 19,
+          ),
+          MarkerLayer(
+            markers: [
+              Marker(
+                point: point,
+                width: 34.r,
+                height: 34.r,
+                // Anchors the marker's bottom edge — the pin's tip — on the
+                // point, instead of centring the glyph over it.
+                alignment: Alignment.topCenter,
+                child: Icon(
+                  Icons.location_on,
+                  size: 34.sp,
+                  color: AppColors.danger,
+                  shadows: const [
+                    Shadow(
+                      color: Color(0x40000000),
+                      blurRadius: 5,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // OSM's tile policy asks for visible attribution wherever its tiles
+          // are shown, this preview included.
+          Positioned(
+            left: 6.w,
+            bottom: 4.h,
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: 5.w, vertical: 1.h),
+              color: AppColors.bgCard.withValues(alpha: 0.7),
+              child: Text(
+                '© OpenStreetMap',
+                style: AppText.figtree(
+                  size: 8,
+                  weight: FontWeight.w500,
+                  color: AppColors.fgTertiary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUnpinnedPlaceholder() {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFE9EFE7), Color(0xFFDFE6EA)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(child: CustomPaint(painter: _GridPainter())),
+          Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(AppIcons.pin, size: 24.sp, color: AppColors.fgTertiary),
+                SizedBox(height: 5.h),
+                Text(
+                  'No location pinned',
+                  style: AppText.figtree(
+                    size: 11.5,
+                    weight: FontWeight.w600,
+                    color: AppColors.fgTertiary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewPill() {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 7.h),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(999.r),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 8.r,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(AppIcons.nav, size: 14.sp),
+          SizedBox(width: 5.w),
+          Text(
+            'View location',
+            style: AppText.figtree(size: 12, weight: FontWeight.w700),
+          ),
+        ],
       ),
     );
   }

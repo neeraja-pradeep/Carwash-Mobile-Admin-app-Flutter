@@ -6,6 +6,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:new_flutter_project/app/config/constants.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
+import 'package:new_flutter_project/core/utils/phone_number.dart';
 import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
@@ -226,7 +227,11 @@ class _CustomerSheetBodyState extends ConsumerState<_CustomerSheetBody> {
   }
 
   bool get _createOk =>
-      _nameCtrl.text.trim().isNotEmpty && _phoneCtrl.text.trim().length >= 6;
+      _nameCtrl.text.trim().isNotEmpty && PhoneNumber.isValid(_phoneCtrl.text);
+
+  /// The number as the rest of the app should see it: `+919876543210`. The
+  /// field itself only ever holds the ten national digits.
+  String get _phoneE164 => PhoneNumber.e164(_phoneCtrl.text);
 
   @override
   Widget build(BuildContext context) {
@@ -374,11 +379,16 @@ class _CustomerSheetBodyState extends ConsumerState<_CustomerSheetBody> {
           onChanged: (_) => setState(() {}),
         ),
         SizedBox(height: 14.h),
+        // +91 is fixed and shown as a static prefix — the field holds the ten
+        // national digits, and the picked customer carries the E.164 form.
         _Field(
           label: 'Mobile number',
           controller: _phoneCtrl,
-          placeholder: '+91 …',
+          placeholder: '98765 43210',
+          prefixText: PhoneNumber.dialCode,
           keyboardType: TextInputType.phone,
+          inputFormatters: const [PhoneNumberInputFormatter()],
+          errorText: PhoneNumber.errorFor(_phoneCtrl.text),
           enabled: !_otpSent,
           onChanged: (_) => setState(() => _otpSent = false),
         ),
@@ -405,7 +415,7 @@ class _CustomerSheetBodyState extends ConsumerState<_CustomerSheetBody> {
                 ? () => widget.onPick(
                       CustomerPick(
                         name: _nameCtrl.text.trim(),
-                        phone: _phoneCtrl.text.trim(),
+                        phone: _phoneE164,
                         isNew: true,
                         verified: true,
                       ),
@@ -423,7 +433,7 @@ class _CustomerSheetBodyState extends ConsumerState<_CustomerSheetBody> {
                 ? () => widget.onPick(
                       CustomerPick(
                         name: _nameCtrl.text.trim(),
-                        phone: _phoneCtrl.text.trim(),
+                        phone: _phoneE164,
                         isNew: true,
                       ),
                     )
@@ -614,6 +624,9 @@ class _Field extends StatelessWidget {
     required this.controller,
     required this.placeholder,
     this.keyboardType,
+    this.inputFormatters,
+    this.prefixText,
+    this.errorText,
     this.enabled = true,
     this.onChanged,
   });
@@ -622,6 +635,13 @@ class _Field extends StatelessWidget {
   final TextEditingController controller;
   final String placeholder;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
+
+  /// Fixed, non-editable text ahead of the input — the `+91` dial code.
+  final String? prefixText;
+
+  /// Validation message under the field; reddens the border while set.
+  final String? errorText;
   final bool enabled;
   final ValueChanged<String>? onChanged;
 
@@ -643,6 +663,7 @@ class _Field extends StatelessWidget {
           controller: controller,
           enabled: enabled,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           onChanged: onChanged,
           decoration: InputDecoration(
             hintText: placeholder,
@@ -651,8 +672,32 @@ class _Field extends StatelessWidget {
               weight: FontWeight.w500,
               color: AppColors.fgMuted,
             ),
-            contentPadding:
-                EdgeInsets.symmetric(horizontal: 13.w, vertical: 14.h),
+            prefixIcon: prefixText == null
+                ? null
+                : Padding(
+                    padding: EdgeInsets.only(left: 13.w, right: 6.w),
+                    child: Text(
+                      prefixText!,
+                      style: AppText.figtree(
+                        size: 15,
+                        weight: FontWeight.w600,
+                        color: enabled
+                            ? AppColors.fgTertiary
+                            : AppColors.fgMuted,
+                      ),
+                    ),
+                  ),
+            prefixIconConstraints: const BoxConstraints(minWidth: 0),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: prefixText == null ? 13.w : 0,
+              vertical: 14.h,
+            ),
+            errorText: errorText,
+            errorStyle: AppText.figtree(
+              size: 11.5,
+              weight: FontWeight.w500,
+              color: AppColors.redFg,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
               borderSide: const BorderSide(color: AppColors.borderDefault),
@@ -668,6 +713,14 @@ class _Field extends StatelessWidget {
             disabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12.r),
               borderSide: const BorderSide(color: AppColors.borderSoft),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: const BorderSide(color: AppColors.redFg),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12.r),
+              borderSide: const BorderSide(color: AppColors.redFg),
             ),
           ),
           style: AppText.figtree(size: 15, weight: FontWeight.w500),

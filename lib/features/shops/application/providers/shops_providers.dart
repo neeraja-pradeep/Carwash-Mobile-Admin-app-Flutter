@@ -195,6 +195,79 @@ final createShopProvider =
   },
 );
 
+// ─── Shop editing ────────────────────────────────────────────────────────────
+
+/// Applies the Edit Shop form to an existing shop and refreshes what the admin
+/// is about to look at — the detail page and the list they came from.
+///
+/// Fields left null are not sent (PATCH), so the form only overwrites what it
+/// actually manages.
+final updateShopProvider = Provider<ShopEditor>((ref) => ShopEditor(ref));
+
+class ShopEditor {
+  const ShopEditor(this._ref);
+
+  final Ref _ref;
+
+  Future<Shop> call(
+    String shopId, {
+    String? name,
+    String? address,
+    String? pincode,
+    String? city,
+    String? state,
+    String? phone,
+    String? ownerName,
+    String? ownerPhone,
+    double? latitude,
+    double? longitude,
+    int? dailyBookingCap,
+    List<String>? supportedVehicleTypes,
+    String? commissionType,
+    String? commissionPercentage,
+    String? commissionAmount,
+    String? commissionFloor,
+    String? bankAccountName,
+    String? bankAccountNumber,
+    String? bankIfsc,
+    String? upiId,
+    String? gstin,
+    String? pan,
+  }) async {
+    final updated = await _ref.read(shopsRepositoryProvider).updateShop(
+          shopId,
+          name: name,
+          address: address,
+          pincode: pincode,
+          city: city,
+          state: state,
+          phone: phone,
+          ownerName: ownerName,
+          ownerPhone: ownerPhone,
+          latitude: latitude,
+          longitude: longitude,
+          dailyBookingCap: dailyBookingCap,
+          supportedVehicleTypes: supportedVehicleTypes,
+          commissionType: commissionType,
+          commissionPercentage: commissionPercentage,
+          commissionAmount: commissionAmount,
+          commissionFloor: commissionFloor,
+          bankAccountName: bankAccountName,
+          bankAccountNumber: bankAccountNumber,
+          bankIfsc: bankIfsc,
+          upiId: upiId,
+          gstin: gstin,
+          pan: pan,
+        );
+
+    _ref.invalidate(shopByIdProvider(shopId));
+    _ref.invalidate(shopDetailProvider(shopId));
+    _ref.invalidate(shopsProvider);
+    _ref.invalidate(shopsPaginatedProvider);
+    return updated;
+  }
+}
+
 /// Refetches the shops list. Shared by pull-to-refresh and the navigate-back
 /// refresh wired up in `app_router.dart`.
 Future<void> refreshShops(WidgetRef ref) async {

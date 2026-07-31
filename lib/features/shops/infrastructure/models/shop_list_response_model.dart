@@ -1,3 +1,4 @@
+import '../../../../core/utils/media_url.dart';
 import '../../domain/entities/shop.dart';
 
 /// Paginated shops list response from API.
@@ -127,7 +128,8 @@ class ShopListItemModel {
         pan: '',
       ),
       hours: [],
-      photos: coverImageUrl != null ? [coverImageUrl!] : [],
+      // Bare BunnyCDN `host/path` values have no scheme; resolve or drop.
+      photos: [resolveMediaUrl(coverImageUrl)].whereType<String>().toList(),
       onboarded: const EditMeta(date: '', by: ''),
       lastEdited: const EditMeta(date: '', by: ''),
       services: [],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +8,7 @@ import 'package:new_flutter_project/app/router/app_router.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
+import 'package:new_flutter_project/core/utils/phone_number.dart';
 import 'package:new_flutter_project/core/widgets/widgets.dart';
 
 import '../../application/providers/shops_providers.dart';
@@ -25,7 +27,10 @@ class ShopFormScreen extends ConsumerWidget {
     if (shopId == null) {
       return const _ShopFormBody(shop: null);
     }
-    final shopAsync = ref.watch(shopByIdProvider(shopId!));
+    // Detail, not `shopByIdProvider`: that one picks the shop out of the *list*
+    // response, which carries no owner, phone, address, coordinates, vehicle
+    // types, commission or bank details — so the form opened blank.
+    final shopAsync = ref.watch(shopDetailProvider(shopId!));
     return shopAsync.when(
       loading: () => const Scaffold(
         backgroundColor: AppColors.bgPage,
@@ -39,7 +44,7 @@ class ShopFormScreen extends ConsumerWidget {
               TopBar(title: 'Edit Shop', onBack: () => context.pop()),
               Expanded(
                 child: ErrorView(
-                  onRetry: () => ref.invalidate(shopByIdProvider(shopId!)),
+                  onRetry: () => ref.invalidate(shopDetailProvider(shopId!)),
                 ),
               ),
             ],
@@ -62,6 +67,7 @@ class _ShopFormBody extends ConsumerStatefulWidget {
 class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
   late _FormState _f;
   bool _touched = false;
+  bool _saving = false;
 
   bool get _isEdit => widget.shop != null;
 
@@ -78,8 +84,26 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
           _f.address.isNotEmpty ||
           _f.latitude != null;
 
+  /// Shop phone is optional, but a half-typed one still blocks the save —
+  /// otherwise it would silently reach the API as an empty string.
+  bool get _shopPhoneOk =>
+      _f.shopPhone.trim().isEmpty || PhoneNumber.isValid(_f.shopPhone);
+
+  /// Owner phone is only validated when creating: on edit it is read-only and
+  /// deliberately not sent, so a shop carrying a legacy number stays saveable.
+  bool get _ownerPhoneOk =>
+      _isEdit ? true : PhoneNumber.isValid(_f.ownerPhone);
+
   bool get _valid =>
-      _f.name.trim().isNotEmpty && _f.ownerPhone.trim().isNotEmpty;
+      _f.name.trim().isNotEmpty && _ownerPhoneOk && _shopPhoneOk;
+
+  /// The API form of a number this form holds. Falls back to the raw value for
+  /// a legacy number the edit screen can't fix (owner phone is read-only there)
+  /// — blanking it would wipe a real number the shop already has.
+  String _outgoing(String raw) {
+    final formatted = PhoneNumber.e164(raw);
+    return formatted.isEmpty ? raw.trim() : formatted;
+  }
 
   void _set(_FormState updated) => setState(() {
         _f = updated;
@@ -102,6 +126,10 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
       longitude: place.longitude,
       address: place.hasAddress ? place.address : _f.address,
       pincode: place.hasPincode ? place.pincode : _f.pincode,
+      // The geocoder resolves these alongside the address; there are no inputs
+      // for them, so the picked point is the only place they can come from.
+      city: place.city.isNotEmpty ? place.city : _f.city,
+      state: place.state.isNotEmpty ? place.state : _f.state,
     ));
 
     if (!place.hasPincode) {
@@ -149,11 +177,16 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
         name: _f.name.trim(),
         address: _f.address.trim(),
         pincode: _f.pincode.trim(),
-        city: '', // API allows empty city initially
-        state: '', // API allows empty state initially
-        phone: _f.shopPhone.trim().isEmpty ? _f.ownerPhone.trim() : _f.shopPhone.trim(),
+        // Resolved by the map picker; empty when no point was picked.
+        city: _f.city.trim(),
+        state: _f.state.trim(),
+        // Both go out as +91XXXXXXXXXX — the field only ever held the ten
+        // national digits.
+        phone: _f.shopPhone.trim().isEmpty
+            ? _outgoing(_f.ownerPhone)
+            : _outgoing(_f.shopPhone),
         ownerName: _f.ownerName.trim(),
-        ownerPhone: _f.ownerPhone.trim(),
+        ownerPhone: _outgoing(_f.ownerPhone),
         latitude: _f.latitude,
         longitude: _f.longitude,
         dailyBookingCap: int.tryParse(_f.cap),
@@ -166,7 +199,8 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
         bankAccountNumber: _f.accNo.isEmpty ? null : _f.accNo,
         bankIfsc: _f.ifsc.isEmpty ? null : _f.ifsc,
         upiId: _f.upi.isEmpty ? null : _f.upi,
-        gstin: null,
+        gstin: _f.gstin.trim().isEmpty ? null : _f.gstin.trim(),
+        // No input for PAN on this form yet.
         pan: null,
       );
 
@@ -203,14 +237,67 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
     }
   }
 
-  /// Edit existing shop (placeholder - not yet implemented in API)
+  /// Saves the edited shop — PATCH /api/shop/v1/shops/{id}/.
   ///
-  /// NOTE: this does not call the API, so a location re-picked in edit mode is
-  /// not persisted yet. Wiring it up means a `PATCH /api/shop/v1/shops/{id}/`
-  /// carrying `latitude` / `longitude` alongside the other edited fields.
-  void _handleEdit() {
-    AppToast.show(context, 'Shop details saved');
-    context.pop();
+  /// Only the fields this form owns are sent. City and state ride along solely
+  /// when the map picker resolved them this session; sending them blank would
+  /// wipe whatever the shop already has, since there are no inputs for them.
+  void _handleEdit() async {
+    if (!_valid || _saving) return;
+    setState(() => _saving = true);
+
+    try {
+      await ref.read(updateShopProvider)(
+        widget.shop!.id,
+        name: _f.name.trim(),
+        address: _f.address.trim(),
+        pincode: _f.pincode.trim(),
+        city: _f.city.trim().isEmpty ? null : _f.city.trim(),
+        state: _f.state.trim().isEmpty ? null : _f.state.trim(),
+        phone: _f.shopPhone.trim().isEmpty
+            ? _outgoing(_f.ownerPhone)
+            : _outgoing(_f.shopPhone),
+        // owner_name / owner_phone are deliberately omitted: they are write-only
+        // helper fields the *create* view pops to resolve an owner User, and
+        // ShopViewSet.perform_update never consumes them. Sending them would be
+        // silently dropped — see the note in the Owner fields' helper text.
+        latitude: _f.latitude,
+        longitude: _f.longitude,
+        dailyBookingCap: int.tryParse(_f.cap),
+        supportedVehicleTypes:
+            _f.types.isNotEmpty ? _mapVehicleTypes(_f.types) : null,
+        commissionType: _mapCommissionType(_f.mode),
+        commissionPercentage:
+            _f.mode == 'percentage' || _f.mode == 'floor' ? _f.pct : null,
+        commissionAmount: _f.mode == 'flat' ? _f.flat : null,
+        commissionFloor: _f.mode == 'floor' ? _f.floor : null,
+        bankAccountName: _f.accName.trim().isEmpty ? null : _f.accName.trim(),
+        bankAccountNumber: _f.accNo.trim().isEmpty ? null : _f.accNo.trim(),
+        bankIfsc: _f.ifsc.trim().isEmpty ? null : _f.ifsc.trim(),
+        upiId: _f.upi.trim().isEmpty ? null : _f.upi.trim(),
+        gstin: _f.gstin.trim().isEmpty ? null : _f.gstin.trim(),
+      );
+      if (!mounted) return;
+      AppToast.show(context, 'Shop details saved');
+      context.pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      final message = e.toString().replaceFirst('Exception: ', '');
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Failed to save shop'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   /// Prompts to discard unsaved details before leaving (matches the design's
@@ -339,21 +426,39 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
                             label: 'Owner name',
                             value: _f.ownerName,
                             placeholder: 'Full name',
+                            // The owner is resolved when the shop is created;
+                            // the update endpoint has no way to reassign it, so
+                            // editing here would look like it saved and not.
+                            readOnly: _isEdit,
                             onChanged: (v) => _set(_f.copyWith(ownerName: v)),
                           ),
+                          // The country code is fixed at +91 and rendered as a
+                          // static prefix, so the field holds the ten national
+                          // digits only and the API always gets E.164.
                           _FInput(
                             label: 'Owner phone',
                             value: _f.ownerPhone,
-                            placeholder: '+91 …',
+                            placeholder: '98765 43210',
+                            prefix: PhoneNumber.dialCode,
                             keyboardType: TextInputType.phone,
+                            inputFormatters: const [PhoneNumberInputFormatter()],
+                            readOnly: _isEdit,
+                            errorText: PhoneNumber.errorFor(_f.ownerPhone),
+                            helperText: _isEdit
+                                ? 'Owner is set when the shop is created and '
+                                    'cannot be changed here.'
+                                : null,
                             onChanged: (v) => _set(_f.copyWith(ownerPhone: v)),
                           ),
                           _FInput(
                             label: 'Shop phone',
                             value: _f.shopPhone,
                             placeholder: 'Number drivers see',
+                            prefix: PhoneNumber.dialCode,
                             optional: true,
                             keyboardType: TextInputType.phone,
+                            inputFormatters: const [PhoneNumberInputFormatter()],
+                            errorText: PhoneNumber.errorFor(_f.shopPhone),
                             onChanged: (v) => _set(_f.copyWith(shopPhone: v)),
                           ),
                         ],
@@ -626,7 +731,7 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
                 child: AppButton(
                   label: _isEdit ? 'Save Changes' : 'Save Shop',
                   full: true,
-                  disabled: !_valid,
+                  disabled: !_valid || _saving,
                   onPressed: _isEdit ? _handleEdit : _handleCreate,
                 ),
               ),
@@ -656,7 +761,11 @@ class _FInput extends StatefulWidget {
     this.trailing,
     this.optional = false,
     this.keyboardType,
+    this.inputFormatters,
     this.maxLines = 1,
+    this.readOnly = false,
+    this.helperText,
+    this.errorText,
   });
 
   final String label;
@@ -670,7 +779,19 @@ class _FInput extends StatefulWidget {
   final Widget? trailing;
   final bool optional;
   final TextInputType? keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
   final int maxLines;
+
+  /// Shown but not editable — the value is real, this screen just can't change
+  /// it. Greyed so the admin isn't invited to type into a field that won't save.
+  final bool readOnly;
+
+  /// Muted note under the field explaining a constraint.
+  final String? helperText;
+
+  /// Validation message under the field. Takes the place of [helperText] and
+  /// reddens the border while the value is wrong.
+  final String? errorText;
 
   @override
   State<_FInput> createState() => _FInputState();
@@ -730,9 +851,13 @@ class _FInputState extends State<_FInput> {
         Container(
           constraints: BoxConstraints(minHeight: 50.h),
           decoration: BoxDecoration(
-            color: AppColors.bgCard,
+            color: widget.readOnly ? AppColors.bgInput : AppColors.bgCard,
             borderRadius: BorderRadius.circular(12.r),
-            border: Border.all(color: AppColors.borderDefault),
+            border: Border.all(
+              color: widget.errorText != null
+                  ? AppColors.redFg
+                  : AppColors.borderDefault,
+            ),
           ),
           child: Row(
             crossAxisAlignment:
@@ -755,6 +880,8 @@ class _FInputState extends State<_FInput> {
                   controller: _controller,
                   onChanged: widget.onChanged,
                   keyboardType: widget.keyboardType,
+                  inputFormatters: widget.inputFormatters,
+                  readOnly: widget.readOnly,
                   maxLines: widget.maxLines,
                   minLines: 1,
                   decoration: InputDecoration(
@@ -768,7 +895,13 @@ class _FInputState extends State<_FInput> {
                       color: AppColors.fgMuted,
                     ),
                   ),
-                  style: AppText.figtree(size: 15, weight: FontWeight.w500),
+                  style: AppText.figtree(
+                    size: 15,
+                    weight: FontWeight.w500,
+                    color: widget.readOnly
+                        ? AppColors.fgTertiary
+                        : AppColors.fgPrimary,
+                  ),
                 ),
               ),
               if (widget.suffix != null) ...[
@@ -793,6 +926,20 @@ class _FInputState extends State<_FInput> {
             ],
           ),
         ),
+        if (widget.errorText != null || widget.helperText != null) ...[
+          SizedBox(height: 6.h),
+          Text(
+            widget.errorText ?? widget.helperText!,
+            style: AppText.figtree(
+              size: 11.5,
+              weight: FontWeight.w500,
+              color: widget.errorText != null
+                  ? AppColors.redFg
+                  : AppColors.fgMuted,
+              height: 1.4,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -987,6 +1134,8 @@ class _FormState {
     this.shopPhone = '',
     this.address = '',
     this.pincode = '',
+    this.city = '',
+    this.state = '',
     this.latitude,
     this.longitude,
     this.cap = '20',
@@ -1011,10 +1160,16 @@ class _FormState {
     return _FormState(
       name: s.name,
       ownerName: s.ownerName,
-      ownerPhone: s.ownerPhone,
-      shopPhone: s.shopPhone,
+      // Stored as +91XXXXXXXXXX; the fields hold the ten national digits and
+      // the +91 prefix supplies the rest.
+      ownerPhone: PhoneNumber.national(s.ownerPhone),
+      shopPhone: PhoneNumber.national(s.shopPhone),
       address: s.address,
-      pincode: pincodeMatch?.group(0) ?? '',
+      // The shop's own column when it has one; the address is only scraped as
+      // a fallback for rows that predate it.
+      pincode: s.pincode.trim().isNotEmpty
+          ? s.pincode.trim()
+          : (pincodeMatch?.group(0) ?? ''),
       latitude: located ? s.latitude : null,
       longitude: located ? s.longitude : null,
       cap: '${s.cap}',
@@ -1037,6 +1192,11 @@ class _FormState {
   final String shopPhone;
   final String address;
   final String pincode;
+
+  /// Resolved by the map picker's geocoder — the form has no inputs for these,
+  /// so they stay empty until a point is picked.
+  final String city;
+  final String state;
 
   /// Coordinates of the point picked on the map — null until the admin picks
   /// one. Sent to the backend verbatim so the shop is placed exactly there.
@@ -1072,6 +1232,8 @@ class _FormState {
     String? shopPhone,
     String? address,
     String? pincode,
+    String? city,
+    String? state,
     double? latitude,
     double? longitude,
     String? cap,
@@ -1093,6 +1255,8 @@ class _FormState {
       shopPhone: shopPhone ?? this.shopPhone,
       address: address ?? this.address,
       pincode: pincode ?? this.pincode,
+      city: city ?? this.city,
+      state: state ?? this.state,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       cap: cap ?? this.cap,

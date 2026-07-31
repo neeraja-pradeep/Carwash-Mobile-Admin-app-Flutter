@@ -245,6 +245,7 @@ class _Body extends ConsumerWidget {
                   context,
                   title: 'Support phone',
                   label: 'Support phone',
+                  phone: true,
                   initialValue: s.business.support,
                   onSaved: (v) => _persist(
                     context,

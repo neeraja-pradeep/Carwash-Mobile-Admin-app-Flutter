@@ -1,3 +1,4 @@
+import '../../../../core/utils/media_url.dart';
 import '../../domain/entities/shop.dart';
 
 /// Shop detail response from GET /api/shop/v1/shops/{id}/
@@ -138,7 +139,7 @@ class ShopDetailResponseModel {
       active: status == 'active',
       vehicleTypes: operationalConfig.vehicleTypes
           .where((v) => v.supported)
-          .map((v) => v.value)
+          .map(_displayVehicleType)
           .toList(),
       commission: _parseCommission(settlement?.commission),
       bank: _parseBank(settlement?.bank),
@@ -156,19 +157,23 @@ class ShopDetailResponseModel {
       weekly: _parseWeeklyDays(),
       slotCapacityEnabled: false,
       slotCap: operationalConfig.dailyBookingCap,
+      pincode: pincode,
       latitude: latitude,
       longitude: longitude,
     );
   }
 
+  /// Cover first, then the extras. BunnyCDN hands these back as a bare
+  /// `host/path` with no scheme, which `NetworkImage` refuses to fetch — so
+  /// every one goes through [resolveMediaUrl] before it reaches the widget.
   List<String> _getPhotos() {
-    final photos = <String>[];
-    if (coverImageUrl?.isNotEmpty == true) photos.add(coverImageUrl!);
-    if (normalImage1Url?.isNotEmpty == true) photos.add(normalImage1Url!);
-    if (normalImage2Url?.isNotEmpty == true) photos.add(normalImage2Url!);
-    if (normalImage3Url?.isNotEmpty == true) photos.add(normalImage3Url!);
-    if (normalImage4Url?.isNotEmpty == true) photos.add(normalImage4Url!);
-    return photos;
+    return [
+      coverImageUrl,
+      normalImage1Url,
+      normalImage2Url,
+      normalImage3Url,
+      normalImage4Url,
+    ].map(resolveMediaUrl).whereType<String>().toList();
   }
 
   List<DayHours> _parseDayHours() {
@@ -203,6 +208,12 @@ class ShopDetailResponseModel {
     return h;
   }
 
+  /// The API speaks in slugs (`suv`) while the vehicle-type chips are labelled
+  /// in display case (`SUV`), so a slug never matched and every supported type
+  /// rendered as unselected. Prefer the label the API already ships.
+  static String _displayVehicleType(VehicleTypeModel v) =>
+      v.label.isNotEmpty ? v.label : v.value;
+
   static Commission _parseCommission(CommissionDetailModel? c) {
     if (c == null) {
       return const Commission(mode: CommissionMode.flat, flat: 0);
@@ -211,21 +222,29 @@ class ShopDetailResponseModel {
     if (c.type == 'percentage') {
       return Commission(
         mode: CommissionMode.percentage,
-        pct: int.tryParse(c.percentage?.toString() ?? '0') ?? 0,
+        pct: _asInt(c.percentage),
       );
     } else if (c.type == 'percent_floor') {
       return Commission(
         mode: CommissionMode.floor,
-        pct: int.tryParse(c.percentage?.toString() ?? '0') ?? 0,
-        floor: int.tryParse(c.floor?.toString() ?? '0') ?? 0,
+        pct: _asInt(c.percentage),
+        floor: _asInt(c.floor),
       );
     } else {
       return Commission(
         mode: CommissionMode.flat,
-        flat: int.tryParse(c.amount?.toString() ?? '0') ?? 0,
+        flat: _asInt(c.amount),
       );
     }
   }
+
+  /// The commission numbers arrive as decimals (`15.0`) — parsing those as an
+  /// int fails outright, which is how a 15% shop ended up showing 0%.
+  static int _asInt(Object? value) => switch (value) {
+        final num n => n.round(),
+        final String s => (double.tryParse(s) ?? 0).round(),
+        _ => 0,
+      };
 
   static BankDetails _parseBank(BankDetailModel? b) {
     return BankDetails(
@@ -409,6 +428,88 @@ class BankDetailModel {
       pan: json['pan'] as String?,
     );
   }
+}
+
+/// Shop edit request for PATCH /api/shop/v1/shops/{id}/
+///
+/// Every field is optional and `null` ones are left out of the body: a PATCH
+/// must only carry what the admin actually changed, or unedited columns (city
+/// and state, which this form has no inputs for) would be blanked out.
+class ShopUpdateRequest {
+  const ShopUpdateRequest({
+    this.name,
+    this.address,
+    this.pincode,
+    this.city,
+    this.state,
+    this.phone,
+    this.ownerName,
+    this.ownerPhone,
+    this.latitude,
+    this.longitude,
+    this.dailyBookingCap,
+    this.supportedVehicleTypes,
+    this.commissionType,
+    this.commissionPercentage,
+    this.commissionAmount,
+    this.commissionFloor,
+    this.bankAccountName,
+    this.bankAccountNumber,
+    this.bankIfsc,
+    this.upiId,
+    this.gstin,
+    this.pan,
+  });
+
+  final String? name;
+  final String? address;
+  final String? pincode;
+  final String? city;
+  final String? state;
+  final String? phone;
+  final String? ownerName;
+  final String? ownerPhone;
+  final double? latitude;
+  final double? longitude;
+  final int? dailyBookingCap;
+  final List<String>? supportedVehicleTypes;
+  final String? commissionType;
+  final String? commissionPercentage;
+  final String? commissionAmount;
+  final String? commissionFloor;
+  final String? bankAccountName;
+  final String? bankAccountNumber;
+  final String? bankIfsc;
+  final String? upiId;
+  final String? gstin;
+  final String? pan;
+
+  Map<String, dynamic> toJson() => {
+        if (name != null) 'name': name,
+        if (address != null) 'address': address,
+        if (pincode != null) 'pincode': pincode,
+        if (city != null) 'city': city,
+        if (state != null) 'state': state,
+        if (phone != null) 'phone': phone,
+        if (ownerName != null) 'owner_name': ownerName,
+        if (ownerPhone != null) 'owner_phone': ownerPhone,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
+        if (dailyBookingCap != null) 'daily_booking_cap': dailyBookingCap,
+        if (supportedVehicleTypes != null)
+          'supported_vehicle_types': supportedVehicleTypes,
+        if (commissionType != null) 'commission_type': commissionType,
+        if (commissionPercentage != null)
+          'commission_percentage': commissionPercentage,
+        if (commissionAmount != null) 'commission_amount': commissionAmount,
+        if (commissionFloor != null) 'commission_floor': commissionFloor,
+        if (bankAccountName != null) 'bank_account_name': bankAccountName,
+        if (bankAccountNumber != null) 'bank_account_number': bankAccountNumber,
+        if (bankIfsc != null) 'bank_ifsc': bankIfsc,
+        if (upiId != null) 'upi_id': upiId,
+        if (gstin != null) 'gstin': gstin,
+        if (pan != null) 'pan': pan,
+      };
 }
 
 /// Shop creation request for POST /api/shop/v1/shops/

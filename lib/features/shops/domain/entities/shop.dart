@@ -200,6 +200,7 @@ class Shop {
     required this.weekly,
     required this.slotCapacityEnabled,
     required this.slotCap,
+    this.pincode = '',
     this.latitude = 0.0,
     this.longitude = 0.0,
   });
@@ -229,6 +230,10 @@ class Shop {
   final List<WeeklyDay> weekly;
   final bool slotCapacityEnabled;
   final int slotCap;
+
+  /// Postal code as its own column server-side — it is not always present in
+  /// [address], so the edit form can't reliably scrape it back out.
+  final String pincode;
   final double latitude;
   final double longitude;
 

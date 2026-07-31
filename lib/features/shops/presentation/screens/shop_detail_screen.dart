@@ -176,6 +176,10 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
       weekly: base.weekly,
       slotCapacityEnabled: base.slotCapacityEnabled,
       slotCap: base.slotCap,
+      // Must be carried over — they default to 0/0, and the Info tab's
+      // "View location" would open the map at null island instead of the shop.
+      latitude: base.latitude,
+      longitude: base.longitude,
     );
   }
 
