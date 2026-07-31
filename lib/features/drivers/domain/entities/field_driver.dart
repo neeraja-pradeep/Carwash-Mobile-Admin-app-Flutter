@@ -1,18 +1,26 @@
 import '../../../../core/status/badge_tone.dart';
 
-/// Onboarding state of a hired field driver / inspector.
-enum DriverStatus { active, invited, suspended }
+/// State of a hired field driver / inspector.
+///
+/// [online] and [offline] are the two ends of the availability toggle the worker
+/// controls from their own app — the API spells them `active` / `inactive`, but
+/// they mean online / offline and are labelled that way here. [invited] and
+/// [suspended] are onboarding states an admin sets; they are not positions on
+/// the availability toggle.
+enum DriverStatus { online, offline, invited, suspended }
 
 /// Display label and tone for a [DriverStatus].
 extension DriverStatusX on DriverStatus {
   String get label => switch (this) {
-        DriverStatus.active => 'Active',
+        DriverStatus.online => 'Online',
+        DriverStatus.offline => 'Offline',
         DriverStatus.invited => 'Invited',
         DriverStatus.suspended => 'Suspended',
       };
 
   BadgeTone get tone => switch (this) {
-        DriverStatus.active => BadgeTone.green,
+        DriverStatus.online => BadgeTone.green,
+        DriverStatus.offline => BadgeTone.grey,
         DriverStatus.invited => BadgeTone.amber,
         DriverStatus.suspended => BadgeTone.red,
       };

@@ -118,7 +118,7 @@ FieldDriver _driverWithLicense(String number) => FieldDriver(
       name: 'Ramesh Kurup',
       phone: '9876543210',
       email: 'ramesh@example.com',
-      status: DriverStatus.active,
+      status: DriverStatus.online,
       role: 'Wash + hire driver',
       subRole: 'wash_hire',
       joined: '17-Jun-2026',

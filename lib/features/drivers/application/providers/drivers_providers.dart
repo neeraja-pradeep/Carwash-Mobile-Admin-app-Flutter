@@ -21,7 +21,8 @@ final driversRepositoryProvider = Provider<DriversRepository>(
 
 /// API status string for a [DriverStatus] filter (`null` = all).
 String? driverStatusParam(DriverStatus? status) => switch (status) {
-      DriverStatus.active => 'active',
+      DriverStatus.online => 'active',
+      DriverStatus.offline => 'inactive',
       DriverStatus.invited => 'invited',
       DriverStatus.suspended => 'suspended',
       null => null,

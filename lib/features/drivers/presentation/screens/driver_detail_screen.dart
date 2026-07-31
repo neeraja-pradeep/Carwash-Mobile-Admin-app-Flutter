@@ -125,7 +125,7 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
 
         final status = driver.status;
         final docs = driver.documents;
-        final onJob = driver.onJob && status == DriverStatus.active;
+        final onJob = driver.onJob && status == DriverStatus.online;
 
         return Scaffold(
           backgroundColor: AppColors.bgPage,

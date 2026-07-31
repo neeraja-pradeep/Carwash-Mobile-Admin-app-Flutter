@@ -409,13 +409,11 @@ class _InspectorCard extends StatelessWidget {
               ],
             ),
           ),
+          // Shows the real state: an inspector who toggled themselves offline
+          // reads "Offline", not "Suspended".
           StatusBadge(
-            label: inspector.active
-                ? DriverStatus.active.label
-                : DriverStatus.suspended.label,
-            tone: inspector.active
-                ? DriverStatus.active.tone
-                : DriverStatus.suspended.tone,
+            label: inspector.status.label,
+            tone: inspector.status.tone,
           ),
         ],
       ),

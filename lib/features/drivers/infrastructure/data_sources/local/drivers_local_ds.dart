@@ -1,4 +1,5 @@
 import '../../../../../app/config/constants.dart';
+import '../../../domain/entities/field_driver.dart';
 import '../../../domain/entities/team_member.dart';
 
 /// Static fallback data for the Team feature.
@@ -21,14 +22,14 @@ class DriversLocalDs {
       name: 'Anand',
       role: 'founder',
       phone: '+91 98470 22119',
-      active: true,
+      status: DriverStatus.online,
     ),
     TeamMember(
       id: 'd2',
       name: 'Vishnu',
       role: 'co-founder',
       phone: '+91 90745 88210',
-      active: true,
+      status: DriverStatus.online,
     ),
   ];
 }

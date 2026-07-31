@@ -314,11 +314,14 @@ class FieldDriverModel {
   }
 
   DriverStatus get _statusEnum => switch (status) {
-        'active' => DriverStatus.active,
+        'active' => DriverStatus.online,
+        // What the worker's own app writes when they toggle themselves offline.
+        'inactive' => DriverStatus.offline,
         'invited' => DriverStatus.invited,
         'suspended' => DriverStatus.suspended,
-        // assigned/inactive aren't surfaced as chips — fold into active.
-        _ => DriverStatus.active,
+        // 'assigned' is system-set while a job runs — the worker is still
+        // online, so it reads as active; the on-job state has its own chip.
+        _ => DriverStatus.online,
       };
 
   /// Maps to the rich [FieldDriver] entity used across the Drivers screens.
@@ -362,7 +365,7 @@ class FieldDriverModel {
       name: name,
       role: roleLabel.isNotEmpty ? roleLabel : 'Inspector',
       phone: user?.phone ?? '',
-      active: status == 'active',
+      status: _statusEnum,
     );
   }
 }

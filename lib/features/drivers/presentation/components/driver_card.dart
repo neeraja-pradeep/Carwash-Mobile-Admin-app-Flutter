@@ -26,7 +26,7 @@ class DriverCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final onJob = driver.onJob && driver.status == DriverStatus.active;
+    final onJob = driver.onJob && driver.status == DriverStatus.online;
 
     return AppCard(
       onTap: onTap,

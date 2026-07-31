@@ -29,7 +29,8 @@ class _DriversFilterBody extends ConsumerWidget {
   const _DriversFilterBody();
 
   static const List<(DriverStatus?, String)> _statuses = [
-    (DriverStatus.active, 'Active'),
+    (DriverStatus.online, 'Online'),
+    (DriverStatus.offline, 'Offline'),
     (DriverStatus.invited, 'Invited'),
     (DriverStatus.suspended, 'Suspended'),
   ];
