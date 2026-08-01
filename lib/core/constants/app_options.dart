@@ -13,6 +13,24 @@ const List<String> kVehicleTypes = [
   'Premium SUV',
 ];
 
+/// Maps a display-case vehicle type label (as shown in [kVehicleTypes] chips)
+/// to the lowercase slug the API accepts. `Compact SUV` / `Premium SUV`
+/// intentionally collapse to `suv` — the backend has no separate choices for
+/// them.
+String vehicleTypeSlug(String displayType) {
+  const mapping = {
+    'hatchback': 'hatchback',
+    'sedan': 'sedan',
+    'compact suv': 'suv',
+    'premium suv': 'suv',
+    'suv': 'suv',
+    'convertible': 'convertible',
+    'bike': 'bike',
+  };
+  final lower = displayType.toLowerCase();
+  return mapping[lower] ?? lower;
+}
+
 /// Reasons a customer may be blocked.
 const List<String> kBlockReasons = [
   'Frequent no-shows',

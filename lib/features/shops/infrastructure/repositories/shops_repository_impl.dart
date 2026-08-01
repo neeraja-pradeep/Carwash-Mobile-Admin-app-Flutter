@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/constants/app_options.dart';
 import '../../domain/entities/holiday.dart';
 import '../../domain/entities/shop.dart';
 import '../../domain/repositories/shops_repository.dart';
@@ -368,7 +369,7 @@ class ShopsRepositoryImpl implements ShopsRepository {
       variants: !uniformPricing && variants != null
           ? variants
               .map((v) => ServiceVariantCreateRequest(
-                    vehicleType: v.type,
+                    vehicleType: vehicleTypeSlug(v.type),
                     price: v.price,
                     durationInSlots: v.minutes ~/ 30,
                     active: v.active,
@@ -401,7 +402,7 @@ class ShopsRepositoryImpl implements ShopsRepository {
       variants: !uniformPricing && variants != null
           ? variants
               .map((v) => ServiceVariantCreateRequest(
-                    vehicleType: v.type,
+                    vehicleType: vehicleTypeSlug(v.type),
                     price: v.price,
                     durationInSlots: v.minutes ~/ 30,
                     active: v.active,

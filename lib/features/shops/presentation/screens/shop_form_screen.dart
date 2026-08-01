@@ -138,23 +138,8 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
   }
 
   /// Map display vehicle type names to API-compatible lowercase values
-  List<String> _mapVehicleTypes(List<String> displayTypes) {
-    final mapping = {
-      'hatchback': 'hatchback',
-      'sedan': 'sedan',
-      'compact suv': 'suv',
-      'premium suv': 'suv',
-      'suv': 'suv',
-      'convertible': 'convertible',
-      'bike': 'bike',
-    };
-    return displayTypes
-        .map((t) {
-          final lower = t.toLowerCase();
-          return mapping[lower] ?? lower;
-        })
-        .toList();
-  }
+  List<String> _mapVehicleTypes(List<String> displayTypes) =>
+      displayTypes.map(vehicleTypeSlug).toList();
 
   /// Map commission type to API-compatible values
   String _mapCommissionType(String mode) {
