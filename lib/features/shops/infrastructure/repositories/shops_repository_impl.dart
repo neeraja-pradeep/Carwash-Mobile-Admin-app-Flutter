@@ -3,11 +3,12 @@ import 'package:flutter/foundation.dart';
 import '../../domain/entities/holiday.dart';
 import '../../domain/entities/shop.dart';
 import '../../domain/repositories/shops_repository.dart';
-import '../data_sources/local/shops_local_ds.dart';
 import '../data_sources/settlements_api.dart';
+import '../data_sources/shop_hours_api.dart';
 import '../data_sources/shop_services_api.dart';
 import '../data_sources/shops_api.dart';
 import '../models/shop_detail_response_model.dart';
+import '../models/shop_hours_models.dart';
 import '../models/shop_service_response_model.dart';
 
 /// Concrete shop repository using API exclusively.
@@ -15,18 +16,22 @@ import '../models/shop_service_response_model.dart';
 class ShopsRepositoryImpl implements ShopsRepository {
   ShopsRepositoryImpl({
     ShopsApi? api,
-    ShopsLocalDs? local,
     ShopServicesApi? servicesApi,
     SettlementsApi? settlementsApi,
+    ShopHoursApi? hoursApi,
   })  : _api = api ?? ShopsApi(),
-        _local = local ?? const ShopsLocalDs(),
         _servicesApi = servicesApi ?? ShopServicesApi(),
-        _settlementsApi = settlementsApi ?? SettlementsApi();
+        _settlementsApi = settlementsApi ?? SettlementsApi(),
+        _hoursApi = hoursApi ?? ShopHoursApi();
 
   final ShopsApi _api;
-  final ShopsLocalDs _local;
   final ShopServicesApi _servicesApi;
   final SettlementsApi _settlementsApi;
+  final ShopHoursApi _hoursApi;
+
+  static const List<String> _weekdayLabels = [
+    'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun',
+  ];
 
   @override
   Future<ShopsPage> fetchShops({
@@ -158,6 +163,7 @@ class ShopsRepositoryImpl implements ShopsRepository {
     String? upiId,
     String? gstin,
     String? pan,
+    bool? useSlotLevelCapacity,
   }) async {
     try {
       final request = ShopUpdateRequest(
@@ -183,6 +189,7 @@ class ShopsRepositoryImpl implements ShopsRepository {
         upiId: upiId,
         gstin: gstin,
         pan: pan,
+        useSlotLevelCapacity: useSlotLevelCapacity,
       );
       final response = await _api.updateShop(shopId, request);
       return response.toDomain();
@@ -192,6 +199,146 @@ class ShopsRepositoryImpl implements ShopsRepository {
       rethrow;
     }
   }
+
+  @override
+  Future<List<WeeklyDay>> fetchWeeklySchedule(String shopId) async {
+    final results = await Future.wait([
+      _hoursApi.getSlots(),
+      _hoursApi.getWeeklyBusinesses(shopId),
+      _hoursApi.getSlotBreaks(shopId),
+    ]);
+    final slots = results[0] as List<SlotModel>;
+    final rows = results[1] as List<WeeklyBusinessModel>;
+    final breaks = results[2] as List<SlotBreakModel>;
+
+    final hourById = {for (final s in slots) s.id: s.hour};
+    final rowByWeekday = {for (final r in rows) r.weekday: r};
+    final breaksByWeekday = <int, List<int>>{};
+    for (final b in breaks) {
+      final hour = hourById[b.slotId];
+      if (hour == null) continue;
+      (breaksByWeekday[b.weekday] ??= []).add(hour);
+    }
+
+    return List.generate(7, (weekday) {
+      final row = rowByWeekday[weekday];
+      final closed = row == null;
+      return WeeklyDay(
+        day: _weekdayLabels[weekday],
+        weekday: weekday,
+        closed: closed,
+        open: closed ? 9 : (hourById[row.openingSlot] ?? 9),
+        close: closed ? 20 : (hourById[row.closingSlot] ?? 20),
+        offSlots: closed
+            ? const <int>[]
+            : ((breaksByWeekday[weekday] ?? const <int>[]).toSet().toList()
+              ..sort()),
+      );
+    });
+  }
+
+  @override
+  Future<void> saveWeeklySchedule(String shopId, List<WeeklyDay> days) async {
+    final results = await Future.wait([
+      _hoursApi.getSlots(),
+      _hoursApi.getWeeklyBusinesses(shopId),
+    ]);
+    final slots = results[0] as List<SlotModel>;
+    final rows = results[1] as List<WeeklyBusinessModel>;
+
+    final onTheHourSlotId = {
+      for (final s in slots)
+        if (s.minute == 0) s.hour: s.id,
+    };
+    final slotIdByHourMinute = {
+      for (final s in slots) '${s.hour}:${s.minute}': s.id,
+    };
+    final rowByWeekday = {for (final r in rows) r.weekday: r};
+
+    await Future.wait(days.map((day) async {
+      final existing = rowByWeekday[day.weekday];
+
+      if (day.closed) {
+        if (existing != null) {
+          await _hoursApi.deleteWeeklyBusiness(existing.id);
+        }
+        return;
+      }
+
+      final openId = onTheHourSlotId[day.open];
+      final closeId = onTheHourSlotId[day.close];
+      if (openId == null || closeId == null) {
+        throw Exception(
+          'Hour ${day.open}–${day.close} has no matching slot on the server grid.',
+        );
+      }
+
+      if (existing == null) {
+        await _hoursApi.createWeeklyBusiness(
+          shopId: shopId,
+          weekday: day.weekday,
+          openingSlotId: openId,
+          closingSlotId: closeId,
+        );
+      } else if (existing.openingSlot != openId ||
+          existing.closingSlot != closeId) {
+        await _hoursApi.updateWeeklyBusiness(
+          id: existing.id,
+          openingSlotId: openId,
+          closingSlotId: closeId,
+        );
+      }
+
+      final breakSlotIds = day.offSlots
+          .expand((h) => [
+                slotIdByHourMinute['$h:0'],
+                slotIdByHourMinute['$h:30'],
+              ])
+          .whereType<int>()
+          .toList();
+      await _hoursApi.setDayBreaks(
+        shopId: shopId,
+        weekday: day.weekday,
+        slotIds: breakSlotIds,
+      );
+    }));
+  }
+
+  @override
+  Future<List<Holiday>> fetchShopHolidays(String shopId) async {
+    final holidays = await _hoursApi.getHolidays(shopId);
+    return holidays
+        .map((h) => Holiday(
+              id: h.id.toString(),
+              date: h.date,
+              label: h.label,
+              shopIds: h.shopIds.map((id) => id.toString()).toList(),
+            ))
+        .toList();
+  }
+
+  @override
+  Future<Holiday> createHoliday({
+    required String date,
+    required String label,
+    required List<String> shopIds,
+  }) async {
+    final holiday = await _hoursApi.createHoliday(
+      date: date,
+      label: label,
+      shopIds: shopIds.map(int.parse).toList(),
+    );
+    return Holiday(
+      id: holiday.id.toString(),
+      date: holiday.date,
+      label: holiday.label,
+      shopIds: holiday.shopIds.map((id) => id.toString()).toList(),
+    );
+  }
+
+  @override
+  Future<void> deleteHoliday(String holidayId) =>
+      _hoursApi.deleteHoliday(int.parse(holidayId));
 
   @override
   Future<List<ShopService>> fetchShopServices(String shopId) async {
@@ -298,9 +445,6 @@ class ShopsRepositoryImpl implements ShopsRepository {
       variantsUpdated: response['variants_updated'] as int? ?? 0,
     );
   }
-
-  @override
-  Future<List<Holiday>> fetchHolidays() => _local.fetchHolidays();
 
   @override
   Future<SettlementPending> fetchPendingSettlements(String shopId) async {

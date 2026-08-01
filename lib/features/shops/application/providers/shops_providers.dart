@@ -85,18 +85,11 @@ final shopByIdProvider =
   }
 });
 
-/// All holidays.
-final holidaysProvider = FutureProvider.autoDispose<List<Holiday>>(
-  (ref) => ref.watch(shopsRepositoryProvider).fetchHolidays(),
-);
-
 /// Holidays for a specific shop (autoDispose).
 final shopHolidaysProvider =
     FutureProvider.autoDispose.family<List<Holiday>, String>((ref, shopId) async {
-  final holidays = await ref.watch(holidaysProvider.future);
-  final result = holidays.where((h) => h.shopIds.contains(shopId)).toList()
-    ..sort((a, b) => a.date.compareTo(b.date));
-  return result;
+  final holidays = await ref.watch(shopsRepositoryProvider).fetchShopHolidays(shopId);
+  return holidays..sort((a, b) => a.date.compareTo(b.date));
 });
 
 /// Working copy of the filter while the filter sheet is open.

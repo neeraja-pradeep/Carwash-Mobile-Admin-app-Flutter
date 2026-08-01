@@ -64,6 +64,7 @@ class DayHours {
 class WeeklyDay {
   const WeeklyDay({
     required this.day,
+    required this.weekday,
     required this.closed,
     required this.open,
     required this.close,
@@ -71,6 +72,9 @@ class WeeklyDay {
   });
 
   final String day;
+
+  /// 0=Mon .. 6=Sun, matching the API's weekday convention.
+  final int weekday;
   final bool closed;
   final int open;
   final int close;

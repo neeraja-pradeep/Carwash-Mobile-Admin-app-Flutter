@@ -1,10 +1,9 @@
 import 'package:new_flutter_project/app/config/constants.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
 
-import '../../../domain/entities/holiday.dart';
 import '../../../domain/entities/shop.dart';
 
-/// Static sample shops + holidays (from `data.jsx` lines 81–276).
+/// Static sample shops (from `data.jsx` lines 81–276).
 ///
 /// This is the ONLY place shop data lives today. In the API phase a remote
 /// data source + Hive cache plug in behind the same repository contract — the
@@ -15,11 +14,6 @@ class ShopsLocalDs {
   Future<List<Shop>> fetchShops() async {
     await Future<void>.delayed(AppConstants.sampleLoadDelay);
     return _shops;
-  }
-
-  Future<List<Holiday>> fetchHolidays() async {
-    await Future<void>.delayed(AppConstants.sampleLoadDelay);
-    return _holidays;
   }
 
   // ─── Hours / slot helpers ────────────────────────────────────────────────
@@ -65,10 +59,12 @@ class ShopsLocalDs {
     required String stdOpen,
     List<int> Function(String day)? offSlotsFn,
   }) {
-    return _weekdays.map((day) {
+    return _weekdays.asMap().entries.map((entry) {
+      final day = entry.value;
       final closed = day == offDay;
       return WeeklyDay(
         day: day,
+        weekday: entry.key,
         closed: closed,
         open: _parseHour(stdOpen),
         close: _parseHour(day == 'Sat' ? '9:00 PM' : '8:00 PM'),
@@ -479,23 +475,6 @@ class ShopsLocalDs {
       weekly: _buildWeekly('Sun', stdOpen: '9:00 AM'),
       slotCapacityEnabled: false,
       slotCap: 3,
-    ),
-  ];
-
-  // ─── HOLIDAYS ────────────────────────────────────────────────────────────
-
-  static const List<Holiday> _holidays = [
-    Holiday(
-      id: 'h1',
-      date: '2026-06-07',
-      label: 'Local festival',
-      shopIds: ['s1', 's2', 's3', 's4'],
-    ),
-    Holiday(
-      id: 'h2',
-      date: '2026-06-15',
-      label: 'Maintenance day',
-      shopIds: ['s1'],
     ),
   ];
 }

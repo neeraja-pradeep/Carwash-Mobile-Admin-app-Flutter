@@ -155,7 +155,7 @@ class ShopDetailResponseModel {
         history: [],
       ),
       weekly: _parseWeeklyDays(),
-      slotCapacityEnabled: false,
+      slotCapacityEnabled: operationalConfig.useSlotLevelCapacity,
       slotCap: operationalConfig.dailyBookingCap,
       pincode: pincode,
       latitude: latitude,
@@ -191,6 +191,7 @@ class ShopDetailResponseModel {
     return operatingHours
         .map((h) => WeeklyDay(
               day: h.label,
+              weekday: h.weekday,
               closed: !h.isOpen,
               open: h.isOpen ? _parseHour(h.openingTime) : 0,
               close: h.isOpen ? _parseHour(h.closingTime) : 0,
@@ -319,11 +320,13 @@ class OperationalConfigModel {
   final int dailyBookingCap;
   final List<VehicleTypeModel> vehicleTypes;
   final bool isActive;
+  final bool useSlotLevelCapacity;
 
   OperationalConfigModel({
     required this.dailyBookingCap,
     required this.vehicleTypes,
     required this.isActive,
+    required this.useSlotLevelCapacity,
   });
 
   factory OperationalConfigModel.fromJson(Map<String, dynamic> json) {
@@ -333,6 +336,7 @@ class OperationalConfigModel {
           .map((v) => VehicleTypeModel.fromJson(v as Map<String, dynamic>))
           .toList(),
       isActive: json['is_active'] as bool? ?? true,
+      useSlotLevelCapacity: json['use_slot_level_capacity'] as bool? ?? false,
     );
   }
 }
@@ -459,6 +463,7 @@ class ShopUpdateRequest {
     this.upiId,
     this.gstin,
     this.pan,
+    this.useSlotLevelCapacity,
   });
 
   final String? name;
@@ -483,6 +488,7 @@ class ShopUpdateRequest {
   final String? upiId;
   final String? gstin;
   final String? pan;
+  final bool? useSlotLevelCapacity;
 
   Map<String, dynamic> toJson() => {
         if (name != null) 'name': name,
@@ -509,6 +515,8 @@ class ShopUpdateRequest {
         if (upiId != null) 'upi_id': upiId,
         if (gstin != null) 'gstin': gstin,
         if (pan != null) 'pan': pan,
+        if (useSlotLevelCapacity != null)
+          'use_slot_level_capacity': useSlotLevelCapacity,
       };
 }
 

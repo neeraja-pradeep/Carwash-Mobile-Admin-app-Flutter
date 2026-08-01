@@ -75,7 +75,7 @@ void main() {
         overrides: [
           // Holidays are fetched over the network by the Info tab; nothing here
           // depends on them.
-          holidaysProvider.overrideWith((ref) async => <Holiday>[]),
+          shopHolidaysProvider(shop.id).overrideWith((ref) async => <Holiday>[]),
         ],
         child: ScreenUtilInit(
           designSize: viewport,

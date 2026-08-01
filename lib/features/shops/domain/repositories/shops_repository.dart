@@ -92,7 +92,33 @@ abstract class ShopsRepository {
     String? upiId,
     String? gstin,
     String? pan,
+    bool? useSlotLevelCapacity,
   });
+
+  /// Returns the shop's editable weekly schedule (one entry per weekday,
+  /// `closed: true` for days with no `ShopWeeklyBusiness` row), with each
+  /// day's recurring slot breaks folded into `offSlots`. Backs the "Manage
+  /// Hours & Slots" screen — distinct from the read-only `operating_hours`
+  /// summary on the shop detail response.
+  Future<List<WeeklyDay>> fetchWeeklySchedule(String shopId);
+
+  /// Persists [days] as the shop's weekly schedule: diffs against the live
+  /// `shop-weekly-businesses` rows (POST/PATCH/DELETE per weekday) and
+  /// replaces each open day's breaks via the `set-day` bulk endpoint.
+  Future<void> saveWeeklySchedule(String shopId, List<WeeklyDay> days);
+
+  /// Holidays that include this shop.
+  Future<List<Holiday>> fetchShopHolidays(String shopId);
+
+  /// Creates a holiday closing [shopIds] on [date].
+  Future<Holiday> createHoliday({
+    required String date,
+    required String label,
+    required List<String> shopIds,
+  });
+
+  /// Removes a holiday.
+  Future<void> deleteHoliday(String holidayId);
 
   /// Returns services for a shop.
   Future<List<ShopService>> fetchShopServices(String shopId);
@@ -135,9 +161,6 @@ abstract class ShopsRepository {
     String shopId,
     double percent,
   );
-
-  /// Returns all holidays (may span multiple shops).
-  Future<List<Holiday>> fetchHolidays();
 
   /// Get pending settlements for a shop.
   Future<SettlementPending> fetchPendingSettlements(String shopId);
