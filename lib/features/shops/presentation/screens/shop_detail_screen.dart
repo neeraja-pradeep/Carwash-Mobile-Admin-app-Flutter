@@ -131,7 +131,7 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
                       },
                       onDuplicate: () {
                         setState(() => _menuOpen = false);
-                        _toast('Duplicate shop');
+                        context.push(Routes.addShop, extra: shop);
                       },
                       onExport: () {
                         setState(() => _menuOpen = false);

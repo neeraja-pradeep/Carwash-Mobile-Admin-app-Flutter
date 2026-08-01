@@ -17,15 +17,19 @@ import '../../domain/entities/shop.dart';
 /// Add / Edit shop form screen.
 /// Mirrors `AddShopForm` in `screen_shopforms.jsx`.
 /// [shopId] is null when adding, non-null when editing.
+/// [duplicateFrom] is only used when adding — prefills the form with another
+/// shop's details ("Duplicate shop" from the detail screen's menu) instead of
+/// opening blank. Ignored when [shopId] is set.
 class ShopFormScreen extends ConsumerWidget {
-  const ShopFormScreen({this.shopId, super.key});
+  const ShopFormScreen({this.shopId, this.duplicateFrom, super.key});
 
   final String? shopId;
+  final Shop? duplicateFrom;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (shopId == null) {
-      return const _ShopFormBody(shop: null);
+      return _ShopFormBody(shop: null, duplicateFrom: duplicateFrom);
     }
     // Detail, not `shopByIdProvider`: that one picks the shop out of the *list*
     // response, which carries no owner, phone, address, coordinates, vehicle
@@ -57,8 +61,9 @@ class ShopFormScreen extends ConsumerWidget {
 }
 
 class _ShopFormBody extends ConsumerStatefulWidget {
-  const _ShopFormBody({required this.shop});
+  const _ShopFormBody({required this.shop, this.duplicateFrom});
   final Shop? shop;
+  final Shop? duplicateFrom;
 
   @override
   ConsumerState<_ShopFormBody> createState() => _ShopFormBodyState();
@@ -74,7 +79,14 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
   @override
   void initState() {
     super.initState();
-    _f = _isEdit ? _FormState.fromShop(widget.shop!) : const _FormState();
+    if (_isEdit) {
+      _f = _FormState.fromShop(widget.shop!);
+    } else if (widget.duplicateFrom != null) {
+      _f = _FormState.fromShop(widget.duplicateFrom!)
+          .copyWith(name: '${widget.duplicateFrom!.name} (Copy)');
+    } else {
+      _f = const _FormState();
+    }
   }
 
   bool get _dirty => _isEdit

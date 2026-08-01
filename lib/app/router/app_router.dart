@@ -18,6 +18,7 @@ import '../../features/reviews/application/providers/reviews_providers.dart';
 import '../../features/service_requests/application/providers/service_requests_providers.dart';
 import '../../features/settings/application/providers/settings_providers.dart';
 import '../../features/shops/application/providers/shops_providers.dart';
+import '../../features/shops/domain/entities/shop.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/bookings/presentation/screens/booking_detail_screen.dart';
 import '../../features/bookings/presentation/screens/bookings_screen.dart';
@@ -259,7 +260,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: Routes.addShop,
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) => const ShopFormScreen(),
+      // `extra` carries the source Shop when opened via "Duplicate shop" —
+      // prefills the form instead of a blank Add Shop.
+      builder: (context, state) =>
+          ShopFormScreen(duplicateFrom: state.extra as Shop?),
     ),
     GoRoute(
       path: '/admin/shop/:id',
