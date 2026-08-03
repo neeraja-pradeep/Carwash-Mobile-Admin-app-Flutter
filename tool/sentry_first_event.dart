@@ -15,7 +15,7 @@ import 'dart:io';
 import 'package:sentry/sentry.dart';
 
 const String _defaultDsn =
-    'https://b9bcdf17a72a19fc5ac78d3fecb41267@o4510509677608960.ingest.us.sentry.io/4511818928160768';
+    'https://fe79ad5742956e58792b1782dba7a089@o4510509677608960.ingest.us.sentry.io/4511847144751104';
 
 /// Mirrors `SentryVerificationException` in lib/core/monitoring so events from
 /// the script and from the in-app trigger group together in the issue stream.

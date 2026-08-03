@@ -18,7 +18,7 @@ class SentryConfig {
 
   /// Drivey Admin project (org `o4510509677608960`) on Sentry US.
   static const String _fallbackDsn =
-      'https://b9bcdf17a72a19fc5ac78d3fecb41267@o4510509677608960.ingest.us.sentry.io/4511818928160768';
+      'https://fe79ad5742956e58792b1782dba7a089@o4510509677608960.ingest.us.sentry.io/4511847144751104';
 
   static const String _dsnFromDefine = String.fromEnvironment('SENTRY_DSN');
 
