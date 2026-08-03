@@ -128,8 +128,7 @@ class ShopListItemModel {
         pan: '',
       ),
       hours: [],
-      // Bare BunnyCDN `host/path` values have no scheme; resolve or drop.
-      photos: [resolveMediaUrl(coverImageUrl)].whereType<String>().toList(),
+      photos: _coverPhoto(),
       onboarded: const EditMeta(date: '', by: ''),
       lastEdited: const EditMeta(date: '', by: ''),
       services: [],
@@ -143,6 +142,12 @@ class ShopListItemModel {
       slotCapacityEnabled: false,
       slotCap: 0,
     );
+  }
+
+  /// Bare BunnyCDN `host/path` values have no scheme; resolve or drop.
+  List<ShopPhoto> _coverPhoto() {
+    final url = resolveMediaUrl(coverImageUrl);
+    return url == null ? const [] : [ShopPhoto(slot: 'cover_image', url: url)];
   }
 }
 

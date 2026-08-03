@@ -44,9 +44,9 @@ class ShopsLocalDs {
     DayHours(day: 'Sun', open: '—', close: '—', closed: true),
   ];
 
-  static const List<String> _photos = [
-    'assets/shop-hero.jpg',
-    'assets/shop-thumb.jpg',
+  static const List<ShopPhoto> _photos = [
+    ShopPhoto(slot: 'cover_image', url: 'assets/shop-hero.jpg'),
+    ShopPhoto(slot: 'normal_image1', url: 'assets/shop-thumb.jpg'),
   ];
 
   // ─── Weekly slot config builder ──────────────────────────────────────────

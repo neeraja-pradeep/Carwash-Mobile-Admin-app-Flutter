@@ -60,6 +60,25 @@ class DayHours {
   final bool closed;
 }
 
+/// One of a shop's photo slots, as stored server-side.
+class ShopPhoto {
+  const ShopPhoto({required this.slot, required this.url});
+
+  /// One of [kShopPhotoSlots] — also the multipart field name to PATCH when
+  /// uploading/replacing this slot.
+  final String slot;
+  final String url;
+}
+
+/// Slot order matching the backend's `_IMAGE_FIELDS` map.
+const List<String> kShopPhotoSlots = [
+  'cover_image',
+  'normal_image1',
+  'normal_image2',
+  'normal_image3',
+  'normal_image4',
+];
+
 /// A weekly slot-config day (24h ints + break slots turned off).
 class WeeklyDay {
   const WeeklyDay({
@@ -226,7 +245,7 @@ class Shop {
   final Commission commission;
   final BankDetails bank;
   final List<DayHours> hours;
-  final List<String> photos;
+  final List<ShopPhoto> photos;
   final EditMeta onboarded;
   final EditMeta lastEdited;
   final List<ShopService> services;

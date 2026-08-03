@@ -1479,6 +1479,44 @@ POST /api/shop/v1/holidays/
 
 ---
 
+### 3.5 · Shop photos
+
+The shop detail screen's photo strip (cover + up to 4 more). Each slot is a
+separate field on `Shop` — there is no dedicated photos endpoint; upload by
+`PATCH`ing the shop itself with exactly one image field per call, the same
+pattern as Banners artwork (§12.1).
+
+- **Endpoint:** `PATCH /api/shop/v1/shops/{id}/`
+- **Content-Type:** `multipart/form-data`, one file field per call:
+
+  | Field | Notes |
+  |---|---|
+  | `cover_image` | The card/hero image — shown as "COVER" in the strip. |
+  | `normal_image1` … `normal_image4` | The remaining gallery slots, in order. |
+
+  Each is a write-only `ImageField` on `ShopSerializer`
+  ([shop/serializers/shop.py](../shop/serializers/shop.py)); the paired
+  read-only `{field}_url` (e.g. `cover_image_url`) is what `GET`/list
+  responses return. Uploading to a field that already has an image **deletes
+  the old CDN file first**, then uploads and compresses the new one via
+  `_process_shop_image` ([shop/helpers.py](../shop/helpers.py)) — same
+  WEBP-compression pipeline as Banners. Uploading to an empty slot is the same
+  call; there's nothing to delete first.
+
+```
+PATCH /api/shop/v1/shops/1/
+Content-Type: multipart/form-data
+
+normal_image2=<file>
+```
+
+> Only ever send **one** image field per request — this mirrors the
+> per-slot "tap a photo → replace it" UI; there is no bulk/multi-image upload
+> endpoint. Non-image fields (`name`, `address`, …) can ride along in the same
+> multipart body if needed, but the admin app sends image PATCHes standalone.
+
+---
+
 ## 4 · Bookings
 
 The **Bookings** tab has a **Driver & Inspection** / **Carwash** segmented control.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -50,7 +51,7 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
         SizedBox(height: 14.h),
 
         // Photos
-        _PhotoStrip(shop: s, onToast: _toast),
+        _PhotoStrip(shop: s),
         SizedBox(height: 14.h),
 
         // Shop identity
@@ -674,71 +675,148 @@ class _MapPreview extends StatelessWidget {
   }
 }
 
-class _PhotoStrip extends StatelessWidget {
-  const _PhotoStrip({required this.shop, required this.onToast});
+class _PhotoStrip extends ConsumerStatefulWidget {
+  const _PhotoStrip({required this.shop});
   final Shop shop;
-  final void Function(String) onToast;
+
+  @override
+  ConsumerState<_PhotoStrip> createState() => _PhotoStripState();
+}
+
+class _PhotoStripState extends ConsumerState<_PhotoStrip> {
+  /// The slot currently being uploaded (shows a spinner, blocks new picks).
+  String? _uploadingSlot;
+
+  void _toast(String msg) => AppToast.show(context, msg);
+
+  /// First slot (in `cover_image` → `normal_image4` order) with no photo yet,
+  /// or null once all 5 are filled.
+  String? get _nextEmptySlot {
+    final filled = widget.shop.photos.map((p) => p.slot).toSet();
+    for (final slot in kShopPhotoSlots) {
+      if (!filled.contains(slot)) return slot;
+    }
+    return null;
+  }
+
+  Future<void> _pickAndUpload(String slot) async {
+    if (_uploadingSlot != null) return;
+
+    final XFile? file;
+    try {
+      file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 85,
+      );
+    } catch (_) {
+      if (mounted) _toast('Could not open gallery');
+      return;
+    }
+    if (file == null || !mounted) return;
+
+    setState(() => _uploadingSlot = slot);
+    try {
+      await ref.read(shopPhotoEditorProvider).uploadFile(
+            widget.shop.id,
+            slot: slot,
+            filePath: file.path,
+          );
+      if (mounted) _toast('Photo updated');
+    } catch (e) {
+      if (mounted) _toast(e.toString().replaceFirst('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _uploadingSlot = null);
+    }
+  }
+
+  void _openLightbox(ShopPhoto photo) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.all(16.r),
+        child: Stack(
+          children: [
+            Center(
+              child: Image.network(
+                photo.url,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Text('Image not found',
+                      style: TextStyle(color: Colors.white)),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 10.h,
+              right: 10.w,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(
+                  width: 40.r,
+                  height: 40.r,
+                  decoration: const BoxDecoration(
+                    color: Colors.white30,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 16.h,
+              right: 16.w,
+              child: GestureDetector(
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUpload(photo.slot);
+                },
+                child: Container(
+                  width: 44.r,
+                  height: 44.r,
+                  decoration: const BoxDecoration(
+                    color: Colors.white30,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(AppIcons.edit, color: Colors.white, size: 20.sp),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final photos = shop.photos.take(3).toList();
+    final photos = widget.shop.photos.take(3).toList();
+    final nextEmptySlot = _nextEmptySlot;
     final cells = <Widget>[];
 
     for (int i = 0; i < 3; i++) {
       if (i < photos.length) {
+        final photo = photos[i];
+        final uploading = _uploadingSlot == photo.slot;
         cells.add(
           Expanded(
             child: GestureDetector(
-              onTap: () async {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => Dialog(
-                    backgroundColor: Colors.black,
-                    insetPadding: EdgeInsets.all(16.r),
-                    child: Stack(
-                      children: [
-                        Center(
-                          child: Image.network(
-                            photos[i],
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) =>
-                                const Center(child: Text('Image not found', style: TextStyle(color: Colors.white))),
-                          ),
-                        ),
-                        Positioned(
-                          top: 10.h,
-                          right: 10.w,
-                          child: GestureDetector(
-                            onTap: () => Navigator.pop(ctx),
-                            child: Container(
-                              width: 40.r,
-                              height: 40.r,
-                              decoration: const BoxDecoration(
-                                color: Colors.white30,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(Icons.close, color: Colors.white),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
+              onTap: uploading ? null : () => _openLightbox(photo),
               child: Container(
                 height: 92.h,
                 decoration: BoxDecoration(
                   color: AppColors.borderSoft,
                   borderRadius: BorderRadius.circular(12.r),
                   image: DecorationImage(
-                    image: NetworkImage(photos[i]),
+                    image: NetworkImage(photo.url),
                     fit: BoxFit.cover,
                     onError: (_, __) {},
                   ),
                 ),
-                child: i == 0
-                    ? Align(
+                child: Stack(
+                  children: [
+                    if (photo.slot == 'cover_image')
+                      Align(
                         alignment: Alignment.topLeft,
                         child: Container(
                           margin: EdgeInsets.all(7.r),
@@ -759,17 +837,32 @@ class _PhotoStrip extends StatelessWidget {
                             ),
                           ),
                         ),
-                      )
-                    : null,
+                      ),
+                    if (uploading)
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
         );
-      } else {
+      } else if (nextEmptySlot != null) {
+        final uploading = _uploadingSlot == nextEmptySlot;
         cells.add(
           Expanded(
             child: GestureDetector(
-              onTap: () => onToast('Upload photo (camera / gallery)'),
+              onTap: uploading ? null : () => _pickAndUpload(nextEmptySlot),
               child: Container(
                 height: 92.h,
                 decoration: BoxDecoration(
@@ -780,26 +873,37 @@ class _PhotoStrip extends StatelessWidget {
                     style: BorderStyle.solid,
                   ),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(AppIcons.plus,
-                        size: 20.sp, color: AppColors.fgTertiary),
-                    SizedBox(height: 4.h),
-                    Text(
-                      'Add',
-                      style: AppText.figtree(
-                        size: 11,
-                        weight: FontWeight.w600,
-                        color: AppColors.fgTertiary,
-                      ),
-                    ),
-                  ],
+                child: Center(
+                  child: uploading
+                      ? SizedBox(
+                          width: 20.sp,
+                          height: 20.sp,
+                          child: const CircularProgressIndicator(
+                              strokeWidth: 2),
+                        )
+                      : Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(AppIcons.plus,
+                                size: 20.sp, color: AppColors.fgTertiary),
+                            SizedBox(height: 4.h),
+                            Text(
+                              'Add',
+                              style: AppText.figtree(
+                                size: 11,
+                                weight: FontWeight.w600,
+                                color: AppColors.fgTertiary,
+                              ),
+                            ),
+                          ],
+                        ),
                 ),
               ),
             ),
           ),
         );
+      } else {
+        break;
       }
       if (i < 2) cells.add(SizedBox(width: 10.w));
     }

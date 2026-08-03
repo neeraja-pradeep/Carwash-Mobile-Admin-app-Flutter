@@ -112,6 +112,38 @@ class ShopsApi {
     }
   }
 
+  /// Uploads/replaces one photo slot — PATCH /api/shop/v1/shops/{id}/ as
+  /// `multipart/form-data` with a single field named [slot] (one of
+  /// `cover_image`, `normal_image1`..`normal_image4`). Exactly one of
+  /// [filePath] (device file, from the picker) or [bytes] (already-downloaded
+  /// data, used when copying a photo onto a duplicated shop) must be given.
+  Future<ShopDetailResponseModel> uploadShopPhoto(
+    String shopId,
+    String slot, {
+    String? filePath,
+    List<int>? bytes,
+  }) async {
+    assert(
+      (filePath == null) != (bytes == null),
+      'Pass exactly one of filePath or bytes.',
+    );
+    try {
+      final file = filePath != null
+          ? await MultipartFile.fromFile(filePath)
+          : MultipartFile.fromBytes(bytes!, filename: slot);
+      final response = await _dio.patch(
+        '$_shopsPath$shopId/',
+        data: FormData.fromMap({slot: file}),
+      );
+
+      return ShopDetailResponseModel.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Handle DioException and throw appropriate error.
   Exception _handleError(DioException e) {
     if (e.response != null) {
@@ -161,7 +193,7 @@ class ShopsApi {
         return Exception('Certificate error');
       case DioExceptionType.connectionError:
         return Exception('Connection error. Please check your internet.');
-      case DioExceptionType.unknown:
+      default:
         return Exception(e.message ?? 'Unknown error occurred');
     }
   }

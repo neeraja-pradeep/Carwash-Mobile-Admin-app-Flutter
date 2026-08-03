@@ -95,6 +95,15 @@ abstract class ShopsRepository {
     bool? useSlotLevelCapacity,
   });
 
+  /// Uploads/replaces one photo slot ([slot] is one of `kShopPhotoSlots`).
+  /// Exactly one of [filePath] or [bytes] must be given.
+  Future<Shop> uploadShopPhoto(
+    String shopId, {
+    required String slot,
+    String? filePath,
+    List<int>? bytes,
+  });
+
   /// Returns the shop's editable weekly schedule (one entry per weekday,
   /// `closed: true` for days with no `ShopWeeklyBusiness` row), with each
   /// day's recurring slot breaks folded into `offSlots`. Backs the "Manage

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -202,8 +203,15 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
       );
 
       // Trigger the provider to create the shop
-      await ref.read(createShopProvider(params).future);
+      final created = await ref.read(createShopProvider(params).future);
       if (!mounted) return;
+
+      final source = widget.duplicateFrom;
+      if (source != null && source.photos.isNotEmpty) {
+        await _copyPhotos(created.id, source.photos);
+        if (!mounted) return;
+      }
+
       AppToast.show(context, 'Shop created (Inactive) — add a service next');
 
       context.pop();
@@ -230,6 +238,40 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
             ),
           ],
         ),
+      );
+    }
+  }
+
+  /// Copies a duplicated shop's photos onto the newly-created one. Fetches
+  /// each source photo's public CDN bytes with a bare [Dio] (not the app's
+  /// authenticated client — these are public BunnyCDN URLs, and there is no
+  /// reason to send the admin's session cookie to a third-party host), then
+  /// re-uploads them to the same slot via the normal upload path. Best-effort
+  /// — a failed copy doesn't block the shop from being created; the admin can
+  /// always add the photo manually afterwards.
+  Future<void> _copyPhotos(String newShopId, List<ShopPhoto> photos) async {
+    final results = await Future.wait(photos.map((photo) async {
+      try {
+        final res = await Dio().get<List<int>>(
+          photo.url,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        await ref.read(shopPhotoEditorProvider).uploadBytes(
+              newShopId,
+              slot: photo.slot,
+              bytes: res.data!,
+            );
+        return true;
+      } catch (_) {
+        return false;
+      }
+    }));
+
+    final failed = results.where((ok) => !ok).length;
+    if (failed > 0 && mounted) {
+      AppToast.show(
+        context,
+        '$failed photo${failed == 1 ? '' : 's'} could not be copied — add manually if needed',
       );
     }
   }

@@ -261,6 +261,53 @@ class ShopEditor {
   }
 }
 
+// ─── Shop photo upload ────────────────────────────────────────────────────────
+
+/// Uploads/replaces a single shop photo slot and refreshes everywhere it's
+/// shown.
+final shopPhotoEditorProvider =
+    Provider<ShopPhotoEditor>((ref) => ShopPhotoEditor(ref));
+
+class ShopPhotoEditor {
+  const ShopPhotoEditor(this._ref);
+
+  final Ref _ref;
+
+  Future<Shop> uploadFile(
+    String shopId, {
+    required String slot,
+    required String filePath,
+  }) =>
+      _upload(shopId, slot: slot, filePath: filePath);
+
+  Future<Shop> uploadBytes(
+    String shopId, {
+    required String slot,
+    required List<int> bytes,
+  }) =>
+      _upload(shopId, slot: slot, bytes: bytes);
+
+  Future<Shop> _upload(
+    String shopId, {
+    required String slot,
+    String? filePath,
+    List<int>? bytes,
+  }) async {
+    final updated = await _ref.read(shopsRepositoryProvider).uploadShopPhoto(
+          shopId,
+          slot: slot,
+          filePath: filePath,
+          bytes: bytes,
+        );
+
+    _ref.invalidate(shopDetailProvider(shopId));
+    _ref.invalidate(shopByIdProvider(shopId));
+    _ref.invalidate(shopsProvider);
+    _ref.invalidate(shopsPaginatedProvider);
+    return updated;
+  }
+}
+
 /// Refetches the shops list. Shared by pull-to-refresh and the navigate-back
 /// refresh wired up in `app_router.dart`.
 Future<void> refreshShops(WidgetRef ref) async {

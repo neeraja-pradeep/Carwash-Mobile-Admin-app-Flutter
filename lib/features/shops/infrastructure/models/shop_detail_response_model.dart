@@ -163,17 +163,25 @@ class ShopDetailResponseModel {
     );
   }
 
-  /// Cover first, then the extras. BunnyCDN hands these back as a bare
-  /// `host/path` with no scheme, which `NetworkImage` refuses to fetch — so
-  /// every one goes through [resolveMediaUrl] before it reaches the widget.
-  List<String> _getPhotos() {
-    return [
-      coverImageUrl,
-      normalImage1Url,
-      normalImage2Url,
-      normalImage3Url,
-      normalImage4Url,
-    ].map(resolveMediaUrl).whereType<String>().toList();
+  /// Cover first, then the extras, each tagged with its slot name so a
+  /// specific photo can be replaced later. BunnyCDN hands these back as a
+  /// bare `host/path` with no scheme, which `NetworkImage` refuses to fetch —
+  /// so every one goes through [resolveMediaUrl] before it reaches the widget.
+  List<ShopPhoto> _getPhotos() {
+    final bySlot = {
+      'cover_image': coverImageUrl,
+      'normal_image1': normalImage1Url,
+      'normal_image2': normalImage2Url,
+      'normal_image3': normalImage3Url,
+      'normal_image4': normalImage4Url,
+    };
+    return kShopPhotoSlots
+        .map((slot) => ShopPhoto(
+              slot: slot,
+              url: resolveMediaUrl(bySlot[slot]) ?? '',
+            ))
+        .where((p) => p.url.isNotEmpty)
+        .toList();
   }
 
   List<DayHours> _parseDayHours() {

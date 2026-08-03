@@ -202,6 +202,22 @@ class ShopsRepositoryImpl implements ShopsRepository {
   }
 
   @override
+  Future<Shop> uploadShopPhoto(
+    String shopId, {
+    required String slot,
+    String? filePath,
+    List<int>? bytes,
+  }) async {
+    final response = await _api.uploadShopPhoto(
+      shopId,
+      slot,
+      filePath: filePath,
+      bytes: bytes,
+    );
+    return response.toDomain();
+  }
+
+  @override
   Future<List<WeeklyDay>> fetchWeeklySchedule(String shopId) async {
     final results = await Future.wait([
       _hoursApi.getSlots(),

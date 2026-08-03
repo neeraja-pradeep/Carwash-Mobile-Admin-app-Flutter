@@ -58,9 +58,9 @@ void main() {
     test('gives BunnyCDN paths a scheme so the images can load', () {
       final shop = _toDomain();
 
-      expect(shop.photos, [
-        'https://car-wash.b-cdn.net/shops/cover/abc.webp',
-        'https://car-wash.b-cdn.net/shops/normal1/def.webp',
+      expect(shop.photos.map((p) => (p.slot, p.url)).toList(), [
+        ('cover_image', 'https://car-wash.b-cdn.net/shops/cover/abc.webp'),
+        ('normal_image1', 'https://car-wash.b-cdn.net/shops/normal1/def.webp'),
       ]);
     });
 
@@ -70,7 +70,8 @@ void main() {
         'normal_image1_url': null,
       });
 
-      expect(shop.photos, ['https://cdn.example.com/a.webp']);
+      expect(shop.photos.map((p) => (p.slot, p.url)).toList(),
+          [('cover_image', 'https://cdn.example.com/a.webp')]);
     });
 
     test('carries the coordinates the map link needs', () {

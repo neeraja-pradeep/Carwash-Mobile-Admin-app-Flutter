@@ -39,7 +39,7 @@ void main() {
           pan: '',
         ),
         hours: const [],
-        photos: const [],
+        photos: const <ShopPhoto>[],
         onboarded: const EditMeta(date: '2026-07-31', by: ''),
         lastEdited: const EditMeta(date: '2026-07-31', by: ''),
         services: const [],

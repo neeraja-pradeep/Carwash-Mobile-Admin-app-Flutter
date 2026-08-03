@@ -133,7 +133,7 @@ class ScheduleApi {
         return Exception('Certificate error');
       case DioExceptionType.connectionError:
         return Exception('Connection error. Please check your internet.');
-      case DioExceptionType.unknown:
+      default:
         return Exception(e.message ?? 'Unknown error occurred');
     }
   }
