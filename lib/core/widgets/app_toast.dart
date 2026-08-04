@@ -59,8 +59,11 @@ class _ToastView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Float above an open keyboard (e.g. the OTP sheet) instead of sitting at
+    // the fixed above-bottom-nav offset, which the keyboard would cover.
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
     return Positioned(
-      bottom: 92.h,
+      bottom: 92.h + keyboardInset,
       left: 0,
       right: 0,
       child: SafeArea(
