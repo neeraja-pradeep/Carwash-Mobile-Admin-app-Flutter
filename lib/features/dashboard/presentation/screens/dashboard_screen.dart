@@ -373,7 +373,7 @@ class _HiringKpis extends StatelessWidget {
           onTap: onDrivers,
         ),
         KpiTile(
-          eyebrow: 'Hire Requests',
+          eyebrow: 'Hire Requests Today',
           value: '${hiring.hireRequestsToday}',
           sub: hiring.hireOpen > 0
               ? '${hiring.hireOpen} needs assignee'
@@ -383,7 +383,7 @@ class _HiringKpis extends StatelessWidget {
           onTap: onServices,
         ),
         KpiTile(
-          eyebrow: 'Inspections',
+          eyebrow: 'Inspections Today',
           value: '${hiring.inspectionsToday}',
           sub: hiring.inspectOpen > 0
               ? '${hiring.inspectOpen} open'
