@@ -193,6 +193,7 @@ class DetailActionController extends StateNotifier<DetailActionState> {
       _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
     }
   }
 
@@ -218,6 +219,7 @@ class DetailActionController extends StateNotifier<DetailActionState> {
       _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
     }
   }
 
@@ -231,6 +233,7 @@ class DetailActionController extends StateNotifier<DetailActionState> {
       _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
     }
   }
 
@@ -258,6 +261,7 @@ class DetailActionController extends StateNotifier<DetailActionState> {
       _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
     }
   }
 
@@ -285,6 +289,7 @@ class DetailActionController extends StateNotifier<DetailActionState> {
       _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
     }
   }
 
@@ -298,6 +303,7 @@ class DetailActionController extends StateNotifier<DetailActionState> {
       _ref.invalidate(serviceRequestsProvider);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
     }
   }
 

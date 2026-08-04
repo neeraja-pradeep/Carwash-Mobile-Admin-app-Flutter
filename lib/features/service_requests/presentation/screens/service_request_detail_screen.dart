@@ -33,6 +33,14 @@ class ServiceRequestDetailScreen extends ConsumerStatefulWidget {
       _ServiceRequestDetailScreenState();
 }
 
+/// Strips Dart's default `Exception: ` prefix so toasts show the raw server
+/// message (e.g. `Incorrect code.` instead of `Exception: otp: Incorrect
+/// code.`).
+String _msg(Object e) {
+  final s = e.toString();
+  return s.startsWith('Exception: ') ? s.substring(11) : s;
+}
+
 class _ServiceRequestDetailScreenState
     extends ConsumerState<ServiceRequestDetailScreen> {
   String _opsNote = '';
@@ -134,7 +142,7 @@ class _ServiceRequestDetailScreenState
               Text('Could not load request',
                   style: AppText.figtree(size: 14, color: AppColors.danger)),
               SizedBox(height: 8.h),
-              Text(e.toString(),
+              Text(_msg(e),
                   style: AppText.figtree(size: 12, color: AppColors.fgTertiary),
                   textAlign: TextAlign.center),
             ],
@@ -220,7 +228,7 @@ class _DetailBody extends ConsumerWidget {
                   }
                 } catch (e) {
                   if (context.mounted) {
-                    AppToast.show(context, e.toString());
+                    AppToast.show(context, _msg(e));
                   }
                 }
               },
@@ -245,7 +253,7 @@ class _DetailBody extends ConsumerWidget {
                     }
                   } catch (e) {
                     if (context.mounted) {
-                      AppToast.show(context, e.toString());
+                      AppToast.show(context, _msg(e));
                     }
                   }
                 },
@@ -454,7 +462,7 @@ class _DetailBody extends ConsumerWidget {
                   }
                 } catch (e) {
                   if (context.mounted) {
-                    AppToast.show(context, e.toString());
+                    AppToast.show(context, _msg(e));
                   }
                 }
               },
@@ -490,7 +498,7 @@ class _DetailBody extends ConsumerWidget {
             }
           } catch (e) {
             if (context.mounted) {
-              AppToast.show(context, e.toString());
+              AppToast.show(context, _msg(e));
             }
           }
         },
@@ -581,7 +589,7 @@ class _DetailBody extends ConsumerWidget {
         }
       } catch (e) {
         if (context.mounted) {
-          AppToast.show(context, e.toString());
+          AppToast.show(context, _msg(e));
         }
       }
     }
@@ -680,7 +688,7 @@ class _TopBar extends StatelessWidget {
               }
             } catch (e) {
               if (context.mounted) {
-                AppToast.show(context, 'Error: ${e.toString()}');
+                AppToast.show(context, _msg(e));
               }
             }
           },
