@@ -113,12 +113,15 @@ class _PayoutsScreenState extends ConsumerState<PayoutsScreen> {
                     data: (page) {
                       final payouts = page.items;
                       if (payouts.isEmpty) {
+                        final hasFilters = filter.activeCount > 0;
                         return EmptyState(
                           icon: AppIcons.wallet,
-                          title: 'No payouts found',
-                          body: 'Try clearing your search or filters.',
-                          actionLabel: 'Reset filters',
-                          onAction: controller.reset,
+                          title: hasFilters ? 'No payouts match' : 'No payouts yet',
+                          body: hasFilters
+                              ? 'Try clearing your search or filters.'
+                              : 'Payouts will appear here once shops are settled.',
+                          actionLabel: hasFilters ? 'Reset filters' : null,
+                          onAction: hasFilters ? controller.reset : null,
                         );
                       }
                       return RefreshIndicator(

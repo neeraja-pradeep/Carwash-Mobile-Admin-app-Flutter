@@ -175,11 +175,6 @@ class DashboardScreen extends ConsumerWidget {
                                 ModuleTile(
                                   icon: AppIcons.receipt,
                                   label: 'Refunds',
-                                  // Pending-refund count badge (data-driven from
-                                  // the snapshot; matches `badge={2}` in
-                                  // screen_dashboard.jsx).
-                                  badge:
-                                      snapshotAsync.valueOrNull?.pendingRefunds,
                                   onTap: () => context.push(Routes.refunds),
                                 ),
                                 ModuleTile(

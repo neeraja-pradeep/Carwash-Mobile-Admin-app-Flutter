@@ -187,6 +187,17 @@ class RefundsApi {
     return RefundListResponse.fromJson(data);
   }
 
+  /// Pulls the first message out of a DRF field-validation error dict, e.g.
+  /// {"booking_reference": ["No booking found for this reference."]} or
+  /// {"booking_reference": "No booking found for this reference."}.
+  String? _firstFieldError(Map<String, dynamic> errorData) {
+    for (final value in errorData.values) {
+      if (value is String && value.isNotEmpty) return value;
+      if (value is List && value.isNotEmpty) return value.first.toString();
+    }
+    return null;
+  }
+
   /// Handle DioException and throw appropriate error
   Exception _handleError(DioException e) {
     if (e.response != null) {
@@ -201,6 +212,10 @@ class RefundsApi {
         final errorMessage = errorData['error'] ??
             errorData['detail'] ??
             errorData['message'] ??
+            // DRF field-validation errors come back keyed by field name, e.g.
+            // {"booking_reference": "No booking found for this reference."}
+            // — fall back to the first field's message before giving up.
+            _firstFieldError(errorData) ??
             'An error occurred';
         return Exception(errorMessage);
       }
