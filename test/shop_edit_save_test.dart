@@ -38,6 +38,19 @@ void main() {
       expect(body['gstin'], '32ABCFS1234K1Z5');
     });
 
+    test('carries the live status the activation toggle writes', () {
+      // The "Shop active" toggle used to move a local flag only — the request
+      // had no status field at all, so activation never left the device.
+      expect(
+        const ShopUpdateRequest(status: 'active').toJson(),
+        {'status': 'active'},
+      );
+      expect(
+        const ShopUpdateRequest(status: 'inactive').toJson(),
+        {'status': 'inactive'},
+      );
+    });
+
     test('omits every field that was not supplied', () {
       // The critical property: city and state have no inputs on the form, so
       // they must be absent from the body rather than sent blank — a PATCH
@@ -45,6 +58,7 @@ void main() {
       final body = const ShopUpdateRequest(name: 'Sparkle Motors').toJson();
 
       expect(body, {'name': 'Sparkle Motors'});
+      expect(body.containsKey('status'), isFalse);
       expect(body.containsKey('city'), isFalse);
       expect(body.containsKey('state'), isFalse);
       expect(body.containsKey('latitude'), isFalse);

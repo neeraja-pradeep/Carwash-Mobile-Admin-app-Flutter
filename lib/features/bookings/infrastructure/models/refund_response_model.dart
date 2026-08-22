@@ -116,13 +116,15 @@ class RefundResponse {
 int _toInt(dynamic value) {
   if (value == null) return 0;
   if (value is int) return value;
-  if (value is double) return value.toInt();
+  if (value is num) return value.toInt();
   if (value is String) {
-    try {
-      return int.parse(value);
-    } catch (_) {
-      return 0;
-    }
+    final text = value.trim();
+    if (text.isEmpty) return 0;
+    // The API sends money as a decimal string — `"amount_paid": "500.00"`.
+    // `int.parse` rejects the fractional part and throws, so parsing money
+    // this way silently reported every amount as ₹0. Truncate rather than
+    // round: these values cap how much may be refunded.
+    return int.tryParse(text) ?? double.tryParse(text)?.toInt() ?? 0;
   }
   return 0;
 }

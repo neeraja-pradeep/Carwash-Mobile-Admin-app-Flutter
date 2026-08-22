@@ -15,7 +15,6 @@ import 'package:new_flutter_project/core/widgets/empty_state.dart';
 import 'package:new_flutter_project/core/widgets/list_controls.dart';
 import 'package:new_flutter_project/core/widgets/search_field.dart';
 import 'package:new_flutter_project/core/widgets/skeleton_card.dart';
-import 'package:new_flutter_project/features/drivers/application/providers/drivers_providers.dart';
 
 import '../../application/providers/service_requests_providers.dart';
 import '../../domain/entities/service_request.dart';
@@ -322,7 +321,8 @@ class _TypeTile extends StatelessWidget {
   }
 }
 
-/// Resolves the assignee name for a card via [assigneeByIdProvider].
+/// Renders a request card using the assignee name the list API already
+/// provides (`assignee_name`), carried on [ServiceRequest.assigneeName].
 class _RequestCardWrapper extends ConsumerWidget {
   const _RequestCardWrapper({required this.request});
 
@@ -330,16 +330,9 @@ class _RequestCardWrapper extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final assigneeAsync = request.assigneeId != null
-        ? ref.watch(assigneeByIdProvider(request.assigneeId!))
-        : const AsyncValue<({String name, String phone, String role})?>.data(
-            null);
-
-    final assigneeName = assigneeAsync.valueOrNull?.name;
-
     return SrRequestCard(
       request: request,
-      assigneeName: assigneeName,
+      assigneeName: request.assigneeName,
       onTap: () => context.push(Routes.serviceRequestDetail(request.id)),
     );
   }

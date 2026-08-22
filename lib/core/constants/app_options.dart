@@ -4,19 +4,25 @@
 /// to remote config / the API in a later phase.
 library;
 
-/// Vehicle types master list.
+/// Vehicle types master list — one entry per vehicle type the API accepts.
+///
+/// `Compact SUV` and `Premium SUV` used to sit either side of `SUV` here, but
+/// neither backend has a choice for them: both the shop `vehicle_type` field
+/// and the driver `vehicle_classes` field store `suv`. They could be picked
+/// but never came back, so a shop priced as `Compact SUV` reloaded as `SUV`
+/// and the chips could never light up. Re-add them only alongside real
+/// `compact_suv` / `premium_suv` slugs on the API.
 const List<String> kVehicleTypes = [
   'Hatchback',
   'Sedan',
-  'Compact SUV',
   'SUV',
-  'Premium SUV',
 ];
 
 /// Maps a display-case vehicle type label (as shown in [kVehicleTypes] chips)
-/// to the lowercase slug the API accepts. `Compact SUV` / `Premium SUV`
-/// intentionally collapse to `suv` — the backend has no separate choices for
-/// them.
+/// to the lowercase slug the API accepts.
+///
+/// The retired `compact suv` / `premium suv` labels still map to `suv` so any
+/// value already stored against a shop or driver keeps resolving.
 String vehicleTypeSlug(String displayType) {
   const mapping = {
     'hatchback': 'hatchback',

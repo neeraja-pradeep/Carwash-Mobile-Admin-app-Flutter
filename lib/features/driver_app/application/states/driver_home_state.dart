@@ -4,6 +4,14 @@ import '../../domain/entities/job_feed.dart';
 
 abstract class DriverHomeState {
   const DriverHomeState();
+
+  /// Last known availability, carried across loading/error so the header keeps
+  /// showing the real toggle state.
+  ///
+  /// `null` means "never fetched" — callers must render that as *unknown*, not
+  /// as offline. Reporting a driver offline when we simply failed to load is
+  /// what made the admin console and the driver app disagree.
+  Availability? get availability => null;
 }
 
 class DriverHomeInitial extends DriverHomeState {
@@ -11,10 +19,14 @@ class DriverHomeInitial extends DriverHomeState {
 }
 
 class DriverHomeLoading extends DriverHomeState {
-  const DriverHomeLoading();
+  const DriverHomeLoading({this.availability});
+
+  @override
+  final Availability? availability;
 }
 
 class DriverHomeSuccess extends DriverHomeState {
+  @override
   final Availability availability;
   final Stats stats;
   final JobFeed jobFeed;
@@ -30,14 +42,27 @@ class DriverHomeError extends DriverHomeState {
   final String message;
   final String? code;
 
-  const DriverHomeError({required this.message, this.code});
+  /// Availability is kept even on failure — a stats/feed error says nothing
+  /// about whether the driver is online.
+  @override
+  final Availability? availability;
+
+  const DriverHomeError({
+    required this.message,
+    this.code,
+    this.availability,
+  });
 }
 
 class AvailabilityUpdating extends DriverHomeState {
-  const AvailabilityUpdating();
+  const AvailabilityUpdating({this.availability});
+
+  @override
+  final Availability? availability;
 }
 
 class AvailabilityUpdated extends DriverHomeState {
+  @override
   final Availability availability;
 
   const AvailabilityUpdated({required this.availability});

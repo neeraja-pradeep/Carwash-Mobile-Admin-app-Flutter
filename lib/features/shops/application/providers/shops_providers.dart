@@ -204,6 +204,7 @@ class ShopEditor {
 
   Future<Shop> call(
     String shopId, {
+    String? status,
     String? name,
     String? address,
     String? pincode,
@@ -229,6 +230,7 @@ class ShopEditor {
   }) async {
     final updated = await _ref.read(shopsRepositoryProvider).updateShop(
           shopId,
+          status: status,
           name: name,
           address: address,
           pincode: pincode,
@@ -259,6 +261,14 @@ class ShopEditor {
     _ref.invalidate(shopsPaginatedProvider);
     return updated;
   }
+
+  /// Takes the shop live, or hides it from customer browse.
+  ///
+  /// The "Shop active" toggle used to move a local flag only, so activating a
+  /// shop never left the device. The backend rejects activation while the shop
+  /// has no active service — that 400 comes back as the message to show.
+  Future<Shop> setActive(String shopId, bool active) =>
+      call(shopId, status: active ? 'active' : 'inactive');
 }
 
 // ─── Shop photo upload ────────────────────────────────────────────────────────

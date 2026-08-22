@@ -70,6 +70,7 @@ abstract class ShopsRepository {
   /// for keeps its stored value rather than being blanked.
   Future<Shop> updateShop(
     String shopId, {
+    String? status,
     String? name,
     String? address,
     String? pincode,

@@ -26,6 +26,7 @@ class ClaimJobNotifier extends StateNotifier<ClaimJobState> {
       state = ClaimJobSuccess(job: job, jobType: 'carwash');
     } catch (e) {
       state = ClaimJobError(message: e.toString());
+      rethrow;
     }
   }
 
@@ -37,6 +38,7 @@ class ClaimJobNotifier extends StateNotifier<ClaimJobState> {
       state = ClaimJobSuccess(job: job, jobType: 'driver_hire');
     } catch (e) {
       state = ClaimJobError(message: e.toString());
+      rethrow;
     }
   }
 

@@ -1,0 +1,3530 @@
+{
+  "info": {
+    "name": "DriveDeck Admin API",
+    "_postman_id": "drivedeck-admin-0001-0001-0001-000000000001",
+    "description": "Operator console (Admin / Superadmin) API, generated from docs/api_doc_admin.md.\n\nAUTH: session-based (Django sessions). POST {{base_url}}/api/accounts/v1/login/ sets a `sessionid` cookie; Postman's cookie jar persists it automatically for {{base_url}}, so subsequent requests are authenticated with no extra header. Login/logout are CSRF-exempt — no X-CSRFToken needed.\n\nROLES: admin (scoped to own shop) or superadmin (global). user/driver get 403 on admin endpoints. Settlement, payout & refund endpoints are superadmin-only.\n\nVARIABLES: set `base_url` (collection variable, default http://localhost:8000) and the various *_id variables as you go.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "username",
+      "value": "operator_anand",
+      "type": "string"
+    },
+    {
+      "key": "password",
+      "value": "drive2026",
+      "type": "string"
+    },
+    {
+      "key": "shop_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "booking_id",
+      "value": "558",
+      "type": "string"
+    },
+    {
+      "key": "di_booking_id",
+      "value": "77",
+      "type": "string"
+    },
+    {
+      "key": "service_id",
+      "value": "12",
+      "type": "string"
+    },
+    {
+      "key": "notification_id",
+      "value": "5012",
+      "type": "string"
+    },
+    {
+      "key": "driver_id",
+      "value": "12",
+      "type": "string"
+    },
+    {
+      "key": "inspector_id",
+      "value": "8",
+      "type": "string"
+    },
+    {
+      "key": "customer_id",
+      "value": "7",
+      "type": "string"
+    },
+    {
+      "key": "slot_id",
+      "value": "42",
+      "type": "string"
+    },
+    {
+      "key": "doc_id",
+      "value": "7",
+      "type": "string"
+    },
+    {
+      "key": "review_id",
+      "value": "312",
+      "type": "string"
+    },
+    {
+      "key": "coupon_id",
+      "value": "7",
+      "type": "string"
+    },
+    {
+      "key": "weekly_id",
+      "value": "7",
+      "type": "string"
+    },
+    {
+      "key": "slot_break_id",
+      "value": "14",
+      "type": "string"
+    },
+    {
+      "key": "holiday_id",
+      "value": "22",
+      "type": "string"
+    },
+    {
+      "key": "refund_ref",
+      "value": "RF-20260529-014",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0 · Sign In (Auth)",
+      "item": [
+        {
+          "name": "Sign in (POST login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/login/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "login",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "description": "AllowAny entry point. Sets the sessionid cookie (auth for everything else). Throttled 5/hour (429). Returns the full UserSerializer — check `role` is admin/superadmin."
+          }
+        },
+        {
+          "name": "Sign out (POST logout)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/logout/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "logout",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "description": "IsAuthenticated. Empty body. Clears the session -> {\"message\": \"Logged out\"}."
+          }
+        }
+      ]
+    },
+    {
+      "name": "1 · Dashboard",
+      "item": [
+        {
+          "name": "Header — profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/profile/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "profile",
+                ""
+              ]
+            },
+            "description": "UserSerializer. Dashboard header uses first_name, profile_picture, role."
+          }
+        },
+        {
+          "name": "Notifications unread count (bell badge)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/notifications/unread-count/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "notifications",
+                "unread-count",
+                ""
+              ]
+            },
+            "description": "{\"unread\": 3}. Hide badge when 0."
+          }
+        },
+        {
+          "name": "KPI snapshot (dashboard)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/dashboard/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "dashboard",
+                ""
+              ]
+            },
+            "description": "IsAdmin. All KPI cards in one call. admin -> own shops; superadmin -> all. driver_inspector block is global."
+          }
+        },
+        {
+          "name": "Recent activity (top 5)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/recent-activity/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "recent-activity",
+                ""
+              ]
+            },
+            "description": "IsAdmin. Unpaginated array of 5 newest events (carwash + DI for superadmin). Each row carries either booking or di_booking."
+          }
+        },
+        {
+          "name": "Activity feed — View all (paginated)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/activities/?page=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "activities",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "IsAdmin. Full paginated feed (PAGE_SIZE 20). Shop-only for admins; superadmin all. Does NOT include platform DI events."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 · Notifications",
+      "item": [
+        {
+          "name": "List notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/notifications/?is_read=false&kind=booking,refund&page=1&page_size=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "notifications",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "is_read",
+                  "value": "false",
+                  "description": "false=unread only, true=read, omit=all"
+                },
+                {
+                  "key": "kind",
+                  "value": "booking,refund",
+                  "description": "comma-separated: booking,refund,review,payout,attention,promo,system"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "IsAuthenticated (caller's own). Paginated envelope; count powers the 'N notifications' label."
+          }
+        },
+        {
+          "name": "Unread count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/notifications/unread-count/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "notifications",
+                "unread-count",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark one read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/notifications/{{notification_id}}/read/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "notifications",
+                "{{notification_id}}",
+                "read",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "description": "404 if the id isn't the caller's. -> {\"success\": true}."
+          }
+        },
+        {
+          "name": "Mark all read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/notifications/read-all/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "notifications",
+                "read-all",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "description": "-> {\"success\": true, \"updated\": N}."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 · Shops",
+      "item": [
+        {
+          "name": "Add shop",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/shops/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "shops",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"AquaShine Thathampally\",\n  \"address\": \"Beach Rd, Thathampally, Alappuzha\",\n  \"pincode\": \"688013\",\n  \"city\": \"Alappuzha\",\n  \"state\": \"Kerala\",\n  \"phone\": \"+914772243390\",\n  \"owner_name\": \"Suresh Kumar\",\n  \"owner_phone\": \"+919946122087\",\n  \"daily_booking_cap\": 20,\n  \"supported_vehicle_types\": [\"hatchback\", \"sedan\"],\n  \"commission_type\": \"percent_floor\",\n  \"commission_percentage\": \"12.00\",\n  \"commission_floor\": \"30.00\",\n  \"bank_account_name\": \"AquaShine Services\",\n  \"bank_account_number\": \"338911004521\",\n  \"bank_ifsc\": \"SBIN0011223\",\n  \"upi_id\": \"aquashine@oksbi\",\n  \"gstin\": null,\n  \"pan\": \"DKLPS9087H\"\n}"
+            },
+            "description": "ShopRolePermission (admin/superadmin). Always created status=inactive. supported_vehicle_types must be canonical (hatchback,sedan,suv,convertible,bike); [] = all. Admin can create only one shop."
+          }
+        },
+        {
+          "name": "List shops",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/shops/?search=&status=active,inactive&vehicle_type=hatchback,sedan&min_rating=4.5&sort=name&page=1&page_size=10",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "shops",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "name prefix / address / state"
+                },
+                {
+                  "key": "status",
+                  "value": "active,inactive",
+                  "description": "active,inactive,pending,suspended"
+                },
+                {
+                  "key": "vehicle_type",
+                  "value": "hatchback,sedan",
+                  "description": "canonical types only"
+                },
+                {
+                  "key": "min_rating",
+                  "value": "4.5",
+                  "description": "omit for Any rating"
+                },
+                {
+                  "key": "sort",
+                  "value": "name",
+                  "description": "name|rating|busiest|capacity"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "ShopRolePermission. superadmin -> all; admin -> own shop. Paginated cards."
+          }
+        },
+        {
+          "name": "Shop detail (Info tab)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/shops/{{shop_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "shops",
+                "{{shop_id}}",
+                ""
+              ]
+            },
+            "description": "ShopDetailSerializer. settlement block present only for owning admin / superadmin."
+          }
+        },
+        {
+          "name": "Update shop (activate / toggle / edit)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/shops/{{shop_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "shops",
+                "{{shop_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\"\n}"
+            },
+            "description": "Toggle the 'Shop active' state via `status` (NOT is_active, which is read-only/ignored). Activate requires >=1 active ShopService else 400. Also accepts latitude/longitude and other ShopSerializer fields."
+          }
+        },
+        {
+          "name": "3.1 Services tab",
+          "item": [
+            {
+              "name": "List services",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-services/?shop={{shop_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-services",
+                    ""
+                  ],
+                  "query": [
+                    {
+                      "key": "shop",
+                      "value": "{{shop_id}}"
+                    }
+                  ]
+                },
+                "description": "Cards with summary / from_price / variants. estimated_minutes = duration_in_slots * 30."
+              }
+            },
+            {
+              "name": "List services (nested under shop)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shops/{{shop_id}}/services/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shops",
+                    "{{shop_id}}",
+                    "services",
+                    ""
+                  ]
+                },
+                "description": "Nested alias for the shop's services (ShopViewSet.shop_services). Same shape as GET /shop-services/?shop={id}."
+              }
+            },
+            {
+              "name": "Add service",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-services/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-services",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Exterior Wash\",\n  \"inclusions\": [\"Foam wash\", \"Dry\"],\n  \"category_id\": 3,\n  \"uniform_pricing\": false,\n  \"active\": true,\n  \"variants\": [\n    { \"vehicle_type\": \"hatchback\", \"price\": 230, \"duration_in_slots\": 1, \"active\": true },\n    { \"vehicle_type\": \"sedan\", \"price\": 260, \"duration_in_slots\": 1, \"active\": true }\n  ]\n}"
+                },
+                "description": "uniform_pricing=true -> send top-level price + duration_in_slots, omit variants. false -> >=1 variant. duration is in 30-min slots."
+              }
+            },
+            {
+              "name": "Edit service / toggle active",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-services/{{service_id}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-services",
+                    "{{service_id}}",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"active\": false\n}"
+                },
+                "description": "PATCH any field. Sending variants on PATCH REPLACES the set (absent types deleted, present upsert by vehicle_type)."
+              }
+            },
+            {
+              "name": "Copy services from another shop",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-services/copy-from/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-services",
+                    "copy-from",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"source_shop\": 7,\n  \"target_shop\": {{shop_id}}\n}"
+                },
+                "description": "Copies active services + variants. Name collisions skipped. target_shop required for superadmin, ignored for admin. -> {\"copied\": N, \"skipped\": M}."
+              }
+            },
+            {
+              "name": "Apply % price change to all",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-services/apply-price-change/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-services",
+                    "apply-price-change",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shop\": {{shop_id}},\n  \"percent\": 10\n}"
+                },
+                "description": "percent e.g. 10 or -5, must be > -100. shop required for superadmin. -> {\"services_updated\": N, \"variants_updated\": M}."
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.2 Settlement tab + New Payout (superadmin)",
+          "item": [
+            {
+              "name": "Pending + stats",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/booking/v1/admin/settlements/{{shop_id}}/pending/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "booking",
+                    "v1",
+                    "admin",
+                    "settlements",
+                    "{{shop_id}}",
+                    "pending",
+                    ""
+                  ]
+                },
+                "description": "IsSuperAdmin. net_payable, pending_total, last_settled, lifetime_paid, items[]."
+              }
+            },
+            {
+              "name": "Create payout",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/booking/v1/admin/settlements/{{shop_id}}/payout/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "booking",
+                    "v1",
+                    "admin",
+                    "settlements",
+                    "{{shop_id}}",
+                    "payout",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"utr\": \"SBIN5520119003\",\n  \"notes\": \"\",\n  \"other_adjustments\": 0,\n  \"net_override\": null\n}"
+                },
+                "description": "Settles ALL currently-pending bookings into one paid batch. 400 if nothing pending; 409 on concurrent settle. other_adjustments / net_override optional."
+              }
+            },
+            {
+              "name": "Payout history (per shop)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/booking/v1/admin/settlements/{{shop_id}}/history/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "booking",
+                    "v1",
+                    "admin",
+                    "settlements",
+                    "{{shop_id}}",
+                    "history",
+                    ""
+                  ]
+                },
+                "description": "{count, results:[payout]} newest first."
+              }
+            },
+            {
+              "name": "Shop picker (overview)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/booking/v1/admin/settlements/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "booking",
+                    "v1",
+                    "admin",
+                    "settlements",
+                    ""
+                  ]
+                },
+                "description": "Every shop with current net payable. Sorted highest pending first."
+              }
+            },
+            {
+              "name": "Worker settlements overview",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/booking/v1/admin/worker-settlements/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "booking",
+                    "v1",
+                    "admin",
+                    "worker-settlements",
+                    ""
+                  ]
+                },
+                "description": "Parallel to the shop settlements overview, for workers."
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.3 Payout Log (superadmin)",
+          "item": [
+            {
+              "name": "Payout Log (all shops, 90d)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/booking/v1/admin/payouts/?search=&status=pending,paid&shop=1,2&sort=recent&days=90&page=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "booking",
+                    "v1",
+                    "admin",
+                    "payouts",
+                    ""
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "shop name / UTR / PO reference"
+                    },
+                    {
+                      "key": "status",
+                      "value": "pending,paid"
+                    },
+                    {
+                      "key": "shop",
+                      "value": "1,2"
+                    },
+                    {
+                      "key": "sort",
+                      "value": "recent",
+                      "description": "recent|net_desc|net_asc|shop"
+                    },
+                    {
+                      "key": "days",
+                      "value": "90"
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    }
+                  ]
+                },
+                "description": "Paginated full payouts. Detail screen reuses the same row (no separate detail endpoint)."
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.4 Manage Hours & Slots",
+          "item": [
+            {
+              "name": "Reference slot grid (all hourly times)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/slots/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "slots",
+                    ""
+                  ]
+                },
+                "description": "Static shared Slot reference grid (id, start_time). Fetch once; per-day slot list is derived client-side between opening_slot and closing_slot."
+              }
+            },
+            {
+              "name": "Weekly schedule — list",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-weekly-businesses/?shop={{shop_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-weekly-businesses",
+                    ""
+                  ],
+                  "query": [
+                    {
+                      "key": "shop",
+                      "value": "{{shop_id}}"
+                    }
+                  ]
+                },
+                "description": "ShopRolePermission. One row per (shop, weekday). admin auto-scoped; superadmin pass ?shop=. A weekday with NO row = OFF day."
+              }
+            },
+            {
+              "name": "Weekly schedule — create row",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-weekly-businesses/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-weekly-businesses",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shop\": 1,\n  \"weekday\": 1,\n  \"opening_slot\": 19,\n  \"closing_slot\": 41\n}"
+                },
+                "description": "Create one (shop, weekday) open/close row. shop required for superadmin, auto for admin. 400 if (shop, weekday) already exists — PATCH instead."
+              }
+            },
+            {
+              "name": "Weekly schedule — update row",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-weekly-businesses/{{weekly_id}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-weekly-businesses",
+                    "{{weekly_id}}",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"opening_slot\": 19,\n  \"closing_slot\": 41\n}"
+                },
+                "description": "Change a day's hours. To make an open day an OFF day, DELETE the row instead."
+              }
+            },
+            {
+              "name": "Weekly schedule — delete row (make OFF day)",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-weekly-businesses/{{weekly_id}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-weekly-businesses",
+                    "{{weekly_id}}",
+                    ""
+                  ]
+                },
+                "description": "Removes the (shop, weekday) row -> that weekday becomes an OFF day."
+              }
+            },
+            {
+              "name": "Copy one day to all weekdays",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-weekly-businesses/{{weekly_id}}/copy-to-all/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-weekly-businesses",
+                    "{{weekly_id}}",
+                    "copy-to-all",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{}"
+                },
+                "description": "Copies this row's opening_slot/closing_slot to all other 6 weekdays (create-or-update). Empty body. Returns the full 7-day list. Overwrites OFF days too."
+              }
+            },
+            {
+              "name": "Slot breaks — list",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-slot-breaks/?shop={{shop_id}}&weekday=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-slot-breaks",
+                    ""
+                  ],
+                  "query": [
+                    {
+                      "key": "shop",
+                      "value": "{{shop_id}}"
+                    },
+                    {
+                      "key": "weekday",
+                      "value": "1"
+                    }
+                  ]
+                },
+                "description": "Recurring weekly per-slot OFF toggles. One row per (shop, weekday, slot). Filter by ?shop= and ?weekday=. DELETE a row to turn the slot back on."
+              }
+            },
+            {
+              "name": "Slot breaks — create (turn one slot off)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-slot-breaks/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-slot-breaks",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shop\": 1,\n  \"weekday\": 1,\n  \"slot\": 27\n}"
+                },
+                "description": "Turns one hourly slot OFF on a weekday, recurring. shop required for superadmin, auto for admin."
+              }
+            },
+            {
+              "name": "Slot breaks — set day (bulk replace)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-slot-breaks/set-day/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-slot-breaks",
+                    "set-day",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shop\": 1,\n  \"weekday\": 1,\n  \"slot_ids\": [\n    27,\n    28\n  ]\n}"
+                },
+                "description": "Replaces ALL breaks for one (shop, weekday) with slot_ids. slot_ids:[] clears the day. Backs the 'tap slots then Save' flow. Returns the resulting break list."
+              }
+            },
+            {
+              "name": "Slot breaks — delete (turn slot back on)",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-slot-breaks/{{slot_break_id}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-slot-breaks",
+                    "{{slot_break_id}}",
+                    ""
+                  ]
+                },
+                "description": "Removes the break -> the slot is bookable again."
+              }
+            },
+            {
+              "name": "Slot-level capacity toggle",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shops/{{shop_id}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shops",
+                    "{{shop_id}}",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"use_slot_level_capacity\": true\n}"
+                },
+                "description": "No dedicated endpoint — toggle Shop.use_slot_level_capacity on the shop. OFF=daily_booking_cap governs; ON=per-slot ShopCapacity governs."
+              }
+            },
+            {
+              "name": "Holidays — list (upcoming)",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/holidays/?upcoming=true&shop={{shop_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "holidays",
+                    ""
+                  ],
+                  "query": [
+                    {
+                      "key": "upcoming",
+                      "value": "true"
+                    },
+                    {
+                      "key": "shop",
+                      "value": "{{shop_id}}"
+                    }
+                  ]
+                },
+                "description": "IsAdmin. Global labeled holiday closing one or more shops. ?upcoming=true -> date>=today; ?shop=<id> -> holidays including that shop. Admin list scoped to own shops."
+              }
+            },
+            {
+              "name": "Holidays — create",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/holidays/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "holidays",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"date\": \"2026-08-15\",\n  \"label\": \"Independence Day\",\n  \"shops\": [\n    1,\n    2,\n    4,\n    7\n  ]\n}"
+                },
+                "description": "IsAdmin. Closes each linked shop on the date. admin may only attach own shop(s) (omit shops -> defaults to admin's shops; foreign shop -> 400). superadmin any shops."
+              }
+            },
+            {
+              "name": "Holidays — delete",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/holidays/{{holiday_id}}/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "holidays",
+                    "{{holiday_id}}",
+                    ""
+                  ]
+                },
+                "description": "IsAdmin. Removes the holiday (the x on the card)."
+              }
+            },
+            {
+              "name": "Per-shop date override (close one shop / custom hours)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/shop/v1/shop-weekly-business-overrides/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "shop",
+                    "v1",
+                    "shop-weekly-business-overrides",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"shop\": 1,\n  \"date\": \"2026-08-20\",\n  \"is_closed\": true\n}"
+                },
+                "description": "ShopWeeklyBusinessOverride — close a SINGLE shop on a date or give it one-off hours. Drives shop detail's next_holiday. Use a Holiday for a shared closure across shops."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 · Bookings — Driver & Inspection",
+      "item": [
+        {
+          "name": "List DI requests",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/driver-inspection-requests/?search=&request_type=inspection&status=contacted&sort=recent&date_range=today&page=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "driver-inspection-requests",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "reference / customer name / phone"
+                },
+                {
+                  "key": "request_type",
+                  "value": "inspection",
+                  "description": "driver|inspection"
+                },
+                {
+                  "key": "status",
+                  "value": "contacted",
+                  "description": "new|contacted|assigned|arrived|in_progress|completed|cancelled"
+                },
+                {
+                  "key": "sort",
+                  "value": "recent",
+                  "description": "recent|upcoming|status"
+                },
+                {
+                  "key": "date_range",
+                  "value": "today",
+                  "description": "today|yesterday|last_7_days|this_month (or date_after/date_before)"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "IsAuthenticated. admin/superadmin -> all; driver/inspector -> assigned; user -> own."
+          }
+        },
+        {
+          "name": "DI request detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/driver-inspection-requests/{{di_booking_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "driver-inspection-requests",
+                "{{di_booking_id}}",
+                ""
+              ]
+            },
+            "description": "Full DriverAndInspectionBookingSerializer (worker card, timeline). OTPs null for admin/worker."
+          }
+        },
+        {
+          "name": "Assignable workers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/driver-inspection-requests/{{di_booking_id}}/assignable-workers/?slot_id={{slot_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "driver-inspection-requests",
+                "{{di_booking_id}}",
+                "assignable-workers",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "slot_id",
+                  "value": "{{slot_id}}",
+                  "description": "optional; defaults to the request's start_slot"
+                }
+              ]
+            },
+            "description": "IsAdmin. Candidate workers with server-authoritative `available` flag."
+          }
+        },
+        {
+          "name": "Assign / Change worker",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/driver-inspection-requests/{{di_booking_id}}/assign/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "driver-inspection-requests",
+                "{{di_booking_id}}",
+                "assign",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"inspector_id\": {{inspector_id}},\n  \"slot_id\": {{slot_id}}\n}"
+            },
+            "description": "IsAdmin. Use driver_id for driver requests. Sets status=assigned, generates fresh start/end OTPs. Re-call reassigns. 409 if busy."
+          }
+        },
+        {
+          "name": "Set status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/driver-inspection-requests/{{di_booking_id}}/status/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "driver-inspection-requests",
+                "{{di_booking_id}}",
+                "status",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"contacted\",\n  \"note\": \"Called customer\",\n  \"quoted_fee\": 800\n}"
+            },
+            "description": "IsAdmin. Generic transition + timeline entry. How Contacted and quoted_fee are set."
+          }
+        },
+        {
+          "name": "Mark arrived",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/driver-inspection-requests/{{di_booking_id}}/arrive/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "driver-inspection-requests",
+                "{{di_booking_id}}",
+                "arrive",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "description": "IsAssignedWorkerOrAdmin. Requires status=assigned and advance paid. Sets status=arrived. Required before Start Job."
+          }
+        },
+        {
+          "name": "Start Job (verify start OTP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/driver-inspection-requests/{{di_booking_id}}/verify-start-otp/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "driver-inspection-requests",
+                "{{di_booking_id}}",
+                "verify-start-otp",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"7390\",\n  \"latitude\": 9.49,\n  \"longitude\": 76.33,\n  \"location_text\": \"Thathampally, near Beach Rd\"\n}"
+            },
+            "description": "Requires status=arrived. -> in_progress. lat/lng/location_text optional. 400 wrong OTP, 409 if not arrived."
+          }
+        },
+        {
+          "name": "End Job (verify end OTP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/driver-inspection-requests/{{di_booking_id}}/verify-end-otp/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "driver-inspection-requests",
+                "{{di_booking_id}}",
+                "verify-end-otp",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"7390\",\n  \"latitude\": 9.49,\n  \"longitude\": 76.33,\n  \"location_text\": \"Drop location\"\n}"
+            },
+            "description": "Requires status=in_progress. -> completed. Computes final bill (driver overage / inspector fixed), releases worker, credits earnings."
+          }
+        },
+        {
+          "name": "Final bill",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/driver-inspection-requests/{{di_booking_id}}/final-bill/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "driver-inspection-requests",
+                "{{di_booking_id}}",
+                "final-bill",
+                ""
+              ]
+            },
+            "description": "Itemised breakdown once completed."
+          }
+        },
+        {
+          "name": "Cancel DI request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/driver-inspection-requests/{{di_booking_id}}/cancel/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "driver-inspection-requests",
+                "{{di_booking_id}}",
+                "cancel",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Customer no-show\"\n}"
+            }
+          }
+        },
+        {
+          "name": "4.2 New Request (admin phone-in)",
+          "item": [
+            {
+              "name": "Search customers",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/accounts/v1/superadmin/customers/?search=",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "accounts",
+                    "v1",
+                    "superadmin",
+                    "customers",
+                    ""
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": "",
+                      "description": "phone / first / last / username"
+                    }
+                  ]
+                },
+                "description": "IsAdmin-class. CustomerListSerializer cards. Pick id -> customer_id."
+              }
+            },
+            {
+              "name": "Add new customer",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/accounts/v1/admin/customers/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "accounts",
+                    "v1",
+                    "admin",
+                    "customers",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"phone\": \"+919447056789\",\n  \"full_name\": \"Ramesh Kurup\",\n  \"otp_code\": \"1234\",\n  \"email\": null\n}"
+                },
+                "description": "IsAdmin. Include otp_code to verify, or omit for override path. 409 if phone exists (body has customer_id). Creates role=user."
+              }
+            },
+            {
+              "name": "Create DI request (manual)",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/booking/v1/admin/manual-di-booking/",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "booking",
+                    "v1",
+                    "admin",
+                    "manual-di-booking",
+                    ""
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"customer_id\": {{customer_id}},\n  \"request_type\": \"driver\",\n  \"trip_type\": \"round_trip\",\n  \"vehicle_text\": \"Maruti Ertiga · KL-04-1234\",\n  \"appointment_date\": \"2026-05-30\",\n  \"start_slot\": 33,\n  \"address_text\": \"Pickup / inspection address\",\n  \"quoted_fee\": \"800\",\n  \"customer_note\": \"Seller available 11am-1pm\"\n}"
+                },
+                "description": "IsAdmin. Created at status=new. trip_type required for driver. inspection_type (pre_purchase/pre_sale) for inspection. car_id optional (must belong to customer)."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4.3 · Bookings — Carwash",
+      "item": [
+        {
+          "name": "List carwash bookings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/?search=&date_range=today&time_of_day=morning&status_chip=new&shop={{shop_id}}&assignment=unassigned&sort=recent&page=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "reference / customer name / phone"
+                },
+                {
+                  "key": "date_range",
+                  "value": "today",
+                  "description": "today|yesterday|last_7_days|this_month (or date_after/date_before)"
+                },
+                {
+                  "key": "time_of_day",
+                  "value": "morning",
+                  "description": "morning|afternoon|evening"
+                },
+                {
+                  "key": "status_chip",
+                  "value": "new",
+                  "description": "repeatable, OR'd: new|assigned|going|picked|at_shop|washing|done|returning|completed|cancelled"
+                },
+                {
+                  "key": "shop",
+                  "value": "{{shop_id}}",
+                  "description": "repeatable shop ids"
+                },
+                {
+                  "key": "assignment",
+                  "value": "unassigned",
+                  "description": "me|unassigned"
+                },
+                {
+                  "key": "sort",
+                  "value": "recent",
+                  "description": "recent|oldest|amount_desc|amount_asc|customer_az"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "admin -> own shops; superadmin -> all. Not date-scoped by default."
+          }
+        },
+        {
+          "name": "Carwash booking detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/{{booking_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                "{{booking_id}}",
+                ""
+              ]
+            },
+            "description": "Full BookingSerializer (customer, vehicle, journey, services, timeline, embedded damage card)."
+          }
+        },
+        {
+          "name": "Assignable drivers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/{{booking_id}}/assignable-drivers/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                "{{booking_id}}",
+                "assignable-drivers",
+                ""
+              ]
+            },
+            "description": "IsAdmin (shop-scoped). Active drivers with `available` flag for the booking's slot span."
+          }
+        },
+        {
+          "name": "Assign / Reassign driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/{{booking_id}}/assign-driver/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                "{{booking_id}}",
+                "assign-driver",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": {{driver_id}}\n}"
+            },
+            "description": "IsAdmin. Replaces any active assignment (doubles as Reassign). 409 if driver busy."
+          }
+        },
+        {
+          "name": "Assign Me",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/{{booking_id}}/assign-me/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                "{{booking_id}}",
+                "assign-me",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": ""
+            },
+            "description": "Caller assigns own driver profile. 400 if no active driver profile; 409 if busy."
+          }
+        },
+        {
+          "name": "Update washing status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/{{booking_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                "{{booking_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"washing_status\": \"crew_en_route\"\n}"
+            },
+            "description": "Order: confirmed -> crew_en_route -> picked_up -> dropped_at_shop -> in_progress -> wash_done -> picked_up_from_shop -> returning -> completed. Superadmin / shop admin / assigned driver."
+          }
+        },
+        {
+          "name": "Damage check — get",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/{{booking_id}}/damage-check/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                "{{booking_id}}",
+                "damage-check",
+                ""
+              ]
+            },
+            "description": "Returns all per-stage damage reports."
+          }
+        },
+        {
+          "name": "Damage check — record (JSON)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/{{booking_id}}/damage-check/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                "{{booking_id}}",
+                "damage-check",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stage\": \"pickup\",\n  \"checked\": true,\n  \"issues_found\": \"issues\",\n  \"damage_types\": [\"paint_chip\"],\n  \"panels\": [\"rear_bumper\"],\n  \"notes\": \"damaged\"\n}"
+            },
+            "description": "Upsert one stage (pickup|dropoff). issues_found = clear|issues. Use multipart variant to attach voice_note."
+          }
+        },
+        {
+          "name": "Damage check — record (multipart w/ voice note)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/{{booking_id}}/damage-check/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                "{{booking_id}}",
+                "damage-check",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "stage",
+                  "value": "pickup",
+                  "type": "text"
+                },
+                {
+                  "key": "checked",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "issues_found",
+                  "value": "issues",
+                  "type": "text"
+                },
+                {
+                  "key": "damage_types",
+                  "value": "paint_chip",
+                  "type": "text"
+                },
+                {
+                  "key": "panels",
+                  "value": "rear_bumper",
+                  "type": "text"
+                },
+                {
+                  "key": "notes",
+                  "value": "damaged",
+                  "type": "text"
+                },
+                {
+                  "key": "voice_note",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "description": "Voice note (max 60s) uploaded to BunnyCDN -> voice_note_url."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5 · Refunds (superadmin)",
+      "item": [
+        {
+          "name": "Carwash refund — summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/refunds/carwash/{{booking_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "refunds",
+                "carwash",
+                "{{booking_id}}",
+                ""
+              ]
+            },
+            "description": "IsSuperAdmin. amount_paid / total_refunded / remaining (cap) / prior refunds[]."
+          }
+        },
+        {
+          "name": "Carwash refund — create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/refunds/carwash/{{booking_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "refunds",
+                "carwash",
+                "{{booking_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"percent\": 100,\n  \"reason\": \"cancellation_by_customer\",\n  \"comment\": \"per call\"\n}"
+            },
+            "description": "Provide exactly one of percent | amount. reason: cancellation_by_customer|founder_cancellation|service_quality_issue|damage_during_wash|duplicate_charge|other. mode=manual skips gateway. Cap <= amount_paid (400 over-cap). 502 on gateway failure."
+          }
+        },
+        {
+          "name": "DI refund — create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/refunds/driver-inspection/{{di_booking_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "refunds",
+                "driver-inspection",
+                "{{di_booking_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"percent\": 100,\n  \"payment_kind\": \"advance\",\n  \"reason\": \"cancellation_by_customer\",\n  \"comment\": \"per call\"\n}"
+            },
+            "description": "Parallel to carwash. payment_kind = advance | balance picks which payment."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6 · Cancel a booking",
+      "item": [
+        {
+          "name": "Cancel carwash booking (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/{{booking_id}}/cancel/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                "{{booking_id}}",
+                "cancel",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Customer no-show\"\n}"
+            },
+            "description": "Admin/superadmin: cancels outright -> status=cancelled (no refund issued). Only pending/confirmed cancellable (else 400). Admin scoped to own shop."
+          }
+        },
+        {
+          "name": "Cancellation preview (policy quote)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/bookings/{{booking_id}}/cancellation-preview/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "bookings",
+                "{{booking_id}}",
+                "cancellation-preview",
+                ""
+              ]
+            },
+            "description": "Policy-based refund quote (customer-facing). Admin dialog doesn't need it."
+          }
+        }
+      ]
+    },
+    {
+      "name": "7 · New Booking (manual carwash)",
+      "item": [
+        {
+          "name": "Create manual carwash booking",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/manual-booking/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "manual-booking",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_id\": {{customer_id}},\n  \"car\": 15,\n  \"shop_id\": {{shop_id}},\n  \"service_id\": {{service_id}},\n  \"vehicle_type\": \"sedan\",\n  \"pickup_address_text\": \"Beach Rd, Thathampally\",\n  \"start_slot\": 33,\n  \"appointment_date\": \"2026-05-30\",\n  \"same_as_pickup\": true,\n  \"coupon_code\": null,\n  \"payment_status\": \"pending\"\n}"
+            },
+            "description": "IsAdmin (own shop). Single service_id only (multi-service is a known gap). Amount server-computed. Created confirmed, payment_mode=offline. pickup_address_text (free text) or address id; drop via same_as_pickup / drop_address."
+          }
+        },
+        {
+          "name": "Create car (Add new vehicle)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/cars/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "cars",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{customer_id}},\n  \"brand_model\": \"Hyundai i20\",\n  \"registration\": \"KL-04-AB-1234\",\n  \"car_type\": \"hatchback\"\n}"
+            },
+            "description": "Create a saved car for the customer, then pass its id as `car` in the manual booking."
+          }
+        }
+      ]
+    },
+    {
+      "name": "8 · Team (Drivers & Inspectors)",
+      "item": [
+        {
+          "name": "List drivers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/drivers/?status=active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "drivers",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "active|invited|suspended (omit for all)"
+                }
+              ]
+            },
+            "description": "IsAdmin (own shop). Worker cards. on_job decoupled from driver_status."
+          }
+        },
+        {
+          "name": "Driver detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/drivers/{{driver_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "drivers",
+                "{{driver_id}}",
+                ""
+              ]
+            },
+            "description": "List fields + detail-only blocks (active_job, this_week, jobs_done, joined). NOTE: this is the Drivers tab only — inspectors have no detail screen in the app (the inspector detail endpoint still works)."
+          }
+        },
+        {
+          "name": "Hire driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/drivers/hire/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "drivers",
+                "hire",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Ravi Kumar\",\n  \"phone\": \"+919812345678\",\n  \"email\": \"ravi@example.com\",\n  \"sub_role\": \"wash_hire\",\n  \"vehicle_classes\": [\"hatchback\", \"sedan\", \"suv\"],\n  \"license_number\": \"KA0120201234567\",\n  \"license_expiry\": \"08-2027\",\n  \"license_verified\": true\n}"
+            },
+            "description": "Creates User(role=driver) + Drivers record. Created driver_status=active, no SMS. 409 if phone exists. vehicle_classes canonical only. sub_role: wash|wash_hire|hire. license_expiry accepts MM-YYYY on create."
+          }
+        },
+        {
+          "name": "Edit profile / suspend driver",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/drivers/{{driver_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "drivers",
+                "{{driver_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Ravi Kumar\",\n  \"email\": \"ravi.kumar@example.com\",\n  \"license_verified\": true,\n  \"sub_role\": \"wash_hire\"\n}"
+            },
+            "description": "Edit-profile form: patches BOTH the Drivers row AND linked User in one call. All fields optional. full_name/email are WRITE-ONLY (User; never echoed — read response returns nested `user` + computed `name`). Duplicate email -> 400. Suspend via {\"driver_status\":\"suspended\"}. license_expiry on PATCH expects ISO YYYY-MM-DD. Other fields: vehicle_classes, license_number, phone, title, masked_phone."
+          }
+        },
+        {
+          "name": "Remove driver",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/drivers/{{driver_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "drivers",
+                "{{driver_id}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload driver document (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/drivers/{{driver_id}}/documents/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "drivers",
+                "{{driver_id}}",
+                "documents",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "kind",
+                  "value": "license",
+                  "type": "text",
+                  "description": "license|aadhaar|police_verification|other"
+                },
+                {
+                  "key": "side",
+                  "value": "front",
+                  "type": "text",
+                  "description": "front|back (default front)"
+                },
+                {
+                  "key": "name",
+                  "value": "DL front",
+                  "type": "text"
+                }
+              ]
+            },
+            "description": "Uploads one side to BunnyCDN. Uploading the missing side of an existing same-kind doc fills it in-place."
+          }
+        },
+        {
+          "name": "Verify / rename document",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/drivers/{{driver_id}}/documents/{{doc_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "drivers",
+                "{{driver_id}}",
+                "documents",
+                "{{doc_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"front_verified\": true,\n  \"back_verified\": false,\n  \"name\": \"Driving Licence\"\n}"
+            },
+            "description": "IsAdmin. Backs the FRONT ✓ / BACK ✓ verification toggles + rename. Send any of front_verified / back_verified / verified (string bools accepted) / name. Empty body / no editable fields -> 400. doc_id not on this worker -> 404. -> 200 with updated WorkerDocument."
+          }
+        },
+        {
+          "name": "Delete document",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/drivers/{{driver_id}}/documents/{{doc_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "drivers",
+                "{{driver_id}}",
+                "documents",
+                "{{doc_id}}",
+                ""
+              ]
+            },
+            "description": "IsAdmin. Removes the WorkerDocument row -> 204 No Content."
+          }
+        },
+        {
+          "name": "List inspectors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/inspectors/?status=active",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "inspectors",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "maps to inspector_status"
+                }
+              ]
+            },
+            "description": "Same as drivers; no sub_role, role_label always 'Inspector'. Inspectors are list-only in the app (no detail screen)."
+          }
+        },
+        {
+          "name": "Inspector detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/inspectors/{{inspector_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "inspectors",
+                "{{inspector_id}}",
+                ""
+              ]
+            },
+            "description": "Endpoint exists and returns the same rich blocks as driver detail, but the app does not render an inspector detail page."
+          }
+        },
+        {
+          "name": "Hire inspector",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/inspectors/hire/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "inspectors",
+                "hire",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Salim K\",\n  \"phone\": \"+919074533890\",\n  \"email\": \"salim@example.com\",\n  \"vehicle_classes\": [\"hatchback\", \"sedan\"],\n  \"license_number\": \"KL0120201234567\",\n  \"license_expiry\": \"08-2027\",\n  \"license_verified\": true\n}"
+            },
+            "description": "Identical to hire driver minus sub_role. Created inspector_status=active."
+          }
+        },
+        {
+          "name": "Edit profile / suspend inspector",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/inspectors/{{inspector_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "inspectors",
+                "{{inspector_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Salim K\",\n  \"email\": \"salim.k@example.com\",\n  \"license_verified\": true,\n  \"inspector_status\": \"suspended\"\n}"
+            },
+            "description": "Same field set as the driver edit-profile MINUS sub_role; status field is inspector_status. full_name/email write-only (User). Patches Inspectors row + linked User in one call."
+          }
+        },
+        {
+          "name": "Remove inspector",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/inspectors/{{inspector_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "inspectors",
+                "{{inspector_id}}",
+                ""
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload inspector document (multipart)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/inspectors/{{inspector_id}}/documents/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "inspectors",
+                "{{inspector_id}}",
+                "documents",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "kind",
+                  "value": "license",
+                  "type": "text"
+                },
+                {
+                  "key": "side",
+                  "value": "front",
+                  "type": "text"
+                },
+                {
+                  "key": "name",
+                  "value": "DL front",
+                  "type": "text"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify / rename inspector document",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/inspectors/{{inspector_id}}/documents/{{doc_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "inspectors",
+                "{{inspector_id}}",
+                "documents",
+                "{{doc_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"front_verified\": true,\n  \"back_verified\": false,\n  \"name\": \"Driving Licence\"\n}"
+            },
+            "description": "Inspector equivalent of the driver document verify/rename. -> 200 with updated WorkerDocument."
+          }
+        },
+        {
+          "name": "Delete inspector document",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/inspectors/{{inspector_id}}/documents/{{doc_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "inspectors",
+                "{{inspector_id}}",
+                "documents",
+                "{{doc_id}}",
+                ""
+              ]
+            },
+            "description": "Inspector equivalent -> 204 No Content."
+          }
+        }
+      ]
+    },
+    {
+      "name": "9 · Customers (superadmin)",
+      "item": [
+        {
+          "name": "List customers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/superadmin/customers/?search=&status=active&joined=year&booking_count=6-20&sort=spend",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "superadmin",
+                "customers",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "active|blocked"
+                },
+                {
+                  "key": "joined",
+                  "value": "year",
+                  "description": "any|30d|90d|year"
+                },
+                {
+                  "key": "booking_count",
+                  "value": "6-20",
+                  "description": "any|1-5|6-20|20plus"
+                },
+                {
+                  "key": "sort",
+                  "value": "spend",
+                  "description": "name|spend|bookings|recent"
+                }
+              ]
+            },
+            "description": "IsAdmin sees all user/driver accounts; user/driver sees only self. Cards with bookings_count, total_spent, last_booking_date."
+          }
+        },
+        {
+          "name": "Customer detail (Info / Garage / History)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/superadmin/customers/{{customer_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "superadmin",
+                "customers",
+                "{{customer_id}}",
+                ""
+              ]
+            },
+            "description": "IsOwnerOrAdmin. Header, stats strip, saved addresses, vehicles, block fields. founder_notes is the only writable field."
+          }
+        },
+        {
+          "name": "Edit founder notes",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/superadmin/customers/{{customer_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "superadmin",
+                "customers",
+                "{{customer_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"founder_notes\": \"Called re: refund \\u2014 resolved.\"\n}"
+            },
+            "description": "IsOwnerOrAdmin. founder_notes is the ONLY writable field; addresses/vehicles are read-only (customer app owns them)."
+          }
+        },
+        {
+          "name": "Customer booking history (History tab)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/superadmin/customers/{{customer_id}}/history/?page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "superadmin",
+                "customers",
+                "{{customer_id}}",
+                "history",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "IsAdmin. Merged carwash + DI bookings, newest first, each tagged kind. Custom envelope with extra page/page_size keys."
+          }
+        },
+        {
+          "name": "Block customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/superadmin/customers/{{customer_id}}/block/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "superadmin",
+                "customers",
+                "{{customer_id}}",
+                "block",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"frequent_no_shows\",\n  \"notes\": \"Missed 3 confirmed slots.\"\n}"
+            },
+            "description": "IsAdmin. is_active=false. reason optional (frequent_no_shows|abusive_behavior|payment_issues|fake_bookings|other); invalid -> 400. Records audit row."
+          }
+        },
+        {
+          "name": "Unblock customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/superadmin/customers/{{customer_id}}/unblock/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "superadmin",
+                "customers",
+                "{{customer_id}}",
+                "unblock",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "description": "IsAdmin. is_active=true. Clears block_reason/notes/blocked_at/blocked_by; logs unblock audit row."
+          }
+        },
+        {
+          "name": "Add new customer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/accounts/v1/admin/customers/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "accounts",
+                "v1",
+                "admin",
+                "customers",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+919447056789\",\n  \"full_name\": \"Ramesh Kurup\",\n  \"otp_code\": \"1234\",\n  \"email\": null\n}"
+            },
+            "description": "IsAdmin. Creates a role=user account by phone+name. Include otp_code to verify, omit for override. 409 (with customer_id) if phone exists."
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 · Refund Log (superadmin)",
+      "item": [
+        {
+          "name": "Refund Log (unified feed)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/refunds/?search=&status=requested,approved,paid&reason=&sort=recent&days=30&page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "refunds",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "status",
+                  "value": "requested,approved,paid",
+                  "description": "CSV: requested|approved|paid|declined"
+                },
+                {
+                  "key": "reason",
+                  "value": "",
+                  "description": "CSV refund reasons"
+                },
+                {
+                  "key": "sort",
+                  "value": "recent",
+                  "description": "recent|amount_desc|amount_asc|status"
+                },
+                {
+                  "key": "days",
+                  "value": "30",
+                  "description": "window in days; 0/all disables"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "IsSuperAdmin. Unified carwash + DI refund feed. Custom envelope with page/page_size. kind=refund (real row) or request (synthesized awaiting decision)."
+          }
+        },
+        {
+          "name": "Refund detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/refunds/detail/{{refund_ref}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "refunds",
+                "detail",
+                "{{refund_ref}}",
+                ""
+              ]
+            },
+            "description": "IsSuperAdmin. {id_or_reference} = numeric id OR RF-... reference. Returns stepper (steps) + next_action (approve|mark_paid|null)."
+          }
+        },
+        {
+          "name": "Approve a request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/refunds/approve/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "refunds",
+                "approve",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"booking_reference\": \"DT-531-9b1f\",\n  \"percent\": 70,\n  \"reason\": \"service_quality_issue\",\n  \"comment\": \"approved per call\"\n}"
+            },
+            "description": "IsSuperAdmin. Approves a customer refund request -> BookingRefund at pending (badge Approved). NO money moves. Provide percent OR amount. Amount cap-checked."
+          }
+        },
+        {
+          "name": "Mark Paid",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/refunds/mark-paid/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "refunds",
+                "mark-paid",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refund\": \"RF-20260529-014\",\n  \"payment_proof_reference\": \"UPI/AXIS/552210034\"\n}"
+            },
+            "description": "IsSuperAdmin. WHERE MONEY MOVES. Refund must be Approved (pending). Fires Razorpay unless mode=manual. JSON or multipart (screenshot upload). Also: POST .../refunds/{id_or_reference}/mark-paid/."
+          }
+        },
+        {
+          "name": "Mark Paid (by ref in URL)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/refunds/{{refund_ref}}/mark-paid/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "refunds",
+                "{{refund_ref}}",
+                "mark-paid",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_proof_reference\": \"UPI/AXIS/552210034\"\n}"
+            },
+            "description": "IsSuperAdmin. URL-form of Mark Paid — refund id/reference in the path; omit `refund` from body."
+          }
+        },
+        {
+          "name": "New Refund (standalone, by reference)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/refunds/create/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "refunds",
+                "create",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"booking_reference\": \"DT-412-7a3c\",\n  \"percent\": 100,\n  \"reason\": \"cancellation_by_customer\",\n  \"comment\": \"per call\"\n}"
+            },
+            "description": "IsSuperAdmin. Resolves carwash DT-... or DI SR-... booking. Admin-initiated: issues DIRECTLY to Paid (bypasses Approve). Provide percent OR amount. DI: payment_kind=advance|balance."
+          }
+        },
+        {
+          "name": "Decline a refund",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/admin/refunds/decline/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "admin",
+                "refunds",
+                "decline",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"booking_reference\": \"DT-531-9b1f\",\n  \"reason\": \"other\",\n  \"comment\": \"not eligible\"\n}"
+            },
+            "description": "IsSuperAdmin. Terminal off-ramp from Requested/Approved. No money moves; records audit row. carwash -> confirmed, DI -> cancelled."
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 · Reviews",
+      "item": [
+        {
+          "name": "Reviews list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/admin/reviews/?search=&rating=any&shop={{shop_id}}&date=all&has_comment=true&sort=recent&page=1&page_size=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "admin",
+                "reviews",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": ""
+                },
+                {
+                  "key": "rating",
+                  "value": "any",
+                  "description": "any|5|4|3 (>= threshold)"
+                },
+                {
+                  "key": "shop",
+                  "value": "{{shop_id}}"
+                },
+                {
+                  "key": "date",
+                  "value": "all",
+                  "description": "7d (default)|30d|all"
+                },
+                {
+                  "key": "has_comment",
+                  "value": "true"
+                },
+                {
+                  "key": "sort",
+                  "value": "recent",
+                  "description": "recent|rating_desc|rating_asc"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "IsAdmin. Read-only carwash ShopReview feed. Custom envelope (page/page_size). NOTE: date defaults to last 7 days — pass date=all for full history."
+          }
+        },
+        {
+          "name": "Review detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/shop/v1/admin/reviews/{{review_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "shop",
+                "v1",
+                "admin",
+                "reviews",
+                "{{review_id}}",
+                ""
+              ]
+            },
+            "description": "IsAdmin. Read-only. Adds tags, customer_phone, booking link, handled_by (derived), is_flagged (informational; no moderation in v0.1). 404 if missing."
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 · Offers — Coupons",
+      "item": [
+        {
+          "name": "Coupons list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/coupons/?search=&lifecycle=active&ordering=-created_at&page=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "coupons",
+                ""
+              ],
+              "query": [
+                {
+                  "key": "search",
+                  "value": "",
+                  "description": "code or description"
+                },
+                {
+                  "key": "lifecycle",
+                  "value": "active",
+                  "description": "CSV: active|scheduled|paused|expired"
+                },
+                {
+                  "key": "ordering",
+                  "value": "-created_at",
+                  "description": "-created_at (default) | name"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "IsAuthenticated. Standard DRF envelope. lifecycle (active|scheduled|paused|expired) is DERIVED. is_active/lifecycle_status are computed read-only."
+          }
+        },
+        {
+          "name": "Coupon detail / open Edit form",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/coupons/{{coupon_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "coupons",
+                "{{coupon_id}}",
+                ""
+              ]
+            },
+            "description": "IsAuthenticated. Same CouponSerializer shape as a list card. 404 if missing."
+          }
+        },
+        {
+          "name": "Add Coupon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/coupons/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "coupons",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"FIRST50\",\n  \"description\": \"50% off your first wash\",\n  \"discount_type\": \"percentage\",\n  \"discount_percentage\": \"50.00\",\n  \"max_discount\": \"150.00\",\n  \"min_order\": \"300.00\",\n  \"applies_to_all_shops\": true,\n  \"limit\": 1000,\n  \"per_user_limit\": 1,\n  \"start_date\": \"2026-06-01T00:00:00Z\",\n  \"end_date\": \"2026-07-31T23:59:59Z\",\n  \"status\": true\n}"
+            },
+            "description": "IsAdmin. name unique. discount_percentage required>0 for percentage; flat_amount required>0 for flat. shop_ids required (non-empty) when applies_to_all_shops=false. end_date must be after start_date."
+          }
+        },
+        {
+          "name": "Edit Coupon",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/coupons/{{coupon_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "coupons",
+                "{{coupon_id}}",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"discount_percentage\": \"60.00\",\n  \"status\": false,\n  \"end_date\": \"2026-08-31T23:59:59Z\"\n}"
+            },
+            "description": "IsAdmin. Partial update; cross-field validation merges with stored instance. status=false -> lifecycle_status becomes paused (unless expired)."
+          }
+        },
+        {
+          "name": "Delete coupon",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/coupons/{{coupon_id}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "coupons",
+                "{{coupon_id}}",
+                ""
+              ]
+            },
+            "description": "IsAdmin. 204 No Content."
+          }
+        },
+        {
+          "name": "Validate coupon (preview)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/booking/v1/validate-coupon/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "booking",
+                "v1",
+                "validate-coupon",
+                ""
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"FIRST50\",\n  \"order_amount\": \"600.00\"\n}"
+            },
+            "description": "IsAuthenticated. Customer-surface preview of the rupee discount for a code + order amount (Coupons.validate_redemption). Does NOT create/modify coupons."
+          }
+        }
+      ]
+    }
+  ]
+}

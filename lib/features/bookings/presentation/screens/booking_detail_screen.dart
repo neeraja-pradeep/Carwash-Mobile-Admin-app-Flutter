@@ -11,6 +11,7 @@ import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/status/booking_status.dart';
 import 'package:new_flutter_project/core/status/payment_status.dart';
 import 'package:new_flutter_project/core/utils/formatters.dart';
+import 'package:new_flutter_project/core/utils/map_launcher.dart';
 import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
 import 'package:new_flutter_project/core/widgets/app_dialog.dart';
@@ -54,6 +55,10 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
   String? _notes;
   bool _menuOpen = false;
 
+  /// The provider value the state above was last seeded from — see
+  /// [_initFromBooking].
+  Booking? _syncedFrom;
+
   /// Today's date stamp for new log entries.
   String _nowStamp() {
     final now = DateTime.now();
@@ -63,10 +68,22 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
     return '29 May, $h:$m $amPm';
   }
 
+  /// Re-seed the mutable state above whenever the provider yields *new* server
+  /// data.
+  ///
+  /// Identity is the test, not field equality. The provider hands back the same
+  /// [Booking] instance on every rebuild until a refetch completes, so comparing
+  /// fields would undo a local edit on the very next frame — `setState` itself
+  /// triggers the rebuild that would revert it. Conversely `_timeline` used to
+  /// be seeded with `??=`, which pinned it to the first load: a refetch updated
+  /// every other field while the timeline stayed stale.
   void _initFromBooking(Booking b) {
-    // Always update state from booking, not just on first load
-    // This ensures state refreshes when booking is re-fetched after API calls
-    if (_status != b.status) _status = b.status;
+    if (identical(_syncedFrom, b)) return;
+    _syncedFrom = b;
+
+    _status = b.status;
+    _timeline = List.from(b.timeline);
+    _notes = b.notes;
     if (_driverId != b.driverId) {
       _driverId = b.driverId;
       debugPrint('🔄 Updated driverId: $_driverId');
@@ -75,8 +92,6 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
       _assigneeName = b.assigneeName;
       debugPrint('🔄 Updated assigneeName: $_assigneeName');
     }
-    _timeline ??= List.from(b.timeline);
-    if (_notes != b.notes) _notes = b.notes;
   }
 
   void _advance(BookingAction action, Booking base) {
@@ -92,8 +107,41 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
     _commit(action, base);
   }
 
-  void _commit(BookingAction action, Booking base) {
+  Future<void> _commit(BookingAction action, Booking base) async {
     final next = action.to;
+    final intId = int.tryParse(widget.bookingId);
+    final wireKey = kWashingStatusWireKeys[next];
+
+    final message = next == BookingStatus.completed
+        ? 'Booking completed'
+        : 'Updated → ${next.label}';
+
+    // Car-wash bookings persist through the API, then re-read the server's own
+    // status and timeline. Without this the tap only moved local state, which
+    // the next rebuild reverted — the step appeared to advance and snap back.
+    if (intId != null && wireKey != null) {
+      try {
+        await ref
+            .read(bookingsRepositoryProvider)
+            .updateWashingStatus(intId, wireKey);
+      } catch (e) {
+        if (mounted) {
+          AppToast.show(
+            context,
+            'Could not update: ${e.toString().replaceFirst('Exception: ', '')}',
+          );
+        }
+        return;
+      }
+      if (!mounted) return;
+      ref.invalidate(bookingByIdProvider(widget.bookingId));
+      ref.invalidate(bookingsProvider);
+      AppToast.show(context, message);
+      return;
+    }
+
+    // Sample and driver-hire bookings this screen also renders have no such
+    // endpoint, so they stay local-only.
     setState(() {
       _status = next;
       _timeline = [
@@ -105,12 +153,7 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
         ),
       ];
     });
-    AppToast.show(
-      context,
-      next == BookingStatus.completed
-          ? 'Booking completed'
-          : 'Updated → ${next.label}',
-    );
+    AppToast.show(context, message);
   }
 
   Future<void> _makePhoneCall(String phoneNumber) async {
@@ -994,32 +1037,27 @@ class _JourneyCard extends ConsumerWidget {
   final Booking booking;
   final void Function(String) onToast;
 
-  Future<void> _launchMaps(Uri uri) async {
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      onToast('Cannot open maps');
-    }
-  }
-
   Future<void> _navigateToAddress(String address) async {
     if (address.trim().isEmpty) {
       onToast('No address available');
       return;
     }
-    await _launchMaps(Uri.parse(
-      'https://www.google.com/maps/search/?api=1&query=${Uri.encodeComponent(address)}',
-    ));
+    if (!await launchMapPin(address: address, label: address)) {
+      onToast('Cannot open maps');
+    }
   }
 
   Future<void> _navigateToShop(Shop shop) async {
-    if (shop.latitude != 0.0 || shop.longitude != 0.0) {
-      await _launchMaps(Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=${shop.latitude},${shop.longitude}',
-      ));
-    } else {
-      await _navigateToAddress(
-          shop.address.isNotEmpty ? shop.address : shop.area);
+    // Coordinates pin exactly; the address is the geocoded fallback for a shop
+    // that was never placed on the map.
+    final opened = await launchMapPin(
+      latitude: shop.latitude,
+      longitude: shop.longitude,
+      label: shop.name,
+      address: shop.address.isNotEmpty ? shop.address : shop.area,
+    );
+    if (!opened) {
+      onToast('No location available for this shop');
     }
   }
 

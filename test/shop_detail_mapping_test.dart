@@ -54,6 +54,29 @@ Shop _toDomain({Map<String, dynamic> overrides = const {}}) =>
         .toDomain();
 
 void main() {
+  group('ShopDetailResponseModel.fromJson', () {
+    test('unwraps a response that arrives wrapped in an envelope', () {
+      final shop =
+          ShopDetailResponseModel.fromJson({'data': _detailJson()}).toDomain();
+
+      expect(shop.name, 'Test Car Shop');
+      expect(shop.ownerName, 'Neeraja Owner');
+    });
+
+    test('refuses a payload with no shop in it', () {
+      // Every field defaults to '' / 0, so this used to parse into a shop with
+      // nothing in it and the edit form opened blank instead of erroring.
+      expect(
+        () => ShopDetailResponseModel.fromJson(const {'detail': 'Not found.'}),
+        throwsA(isA<Exception>()),
+      );
+      expect(
+        () => ShopDetailResponseModel.fromJson(const {}),
+        throwsA(isA<Exception>()),
+      );
+    });
+  });
+
   group('shop detail → domain', () {
     test('gives BunnyCDN paths a scheme so the images can load', () {
       final shop = _toDomain();

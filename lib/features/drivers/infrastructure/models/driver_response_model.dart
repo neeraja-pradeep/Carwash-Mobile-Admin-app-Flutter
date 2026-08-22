@@ -156,7 +156,9 @@ class ActiveJobModel {
   DriverCurrentJob toEntity(String workerName) {
     final loc = location;
     return DriverCurrentJob(
-      bookingId: reference ?? (bookingId?.toString() ?? ''),
+      bookingId: bookingId?.toString() ?? '',
+      reference: reference ?? (bookingId?.toString() ?? ''),
+      kind: kind,
       type: _kindLabel(kind),
       customer: reason ?? workerName,
       stage: stage ?? (stageCode ?? ''),
@@ -321,7 +323,10 @@ class FieldDriverModel {
         'suspended' => DriverStatus.suspended,
         // 'assigned' is system-set while a job runs — the worker is still
         // online, so it reads as active; the on-job state has its own chip.
-        _ => DriverStatus.online,
+        'assigned' => DriverStatus.online,
+        // Anything unrecognised reads as offline, never online: a mapping miss
+        // must not advertise a driver as available for dispatch.
+        _ => DriverStatus.offline,
       };
 
   /// Maps to the rich [FieldDriver] entity used across the Drivers screens.

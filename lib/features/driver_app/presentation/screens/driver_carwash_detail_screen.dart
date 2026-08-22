@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/map_launcher.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_icons.dart';
@@ -139,16 +140,25 @@ class _DriverCarwashDetailScreenState extends ConsumerState<DriverCarwashDetailS
     }
   }
 
-  Future<void> _launchMaps(double latitude, double longitude) async {
-    if (latitude == 0 && longitude == 0) return;
-    final Uri launchUri = Uri(
-      scheme: 'geo',
-      path: '$latitude,$longitude',
+  Future<void> _launchMaps(
+    double latitude,
+    double longitude,
+    String label,
+  ) async {
+    if (latitude == 0 && longitude == 0) {
+      if (mounted) {
+        AppToast.show(context, 'No location available for this booking.');
+      }
+      return;
+    }
+
+    final opened = await launchMapPin(
+      latitude: latitude,
+      longitude: longitude,
+      label: label,
     );
-    try {
-      await launchUrl(launchUri);
-    } catch (e) {
-      debugPrint('Could not launch maps: $e');
+    if (!opened && mounted) {
+      AppToast.show(context, 'Could not open maps.');
     }
   }
 
@@ -276,7 +286,11 @@ class _DriverCarwashDetailScreenState extends ConsumerState<DriverCarwashDetailS
                               SizedBox(height: 8.h),
                               // Location button
                               GestureDetector(
-                                onTap: () => _launchMaps(0, 0),
+                                onTap: () => _launchMaps(
+                                  booking.latitude,
+                                  booking.longitude,
+                                  booking.address,
+                                ),
                                 child: Container(
                                   padding: EdgeInsets.all(10.r),
                                   decoration: BoxDecoration(
@@ -336,7 +350,7 @@ class _DriverCarwashDetailScreenState extends ConsumerState<DriverCarwashDetailS
                                 Text(
                                   booking.address.isNotEmpty
                                       ? booking.address
-                                      : 'Shop Location',
+                                      : 'Address unavailable',
                                   style: AppText.figtree(
                                     size: 13,
                                     weight: FontWeight.w600,
@@ -604,18 +618,15 @@ class _WashingStatusFlow extends StatelessWidget {
 
   final String currentStatus;
 
-  static const List<String> steps = [
-    'Confirmed',
-    'Washing',
-    'Drying',
-    'Quality Check',
-    'Payment Collected',
-    'Completed',
-  ];
-
   @override
   Widget build(BuildContext context) {
-    final currentIndex = steps.indexOf(currentStatus.replaceAll('_', ' ').toTitleCase());
+    // Drive the ladder off the same step list the Advance button walks, so the
+    // two always agree. This used to hold its own hardcoded names ("Washing",
+    // "Drying", "Quality Check") that the API never sends: title-casing a real
+    // status like `crew_en_route` found nothing, left currentIndex at -1, and
+    // froze every row in the untouched state while the header moved on.
+    final steps = WashingStatusStep.steps;
+    final currentIndex = WashingStatusStep.indexOfValue(currentStatus) ?? -1;
 
     return AppCard(
       child: Column(
@@ -670,7 +681,7 @@ class _WashingStatusFlow extends StatelessWidget {
                     SizedBox(width: 12.w),
                     Expanded(
                       child: Text(
-                        steps[index],
+                        steps[index].label,
                         style: AppText.figtree(
                           size: 14,
                           weight: isCurrent ? FontWeight.w700 : FontWeight.w500,
@@ -695,13 +706,5 @@ class _WashingStatusFlow extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-extension on String {
-  String toTitleCase() {
-    return split('_')
-        .map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase())
-        .join(' ');
   }
 }

@@ -4,6 +4,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/status/badge_tone.dart';
+import 'package:new_flutter_project/core/status/booking_status.dart';
+import 'package:new_flutter_project/core/status/payment_status.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/status_badge.dart';
@@ -27,31 +29,23 @@ class BookingCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onAssign;
 
-  String _getStatusLabel() {
-    if (booking.status == 'cancelled') return 'Cancelled';
+  /// Shares [resolveBookingStatus] with the detail screen — the two used to
+  /// each map the status fields their own way, which is how the list could show
+  /// "Completed" while the detail still said "Assigned".
+  String _getStatusLabel() => resolveBookingStatus(
+        status: booking.status,
+        washingStatus: booking.washingStatus,
+        hasAssignee:
+            booking.assigneeName != null && booking.assigneeName!.isNotEmpty,
+      ).label;
 
-    final isAssigned = booking.assigneeName != null && booking.assigneeName!.isNotEmpty;
-
-    switch (booking.washingStatus) {
-      case 'crew_en_route':
-        return 'Going';
-      case 'picked_up':
-        return 'Picked';
-      case 'dropped_at_shop':
-        return 'At Shop';
-      case 'in_progress':
-        return 'Washing';
-      case 'wash_done':
-        return 'Done';
-      case 'returning':
-        return 'Returning';
-      case 'completed':
-        return 'Completed';
-      default:
-        if (booking.status == 'completed') return 'Completed';
-        return isAssigned ? 'Assigned' : 'New';
-    }
-  }
+  /// Shares [resolvePaymentStatus] with the detail screen, for the same reason
+  /// [_getStatusLabel] shares its resolver.
+  PaymentStatus _getPaymentStatus() => resolvePaymentStatus(
+        bookingStatus: booking.status,
+        paymentStatus: booking.paymentStatus,
+        isPaid: booking.isPaid,
+      );
 
   BadgeTone _getStatusTone() {
     final status = _getStatusLabel();
@@ -72,7 +66,10 @@ class BookingCard extends StatelessWidget {
       case 'Completed':
         return BadgeTone.green;
       case 'Cancelled':
+      case 'Refunded':
         return BadgeTone.red;
+      case 'Refund Requested':
+        return BadgeTone.amber;
       default:
         return BadgeTone.grey;
     }
@@ -316,16 +313,21 @@ class BookingCard extends StatelessWidget {
                             ),
                           ),
                           SizedBox(width: 8.w),
-                          Text(
-                            booking.isPaid == true ? 'Paid' : (booking.paymentStatus ?? 'Pending'),
-                            style: AppText.figtree(
-                              size: 12,
-                              weight: FontWeight.w600,
-                              color: booking.isPaid == true
-                                  ? AppColors.greenFg
-                                  : AppColors.amberFg,
-                            ),
-                          ),
+                          Builder(builder: (_) {
+                            final payment = _getPaymentStatus();
+                            return Text(
+                              payment.label,
+                              style: AppText.figtree(
+                                size: 12,
+                                weight: FontWeight.w600,
+                                color: switch (payment) {
+                                  PaymentStatus.paid => AppColors.greenFg,
+                                  PaymentStatus.refunded => AppColors.redFg,
+                                  PaymentStatus.pending => AppColors.amberFg,
+                                },
+                              ),
+                            );
+                          }),
                         ],
                       ),
                     ),

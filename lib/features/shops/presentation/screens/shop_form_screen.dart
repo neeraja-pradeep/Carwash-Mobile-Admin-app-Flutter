@@ -12,8 +12,10 @@ import 'package:new_flutter_project/core/constants/app_options.dart';
 import 'package:new_flutter_project/core/utils/phone_number.dart';
 import 'package:new_flutter_project/core/widgets/widgets.dart';
 
+import '../../application/pending_shop_photo_upload.dart';
 import '../../application/providers/shops_providers.dart';
 import '../../domain/entities/shop.dart';
+import '../components/shop_photos_field.dart';
 
 /// Add / Edit shop form screen.
 /// Mirrors `AddShopForm` in `screen_shopforms.jsx`.
@@ -75,6 +77,10 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
   bool _touched = false;
   bool _saving = false;
 
+  /// Slot → local file path for photos picked while adding. There is no shop
+  /// to attach them to until the create call returns, so they wait here.
+  Map<String, String> _pendingPhotos = const {};
+
   bool get _isEdit => widget.shop != null;
 
   @override
@@ -95,7 +101,8 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
       : _f.name.isNotEmpty ||
           _f.ownerName.isNotEmpty ||
           _f.address.isNotEmpty ||
-          _f.latitude != null;
+          _f.latitude != null ||
+          _pendingPhotos.isNotEmpty;
 
   /// Shop phone is optional, but a half-typed one still blocks the save —
   /// otherwise it would silently reach the API as an empty string.
@@ -166,7 +173,10 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
 
   /// Create a new shop via API
   void _handleCreate() async {
-    if (!_valid) return;
+    // Guarded like the edit path: creating now runs the photo uploads too, so
+    // the CTA stays live long enough for a second tap to make a second shop.
+    if (!_valid || _saving) return;
+    setState(() => _saving = true);
 
     AppToast.show(context, 'Creating shop...');
 
@@ -206,16 +216,35 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
       final created = await ref.read(createShopProvider(params).future);
       if (!mounted) return;
 
-      final source = widget.duplicateFrom;
-      if (source != null && source.photos.isNotEmpty) {
-        await _copyPhotos(created.id, source.photos);
+      if (_pendingPhotos.isNotEmpty) {
+        AppToast.show(context, 'Uploading photos...');
+        await _uploadPickedPhotos(created.id);
         if (!mounted) return;
       }
 
-      AppToast.show(context, 'Shop created (Inactive) — add a service next');
+      final source = widget.duplicateFrom;
+      // A slot the admin picked for wins over the one carried by the original.
+      final toCopy = source == null
+          ? const <ShopPhoto>[]
+          : source.photos
+              .where((p) => !_pendingPhotos.containsKey(p.slot))
+              .toList();
+      if (toCopy.isNotEmpty) {
+        await _copyPhotos(created.id, toCopy);
+        if (!mounted) return;
+      }
 
-      context.pop();
-      // Shops list will reload naturally when user navigates back
+      AppToast.show(context, 'Shop created — set the weekly hours next');
+
+      // The form promises the schedule comes "on the next step, once the shop
+      // is created", but creating used to drop straight back to the list and
+      // there was no next step — hours (and the services a shop needs before
+      // it can go live) were only reachable by finding the shop again. Land on
+      // the new shop with the hours screen open on top of it: closing hours
+      // leaves the admin on the shop, one tap from Services and the activation
+      // toggle.
+      context.pushReplacement(Routes.shopDetail(created.id));
+      context.push(Routes.shopHours(created.id));
     } catch (e) {
       if (!mounted) return;
 
@@ -238,6 +267,29 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
             ),
           ],
         ),
+      );
+    } finally {
+      // Not on the success path — the screen has already popped by then.
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  /// Sends the photos picked on the form now that the shop exists and can own
+  /// them. Best-effort, like [_copyPhotos] — the shop is already created, so a
+  /// failed slot is reported rather than rolled back.
+  Future<void> _uploadPickedPhotos(String newShopId) async {
+    final failed = await uploadPendingShopPhotos(
+      newShopId,
+      _pendingPhotos,
+      (shopId, {required slot, required filePath}) => ref
+          .read(shopPhotoEditorProvider)
+          .uploadFile(shopId, slot: slot, filePath: filePath),
+    );
+    if (failed > 0 && mounted) {
+      AppToast.show(
+        context,
+        '$failed photo${failed == 1 ? '' : 's'} could not be uploaded — '
+        'add from the shop page',
       );
     }
   }
@@ -452,6 +504,23 @@ class _ShopFormBodyState extends ConsumerState<_ShopFormBody> {
                             placeholder: '688011',
                             keyboardType: TextInputType.number,
                             onChanged: (v) => _set(_f.copyWith(pincode: v)),
+                          ),
+                        ],
+                      ),
+                      SizedBox(height: 14.h),
+
+                      // Photos
+                      _FCard(
+                        label: 'Photos',
+                        children: [
+                          ShopPhotosField(
+                            shopId: widget.shop?.id,
+                            photos: widget.shop?.photos ?? const [],
+                            pending: _pendingPhotos,
+                            onPendingChanged: (picked) => setState(() {
+                              _pendingPhotos = picked;
+                              if (_isEdit) _touched = true;
+                            }),
                           ),
                         ],
                       ),
@@ -1211,7 +1280,10 @@ class _FormState {
           : (pincodeMatch?.group(0) ?? ''),
       latitude: located ? s.latitude : null,
       longitude: located ? s.longitude : null,
-      cap: '${s.cap}',
+      // The configured setting, not `s.cap` — that one is the server's derived
+      // total capacity, so the field would redisplay a computed number and
+      // every save would look like it was ignored.
+      cap: '${s.slotCap}',
       types: [...s.vehicleTypes],
       mode: c.mode.name,
       pct: '${c.pct ?? 15}',

@@ -73,9 +73,35 @@ class ShopDetailResponseModel {
     required this.updatedAt,
   });
 
-  factory ShopDetailResponseModel.fromJson(Map<String, dynamic> json) {
+  /// Some responses arrive wrapped (`{"data": {...}}`); the shop object is
+  /// what everything below reads, so unwrap before touching a single key.
+  static Map<String, dynamic> _unwrap(Map<String, dynamic> json) {
+    if (json.containsKey('id')) return json;
+    for (final key in const ['data', 'shop', 'result']) {
+      final inner = json[key];
+      if (inner is Map<String, dynamic>) return inner;
+    }
+    return json;
+  }
+
+  factory ShopDetailResponseModel.fromJson(Map<String, dynamic> raw) {
+    final json = _unwrap(raw);
+
+    // Every field below falls back to '' / 0, so a payload in an unexpected
+    // shape used to parse "successfully" into a shop with nothing in it — the
+    // edit form then opened blank with no error to explain why. A response
+    // without an id is not a shop; say so and let the screen show its error
+    // state and a Retry instead.
+    final id = json['id'] as int? ?? 0;
+    if (id <= 0) {
+      throw Exception(
+        'Shop detail response carried no shop (keys: '
+        '${raw.keys.take(8).join(', ')}).',
+      );
+    }
+
     return ShopDetailResponseModel(
-      id: json['id'] as int? ?? 0,
+      id: id,
       name: json['name'] as String? ?? '',
       tagline: json['tagline'] as String? ?? '',
       status: json['status'] as String? ?? 'active',
@@ -449,6 +475,7 @@ class BankDetailModel {
 /// and state, which this form has no inputs for) would be blanked out.
 class ShopUpdateRequest {
   const ShopUpdateRequest({
+    this.status,
     this.name,
     this.address,
     this.pincode,
@@ -473,6 +500,10 @@ class ShopUpdateRequest {
     this.pan,
     this.useSlotLevelCapacity,
   });
+
+  /// `active` / `inactive` — what the detail screen's "Shop active" toggle
+  /// writes. The backend refuses to activate a shop with no active service.
+  final String? status;
 
   final String? name;
   final String? address;
@@ -499,6 +530,7 @@ class ShopUpdateRequest {
   final bool? useSlotLevelCapacity;
 
   Map<String, dynamic> toJson() => {
+        if (status != null) 'status': status,
         if (name != null) 'name': name,
         if (address != null) 'address': address,
         if (pincode != null) 'pincode': pincode,

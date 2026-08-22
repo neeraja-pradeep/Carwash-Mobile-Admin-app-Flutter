@@ -10,7 +10,8 @@ class ShopServiceResponse {
   final bool uniformPricing;
   final int price;
   final int durationInSlots;
-  final int estimatedMinutes;
+  /// Nullable — the API omits it for variants saved without a duration.
+  final int? estimatedMinutes;
   final List<ServiceVariantResponse> variants;
   final int fromPrice;
   final String summary;
@@ -45,7 +46,7 @@ class ShopServiceResponse {
       uniformPricing: json['uniform_pricing'] as bool? ?? false,
       price: ((json['price'] as num?) ?? 0).toInt(),
       durationInSlots: json['duration_in_slots'] as int? ?? 1,
-      estimatedMinutes: json['estimated_minutes'] as int? ?? 30,
+      estimatedMinutes: json['estimated_minutes'] as int?,
       variants: (json['variants'] as List<dynamic>?)
               ?.map((v) =>
                   ServiceVariantResponse.fromJson(v as Map<String, dynamic>))
@@ -64,15 +65,17 @@ class ShopServiceResponse {
             ServicePricing(
               type: 'all',
               price: price,
-              minutes: durationInSlots * 30,
+              minutes: estimatedMinutes ?? durationInSlots * 30,
               active: active,
             )
           ]
         : variants
             .map((v) => ServicePricing(
+                  // Kept as the API slug (`hatchback`, `suv`, …); the form maps
+                  // it back to a display label via `vehicleTypeSlug`.
                   type: v.vehicleType,
                   price: v.price,
-                  minutes: v.durationInSlots * 30,
+                  minutes: v.estimatedMinutes ?? v.durationInSlots * 30,
                   active: v.active,
                 ))
             .toList();
@@ -82,8 +85,10 @@ class ShopServiceResponse {
       name: name,
       description: inclusions.join(', '),
       samePrice: uniformPricing,
-      flatPrice: uniformPricing ? price : 0,
-      flatMinutes: uniformPricing ? durationInSlots * 30 : 0,
+      // Null (not 0) when per-vehicle priced, so the flat-price fields render
+      // empty rather than "0" if the user flips the uniform-pricing toggle.
+      flatPrice: uniformPricing ? price : null,
+      flatMinutes: uniformPricing ? (estimatedMinutes ?? durationInSlots * 30) : null,
       active: active,
       pricing: pricing,
     );
@@ -96,7 +101,8 @@ class ServiceVariantResponse {
   final String label;
   final int price;
   final int durationInSlots;
-  final int estimatedMinutes;
+  /// Nullable — the API returns null for variants saved without a duration.
+  final int? estimatedMinutes;
   final bool active;
 
   ServiceVariantResponse({
@@ -116,7 +122,7 @@ class ServiceVariantResponse {
       label: json['label'] as String? ?? '',
       price: ((json['price'] as num?) ?? 0).toInt(),
       durationInSlots: json['duration_in_slots'] as int? ?? 1,
-      estimatedMinutes: json['estimated_minutes'] as int? ?? 30,
+      estimatedMinutes: json['estimated_minutes'] as int?,
       active: json['active'] as bool? ?? true,
     );
   }

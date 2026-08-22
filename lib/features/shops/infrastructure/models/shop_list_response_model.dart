@@ -141,6 +141,10 @@ class ShopListItemModel {
       weekly: [],
       slotCapacityEnabled: false,
       slotCap: 0,
+      // The list row carries these as summaries, not as the objects the detail
+      // response has — without them the card reads ₹0/booking · 0 services.
+      commissionLabel: commissionLabel,
+      servicesCount: servicesCount,
     );
   }
 

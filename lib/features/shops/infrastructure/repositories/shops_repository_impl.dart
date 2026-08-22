@@ -142,6 +142,7 @@ class ShopsRepositoryImpl implements ShopsRepository {
   @override
   Future<Shop> updateShop(
     String shopId, {
+    String? status,
     String? name,
     String? address,
     String? pincode,
@@ -168,6 +169,7 @@ class ShopsRepositoryImpl implements ShopsRepository {
   }) async {
     try {
       final request = ShopUpdateRequest(
+        status: status,
         name: name,
         address: address,
         pincode: pincode,

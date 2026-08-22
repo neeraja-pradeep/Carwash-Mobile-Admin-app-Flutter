@@ -30,4 +30,15 @@ class HiringSnapshot {
 
   /// Inspections not yet assigned.
   final int inspectOpen;
+
+  HiringSnapshot copyWith({int? driversOnline, int? driversTotal}) =>
+      HiringSnapshot(
+        driversOnline: driversOnline ?? this.driversOnline,
+        driversTotal: driversTotal ?? this.driversTotal,
+        onJobNow: onJobNow,
+        hireRequestsToday: hireRequestsToday,
+        hireOpen: hireOpen,
+        inspectionsToday: inspectionsToday,
+        inspectOpen: inspectOpen,
+      );
 }

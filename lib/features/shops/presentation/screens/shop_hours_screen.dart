@@ -249,7 +249,7 @@ class _ShopHoursScreenState extends ConsumerState<ShopHoursScreen> {
                                 Text(
                                   slotCapEnabled
                                       ? 'On — per-slot capacity governs how many cars each slot can take'
-                                      : 'Off — daily cap of ${shop.cap} applies',
+                                      : 'Off — daily cap of ${shop.slotCap} applies',
                                   style: AppText.figtree(
                                     size: 12,
                                     weight: FontWeight.w400,

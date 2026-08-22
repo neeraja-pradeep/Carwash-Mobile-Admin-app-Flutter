@@ -179,11 +179,35 @@ class _DriverDetailScreenState extends ConsumerState<DriverDetailScreen> {
                             if (onJob && driver.currentJob != null) ...[
                               LiveJobCard(
                                 job: driver.currentJob!,
-                                onOpenBooking: () => context.push(
-                                  Routes.bookingDetail(
-                                    driver.currentJob!.bookingId,
-                                  ),
-                                ),
+                                onOpenBooking: () {
+                                  final job = driver.currentJob!;
+                                  if (job.bookingId.isEmpty) {
+                                    AppToast.show(
+                                      context,
+                                      'This job has no linked booking.',
+                                    );
+                                    return;
+                                  }
+                                  // Carwash ids are bookings; driver-hire and
+                                  // inspection ids are driver-inspection
+                                  // requests, served by a different endpoint —
+                                  // sending those to the booking route 404s.
+                                  final route = switch (job.kind) {
+                                    'carwash' =>
+                                      Routes.bookingDetail(job.bookingId),
+                                    'driver_hire' || 'inspection' =>
+                                      Routes.serviceRequestDetail(job.bookingId),
+                                    _ => null,
+                                  };
+                                  if (route == null) {
+                                    AppToast.show(
+                                      context,
+                                      'Cannot open a ${job.type} job yet.',
+                                    );
+                                    return;
+                                  }
+                                  context.push(route);
+                                },
                                 onReassign: () => AppToast.show(
                                   context,
                                   'Reassign from booking detail',

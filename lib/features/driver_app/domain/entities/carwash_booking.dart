@@ -11,6 +11,14 @@ class CarwashBooking {
   final String appointmentDate;
   final String startTime;
 
+  /// Pickup coordinates, from the booking's `address_detail`. Both are 0 when
+  /// the payload carries no location — callers must treat that as "unknown"
+  /// rather than as a point off the coast of Africa.
+  final double latitude;
+  final double longitude;
+
+  bool get hasCoordinates => latitude != 0 || longitude != 0;
+
   CarwashBooking({
     required this.id,
     required this.reference,
@@ -23,7 +31,47 @@ class CarwashBooking {
     required this.address,
     required this.appointmentDate,
     required this.startTime,
+    this.latitude = 0,
+    this.longitude = 0,
   });
+
+  /// Returns a copy with the given fields replaced.
+  ///
+  /// Needed because `PATCH /bookings/{id}/` answers with only the fields it
+  /// changed (`id`, `washing_status`, `updated_at`). Rebuilding the booking
+  /// from that reply alone blanks everything it omits, so callers merge the
+  /// changed fields onto the booking they already hold.
+  CarwashBooking copyWith({
+    String? id,
+    String? reference,
+    String? washingStatus,
+    String? status,
+    String? amount,
+    String? customerName,
+    String? customerPhone,
+    String? vehicleText,
+    String? address,
+    String? appointmentDate,
+    String? startTime,
+    double? latitude,
+    double? longitude,
+  }) {
+    return CarwashBooking(
+      id: id ?? this.id,
+      reference: reference ?? this.reference,
+      washingStatus: washingStatus ?? this.washingStatus,
+      status: status ?? this.status,
+      amount: amount ?? this.amount,
+      customerName: customerName ?? this.customerName,
+      customerPhone: customerPhone ?? this.customerPhone,
+      vehicleText: vehicleText ?? this.vehicleText,
+      address: address ?? this.address,
+      appointmentDate: appointmentDate ?? this.appointmentDate,
+      startTime: startTime ?? this.startTime,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+    );
+  }
 }
 
 class WashingStatusStep {
@@ -52,12 +100,14 @@ class WashingStatusStep {
     }
   }
 
+  /// Position of [value] in [steps], or null if it isn't a known step.
+  ///
+  /// `indexWhere` returns -1 rather than throwing, so the old catch never ran
+  /// and -1 escaped as a real index: an unrecognised status made [nextStatus]
+  /// offer step 0 ("confirmed"), which would have walked a job backwards.
   static int? indexOfValue(String value) {
-    try {
-      return steps.indexWhere((s) => s.value == value);
-    } catch (e) {
-      return null;
-    }
+    final index = steps.indexWhere((s) => s.value == value);
+    return index == -1 ? null : index;
   }
 
   static String? nextStatus(String currentValue) {

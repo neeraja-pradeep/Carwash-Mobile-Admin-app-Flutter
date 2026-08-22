@@ -7,12 +7,10 @@ import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/widgets/app_card.dart';
-import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/skeleton_card.dart';
 import '../../../../core/widgets/top_bar.dart';
-import '../../../auth/application/providers/auth_provider.dart';
 import '../../application/providers/settings_providers.dart';
 import '../../domain/entities/app_settings.dart';
 import '../components/edit_field_sheet.dart';
@@ -23,7 +21,8 @@ import '../components/settings_item.dart';
 /// Settings main screen — scrollable, single page with grouped items.
 ///
 /// Mirrors `SettingsScreen` in `screen_settings.jsx` (lines 198–300).
-/// Groups: Business · Operations · Notifications · Logout. No "About" section.
+/// Groups: Business · Operations · Notifications. No "About" section.
+/// Log out lives at the bottom of the dashboard (home) screen.
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -358,35 +357,6 @@ class _Body extends ConsumerWidget {
                     activeTrackColor: AppColors.brandYellow,
                   ),
                 ),
-            ],
-          ),
-          SizedBox(height: 18.h),
-
-          // ── Logout ────────────────────────────────────────────────────────────
-          SettingsGroupSection(
-            label: '',
-            children: [
-              SettingsItem(
-                icon: AppIcons.logout,
-                title: 'Log out',
-                danger: true,
-                last: true,
-                onTap: () async {
-                  final confirmed = await showConfirmDialog(
-                    context: context,
-                    title: 'Log out?',
-                    body: 'You will be returned to the login screen.',
-                    confirmLabel: 'Log out',
-                    destructive: true,
-                  );
-                  if (confirmed && context.mounted) {
-                    await ref.read(authStateProvider.notifier).logout();
-                    if (context.mounted) {
-                      context.go(Routes.login);
-                    }
-                  }
-                },
-              ),
             ],
           ),
           SizedBox(height: 18.h),

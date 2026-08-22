@@ -142,8 +142,11 @@ class DriverInspectionRequestModel {
       note: '',
       timeline: const [],
       // `needs_assignee` is the authoritative flag from the API; a request can
-      // be assigned even when the display name is momentarily empty.
+      // be assigned even when the display name is momentarily empty. We keep a
+      // non-null placeholder id so `_isUnassigned` stays false for assigned
+      // requests, and carry the real display name through `assigneeName`.
       assigneeId: needsAssignee ? null : (assigneeName ?? 'assigned'),
+      assigneeName: needsAssignee ? null : assigneeName,
       fee: _parseFee(amount),
     );
   }

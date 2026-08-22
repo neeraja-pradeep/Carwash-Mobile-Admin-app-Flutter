@@ -19,7 +19,20 @@ class DriverInspectionDetailResponse {
   final String? quotedFee;
   final String? estimatedFee;
   final String? customerNote;
+
+  /// Upfront/booking payment: `true` once the customer has paid the quoted fee.
   final bool isPaid;
+  final String? paidAt;
+
+  /// Post-job settlement. Populated once the job runs long or picks up extras;
+  /// [balancePaid] is the "has the customer paid the final amount" flag.
+  final int? actualHours;
+  final String? additionalCharges;
+  final String? finalTotal;
+  final String? balanceDue;
+  final bool balancePaid;
+  final String? balancePaidAt;
+
   final WorkerModel? worker;
   final List<TimelineEntryModel> timeline;
   final String? startOtp;
@@ -44,6 +57,13 @@ class DriverInspectionDetailResponse {
     this.estimatedFee,
     this.customerNote,
     required this.isPaid,
+    this.paidAt,
+    this.actualHours,
+    this.additionalCharges,
+    this.finalTotal,
+    this.balanceDue,
+    this.balancePaid = false,
+    this.balancePaidAt,
     this.worker,
     required this.timeline,
     this.startOtp,
@@ -70,6 +90,13 @@ class DriverInspectionDetailResponse {
       estimatedFee: json['estimated_fee'] as String?,
       customerNote: json['customer_note'] as String?,
       isPaid: json['is_paid'] as bool? ?? false,
+      paidAt: json['paid_at'] as String?,
+      actualHours: (json['actual_hours'] as num?)?.toInt(),
+      additionalCharges: _amount(json['additional_charges']),
+      finalTotal: _amount(json['final_total']),
+      balanceDue: _amount(json['balance_due']),
+      balancePaid: json['balance_paid'] as bool? ?? false,
+      balancePaidAt: json['balance_paid_at'] as String?,
       worker: json['worker'] != null
           ? WorkerModel.fromJson(json['worker'] as Map<String, dynamic>)
           : null,
@@ -80,6 +107,15 @@ class DriverInspectionDetailResponse {
       startOtp: json['start_otp'] as String?,
       endOtp: json['end_otp'] as String?,
     );
+  }
+
+  /// Money fields come back as decimal strings (`"437.56"`), but tolerate raw
+  /// numbers too. Returns null for a missing/blank value.
+  static String? _amount(dynamic value) {
+    if (value == null) return null;
+    if (value is num) return value.toString();
+    final s = value.toString().trim();
+    return s.isEmpty ? null : s;
   }
 }
 

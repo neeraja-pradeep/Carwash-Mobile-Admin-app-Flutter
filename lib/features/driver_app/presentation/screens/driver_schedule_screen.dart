@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
@@ -8,6 +10,7 @@ import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/map_launcher.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_icons.dart';
@@ -17,6 +20,7 @@ import '../../../../core/widgets/skeleton_card.dart';
 import '../../application/providers/schedule_provider.dart';
 import '../../application/providers/available_jobs_provider.dart';
 import '../../application/providers/claim_job_provider.dart';
+import '../../application/providers/driver_home_provider.dart';
 import '../../application/states/available_jobs_state.dart';
 import '../../application/states/schedule_state.dart';
 import '../../domain/entities/job.dart';
@@ -119,6 +123,10 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
 
       if (mounted) {
         AppToast.show(context, '✓ Job claimed! It\'s now in your schedule.');
+        // Today tab's feed/stats are now stale. Its state survives tab switches
+        // and it only self-loads once, so refetch here rather than invalidating
+        // (invalidate would reset it to Initial and strand it on skeletons).
+        unawaited(ref.read(driverHomeStateProvider.notifier).loadHomeData());
         // Refresh schedule to show the newly claimed job
         await _loadSchedule();
         // Refresh available jobs
@@ -143,21 +151,18 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
     }
   }
 
-  Future<void> _launchMaps(double? latitude, double? longitude) async {
-    if (latitude == null || longitude == null) {
-      return;
-    }
-
-    final googleMapsUrl = Uri.parse(
-      'https://www.google.com/maps?q=$latitude,$longitude',
+  Future<void> _launchMaps(
+    double? latitude,
+    double? longitude,
+    String label,
+  ) async {
+    final opened = await launchMapPin(
+      latitude: latitude,
+      longitude: longitude,
+      label: label,
     );
-
-    try {
-      if (await canLaunchUrl(googleMapsUrl)) {
-        await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('Error launching maps: $e');
+    if (!opened && mounted) {
+      AppToast.show(context, 'No location available for this job.');
     }
   }
 
@@ -243,7 +248,7 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
                     job: job,
                     onTap: () => _navigateToJobDetail(context, job),
                     onCall: () => _launchPhone(job.customerPhone),
-                    onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
+                    onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng, job.pickupAddress),
                   ),
                 )),
               ]).expand((x) => x),
@@ -262,7 +267,7 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
                     job: job,
                     onTap: () => _navigateToJobDetail(context, job),
                     onCall: () => _launchPhone(job.customerPhone),
-                    onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
+                    onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng, job.pickupAddress),
                   ),
                 )),
               ],
@@ -341,9 +346,15 @@ class _DriverScheduleScreenState extends ConsumerState<DriverScheduleScreen>
               padding: EdgeInsets.only(bottom: 12.h),
               child: _AvailableJobCard(
                 job: job,
+                // The detail endpoint is scoped to the assigned worker and 404s
+                // for pool jobs, so tell the driver instead of navigating.
+                onTap: () => AppToast.show(
+                  context,
+                  'Claim this job to see the full details.',
+                ),
                 onClaim: () => _claimJob(job),
                 onCall: () => _launchPhone(job.customerPhone),
-                onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng),
+                onNavigate: () => _launchMaps(job.pickupLat, job.pickupLng, job.pickupAddress),
               ),
             )),
             if (jobs.nextPageUrl != null) ...[
@@ -523,21 +534,23 @@ class _TypePill extends StatelessWidget {
 class _AvailableJobCard extends StatelessWidget {
   const _AvailableJobCard({
     required this.job,
+    required this.onTap,
     required this.onClaim,
     required this.onCall,
     required this.onNavigate,
   });
 
   final Job job;
+  final VoidCallback onTap;
   final VoidCallback onClaim;
   final VoidCallback onCall;
   final VoidCallback onNavigate;
 
   @override
   Widget build(BuildContext context) {
-    // Don't navigate on tap for available jobs - only show claim button
+    // Tapping opens a read-only preview of the job; claiming stays on the button.
     return AppCard(
-      onTap: null,
+      onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

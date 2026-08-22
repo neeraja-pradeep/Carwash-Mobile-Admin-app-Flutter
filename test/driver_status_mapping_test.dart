@@ -49,8 +49,12 @@ void main() {
       expect(statusOf('assigned'), DriverStatus.online);
     });
 
-    test('an unrecognised status falls back to active rather than throwing', () {
-      expect(statusOf('something_new'), DriverStatus.online);
+    test('an unrecognised status falls back to offline, not online', () {
+      // Falling back to online advertised a driver as available for dispatch
+      // on nothing more than a mapping miss. Offline is the safe default: the
+      // roster under-promises instead of dispatching to a driver who is gone.
+      expect(statusOf('something_new'), DriverStatus.offline);
+      expect(statusOf(''), DriverStatus.offline);
     });
   });
 

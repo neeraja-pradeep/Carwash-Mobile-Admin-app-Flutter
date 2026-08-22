@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/status/service_request_status.dart';
+import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/core/widgets/app_bottom_sheet.dart';
 import 'package:new_flutter_project/core/widgets/app_button.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
@@ -305,6 +307,8 @@ class _DetailBody extends ConsumerWidget {
                     _HeaderCard(detail: detail, status: status),
                     SizedBox(height: 14.h),
                     _DetailsCard(detail: detail),
+                    SizedBox(height: 14.h),
+                    _PaymentCard(detail: detail, status: status),
                     SizedBox(height: 14.h),
                     if (detail.customerNote != null &&
                         detail.customerNote!.isNotEmpty) ...[
@@ -778,9 +782,6 @@ class _DetailsCard extends StatelessWidget {
                 '${detail.appointmentDate} ${detail.startTime} · ${detail.durationLabel}',
           ),
           _DetailRow(label: 'Location', value: detail.addressText),
-          _DetailRow(
-              label: 'Fee',
-              value: '₹${detail.quotedFee ?? detail.estimatedFee ?? '0'}'),
         ],
       ),
     );
@@ -811,6 +812,180 @@ class _DetailRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Payment / settlement summary.
+///
+/// Two separate money events exist on a request: the upfront booking payment
+/// (`is_paid` / `paid_at`) and, once the job is done, the final settlement of
+/// any extra time or charges (`balance_due` / `balance_paid` /
+/// `balance_paid_at`). A completed request is only fully paid when both are.
+class _PaymentCard extends StatelessWidget {
+  const _PaymentCard({required this.detail, required this.status});
+
+  final DriverInspectionDetailResponse detail;
+  final ServiceRequestStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final balanceDue = _toAmount(detail.balanceDue);
+    final extras = _toAmount(detail.additionalCharges);
+    final isCompleted = status == ServiceRequestStatus.completed;
+
+    // Settlement only becomes meaningful once the job has run — before that
+    // there is nothing but the booking amount to show.
+    final hasSettlement = isCompleted ||
+        detail.balancePaid ||
+        (balanceDue != null && balanceDue > 0) ||
+        detail.finalTotal != null;
+    final hasBalanceOutstanding =
+        balanceDue != null && balanceDue > 0 && !detail.balancePaid;
+
+    final (String chipLabel, Color chipBg, Color chipFg) = !detail.isPaid
+        ? ('UNPAID', AppColors.redBg, AppColors.redFg)
+        : hasBalanceOutstanding
+            ? ('BALANCE DUE', AppColors.redBg, AppColors.redFg)
+            : ('PAID', AppColors.greenBg, AppColors.greenFg);
+
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('PAYMENT',
+                  style: AppText.figtree(
+                      size: 11,
+                      color: AppColors.fgTertiary,
+                      weight: FontWeight.w600)),
+              const Spacer(),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+                decoration: BoxDecoration(
+                  color: chipBg,
+                  borderRadius: BorderRadius.circular(6.r),
+                ),
+                child: Text(chipLabel,
+                    style: AppText.figtree(
+                        size: 10, weight: FontWeight.w700, color: chipFg)),
+              ),
+            ],
+          ),
+          SizedBox(height: 12.h),
+          _MoneyRow(
+            label: 'Booking amount',
+            value: _money(detail.quotedFee ?? detail.estimatedFee),
+            note: detail.isPaid
+                ? 'Paid${_stamp(detail.paidAt) == null ? '' : ' · ${_stamp(detail.paidAt)}'}'
+                : 'Not paid',
+            noteColor: detail.isPaid ? AppColors.greenFg : AppColors.redFg,
+          ),
+          if (hasSettlement) ...[
+            if (extras != null && extras > 0)
+              _MoneyRow(
+                label: detail.actualHours == null
+                    ? 'Extra charges'
+                    : 'Extra charges · ${detail.actualHours} hr worked',
+                value: _money(detail.additionalCharges),
+              ),
+            if (detail.finalTotal != null)
+              _MoneyRow(
+                label: 'Final total',
+                value: _money(detail.finalTotal),
+                emphasize: true,
+              ),
+            Padding(
+              padding: EdgeInsets.symmetric(vertical: 10.h),
+              child: const Divider(height: 1, color: AppColors.borderSoft),
+            ),
+            _MoneyRow(
+              label: 'Final amount (balance)',
+              value: _money(detail.balanceDue ?? '0'),
+              note: detail.balancePaid
+                  ? 'Paid${_stamp(detail.balancePaidAt) == null ? '' : ' · ${_stamp(detail.balancePaidAt)}'}'
+                  : hasBalanceOutstanding
+                      ? 'Not paid by customer'
+                      : 'Nothing due',
+              noteColor: hasBalanceOutstanding
+                  ? AppColors.redFg
+                  : AppColors.greenFg,
+              emphasize: true,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _MoneyRow extends StatelessWidget {
+  const _MoneyRow({
+    required this.label,
+    required this.value,
+    this.note,
+    this.noteColor,
+    this.emphasize = false,
+  });
+
+  final String label;
+  final String value;
+  final String? note;
+  final Color? noteColor;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: 10.h),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: AppText.figtree(
+                        size: 13,
+                        weight: emphasize ? FontWeight.w600 : FontWeight.w400)),
+                if (note != null) ...[
+                  SizedBox(height: 2.h),
+                  Text(note!,
+                      style: AppText.figtree(
+                          size: 11,
+                          weight: FontWeight.w600,
+                          color: noteColor ?? AppColors.fgTertiary)),
+                ],
+              ],
+            ),
+          ),
+          SizedBox(width: 12.w),
+          Text(value,
+              style: AppText.figtree(
+                  size: emphasize ? 14 : 13,
+                  weight: emphasize ? FontWeight.w700 : FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+
+/// `"437.56"` → `437.56`; null/garbage → null.
+double? _toAmount(String? raw) =>
+    raw == null ? null : double.tryParse(raw.trim());
+
+/// `"437.56"` → `₹437.56`, falling back to a dash when there is no amount.
+String _money(String? raw) {
+  final amount = _toAmount(raw);
+  return amount == null ? '—' : Formatters.money(amount);
+}
+
+/// ISO timestamp → `5 Aug, 10:56 AM` in local time; null when unparseable.
+String? _stamp(String? iso) {
+  if (iso == null || iso.isEmpty) return null;
+  final parsed = DateTime.tryParse(iso);
+  if (parsed == null) return null;
+  return DateFormat('d MMM, h:mm a').format(parsed.toLocal());
 }
 
 class _NoteCard extends StatelessWidget {

@@ -8,10 +8,13 @@ import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/utils/formatters.dart';
 import 'package:new_flutter_project/core/widgets/app_card.dart';
+import 'package:new_flutter_project/core/widgets/app_dialog.dart';
 import 'package:new_flutter_project/core/widgets/app_icon_button.dart';
 import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/section_head.dart';
 import 'package:new_flutter_project/core/widgets/skeleton_card.dart';
+
+import '../../../auth/application/providers/auth_provider.dart';
 
 import '../../application/providers/dashboard_providers.dart';
 import '../../domain/entities/activity_item.dart';
@@ -232,9 +235,79 @@ class DashboardScreen extends ConsumerWidget {
                           ],
                         ),
                       ),
+
+                      // ── Log out ──
+                      Padding(
+                        padding: EdgeInsets.fromLTRB(16.w, 22.h, 16.w, 0),
+                        child: _LogoutButton(
+                          onLogout: () async {
+                            final confirmed = await showConfirmDialog(
+                              context: context,
+                              title: 'Log out?',
+                              body:
+                                  'You will be returned to the login screen.',
+                              confirmLabel: 'Log out',
+                              destructive: true,
+                            );
+                            if (confirmed && context.mounted) {
+                              await ref
+                                  .read(authStateProvider.notifier)
+                                  .logout();
+                              if (context.mounted) {
+                                context.go(Routes.login);
+                              }
+                            }
+                          },
+                        ),
+                      ),
                     ],
                   ),
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────
+// Log out
+// ─────────────────────────────────────────────
+
+/// Bordered white button with a red label — mirrors the sign-out control on
+/// the driver profile screen.
+class _LogoutButton extends StatelessWidget {
+  const _LogoutButton({required this.onLogout});
+
+  final Future<void> Function() onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onLogout,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        height: 50.h,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: AppColors.bgCard,
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(color: AppColors.borderDefault),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(AppIcons.logout, size: 18.sp, color: AppColors.redFg),
+            SizedBox(width: 8.w),
+            Text(
+              'Log out',
+              style: AppText.figtree(
+                size: 14,
+                weight: FontWeight.w700,
+                color: AppColors.redFg,
               ),
             ),
           ],

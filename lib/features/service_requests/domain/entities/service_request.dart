@@ -92,6 +92,7 @@ class ServiceRequest {
     required this.note,
     required this.timeline,
     this.assigneeId,
+    this.assigneeName,
     this.fee,
     this.reason,
     this.startLoc,
@@ -113,6 +114,10 @@ class ServiceRequest {
   final String note;
   final List<SrTimelineEntry> timeline;
   final String? assigneeId;
+
+  /// Display name of the assigned worker, as provided by the list API
+  /// (`assignee_name`). Null when the request still needs an assignee.
+  final String? assigneeName;
   final int? fee;
   final String? reason;
   final String? startLoc;

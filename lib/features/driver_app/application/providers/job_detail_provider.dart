@@ -34,7 +34,9 @@ class JobDetailNotifier extends StateNotifier<JobDetailState> {
         await loadBill();
       }
     } catch (e) {
-      state = JobDetailError(message: e.toString());
+      state = JobDetailError(
+        message: e.toString().replaceFirst('Exception: ', ''),
+      );
     }
   }
 
@@ -82,6 +84,36 @@ class JobDetailNotifier extends StateNotifier<JobDetailState> {
       if (updatedJob.status == 'completed') {
         await loadBill();
       }
+    } catch (e) {
+      state = JobDetailSuccess(job: success.job, bill: success.bill);
+      rethrow;
+    }
+  }
+
+  /// Mark the outstanding balance as collected in cash.
+  ///
+  /// The API only accepts the exact `balance_due`, so the amount is taken from
+  /// the job rather than entered by the driver.
+  Future<void> collectCash() async {
+    if (state is! JobDetailSuccess) return;
+    final success = state as JobDetailSuccess;
+    state = JobDetailSuccess(job: success.job, bill: success.bill, isLoading: true);
+
+    try {
+      final result = await _repository.collectCash(_jobId, success.job.balanceDue);
+      state = JobDetailSuccess(
+        job: success.job.copyWithSettlement(
+          status: result.status,
+          isPaid: result.isPaid,
+          balanceDue: result.balanceDue,
+          balancePaid: result.balancePaid,
+          balancePaidAt: result.balancePaidAt,
+        ),
+        bill: success.bill,
+      );
+
+      // Refresh the bill so its own paid flags match the settled balance.
+      await loadBill();
     } catch (e) {
       state = JobDetailSuccess(job: success.job, bill: success.bill);
       rethrow;

@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/map_launcher.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
+import '../../../../core/widgets/app_dialog.dart';
 import '../../../../core/widgets/app_icons.dart';
 import '../../../../core/widgets/app_toast.dart';
 import '../../../../core/widgets/skeleton_card.dart';
@@ -15,6 +18,8 @@ import '../../../../core/widgets/top_bar.dart';
 import '../../application/providers/job_detail_provider.dart';
 import '../../application/providers/schedule_provider.dart';
 import '../../application/states/job_detail_state.dart';
+import '../../domain/entities/bill.dart';
+import '../../domain/entities/job_detail.dart';
 import '../components/otp_modal.dart';
 import '../components/route_ladder.dart';
 
@@ -96,6 +101,37 @@ class _DriverJobDetailScreenState extends ConsumerState<DriverJobDetailScreen> {
     }
   }
 
+  /// Confirms, then settles the outstanding balance as a cash payment.
+  ///
+  /// The amount is taken from the job rather than typed by the driver — the
+  /// API only accepts a figure equal to `balance_due`.
+  Future<void> _handleCollectCash() async {
+    final current = ref.read(jobDetailStateProvider(widget.jobId));
+    if (current is! JobDetailSuccess) return;
+
+    final amountText = Formatters.money(_amount(current.job.balanceDue));
+    final confirmed = await showConfirmDialog(
+      context: context,
+      title: 'Collected in cash?',
+      body: 'Confirm you have received $amountText in cash from the customer. '
+          'This settles the balance and cannot be undone from the app.',
+      confirmLabel: 'Yes, collected',
+    );
+    if (!confirmed || !mounted) return;
+
+    try {
+      await ref.read(jobDetailStateProvider(widget.jobId).notifier).collectCash();
+      if (mounted) {
+        AppToast.show(context, 'Cash collected · balance settled');
+      }
+    } catch (e) {
+      if (mounted) {
+        final errorMsg = e.toString().replaceFirst('Exception: ', '');
+        AppToast.show(context, errorMsg);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // Initialize data only once on first build
@@ -131,6 +167,7 @@ class _DriverJobDetailScreenState extends ConsumerState<DriverJobDetailScreen> {
         onArrive: _handleArrive,
         onStartOtp: _handleStartOtp,
         onEndOtp: _handleEndOtp,
+        onCollectCash: _handleCollectCash,
         onDismissOtp: () => setState(() => _otpKind = null),
         onTapStartJob: () => setState(() => _otpKind = 'start'),
         onTapEndJob: () => setState(() => _otpKind = 'end'),
@@ -202,13 +239,14 @@ class _JobDetailBody extends StatelessWidget {
     required this.onArrive,
     required this.onStartOtp,
     required this.onEndOtp,
+    required this.onCollectCash,
     required this.onDismissOtp,
     required this.onTapStartJob,
     required this.onTapEndJob,
   });
 
-  final dynamic job;
-  final dynamic bill;
+  final JobDetail job;
+  final Bill? bill;
   final bool isLoading;
   final String? otpKind;
   final Future<void> Function() onRefresh;
@@ -216,11 +254,19 @@ class _JobDetailBody extends StatelessWidget {
   final VoidCallback onArrive;
   final Future<void> Function(String) onStartOtp;
   final Future<void> Function(String) onEndOtp;
+  final Future<void> Function() onCollectCash;
   final VoidCallback onDismissOtp;
   final VoidCallback onTapStartJob;
   final VoidCallback onTapEndJob;
 
   String get _stageMsg => job.status;
+
+  /// Cash the driver still has to take from the customer. Mirrors the figures
+  /// in [_FareSummaryCard] — the bill wins when it loaded, else the job.
+  double get _balanceDue => _amount(bill?.balanceDue ?? job.balanceDue);
+  bool get _balancePaid => job.balancePaid || (bill?.balancePaid ?? false);
+  bool get _toCollect => _balanceDue > 0 && !_balancePaid;
+
   bool get _isCompleted => job.status == 'completed';
   bool get _isInProgress => job.status == 'in_progress';
   bool get _isArrived => job.status == 'arrived';
@@ -247,10 +293,12 @@ class _JobDetailBody extends StatelessWidget {
                     _CustomerRouteCard(job: job),
                     SizedBox(height: 14.h),
                     _StatusCard(job: job),
-                    if (_isCompleted && bill != null) ...[
-                      SizedBox(height: 14.h),
-                      _FareSummaryCard(job: job, bill: bill),
-                    ],
+                    SizedBox(height: 14.h),
+                    _FareSummaryCard(
+                      job: job,
+                      bill: bill,
+                      isCompleted: _isCompleted,
+                    ),
                   ],
                 ),
               ),
@@ -265,14 +313,25 @@ class _JobDetailBody extends StatelessWidget {
               ),
               child: SafeArea(
                 top: false,
-                child: _isCompleted
+                // An unsettled balance outranks the stage label — collecting it
+                // is the only thing left for the driver to do.
+                child: _toCollect
                     ? AppButton(
-                        label: 'Job completed',
+                        label:
+                            'Collect ${Formatters.money(_balanceDue)} in cash',
                         full: true,
-                        kind: AppButtonKind.secondary,
-                        disabled: true,
+                        icon: AppIcons.receipt,
+                        disabled: isLoading,
+                        onPressed: () => onCollectCash(),
                       )
-                    : _isInProgress
+                    : _isCompleted
+                        ? AppButton(
+                            label: 'Job completed',
+                            full: true,
+                            kind: AppButtonKind.secondary,
+                            disabled: true,
+                          )
+                        : _isInProgress
                         ? AppButton(
                             label: 'End Job',
                             full: true,
@@ -322,7 +381,7 @@ class _JobDetailBody extends StatelessWidget {
 class _CustomerRouteCard extends StatelessWidget {
   const _CustomerRouteCard({required this.job});
 
-  final dynamic job;
+  final JobDetail job;
 
   Future<void> _launchPhone(String phoneNumber) async {
     final uri = Uri(scheme: 'tel', path: phoneNumber);
@@ -335,21 +394,19 @@ class _CustomerRouteCard extends StatelessWidget {
     }
   }
 
-  Future<void> _launchMaps(double? latitude, double? longitude) async {
-    if (latitude == null || longitude == null) {
-      return;
-    }
-
-    final googleMapsUrl = Uri.parse(
-      'https://www.google.com/maps?q=$latitude,$longitude',
+  Future<void> _launchMaps(
+    BuildContext context,
+    double? latitude,
+    double? longitude,
+    String label,
+  ) async {
+    final opened = await launchMapPin(
+      latitude: latitude,
+      longitude: longitude,
+      label: label,
     );
-
-    try {
-      if (await canLaunchUrl(googleMapsUrl)) {
-        await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('Error launching maps: $e');
+    if (!opened && context.mounted) {
+      AppToast.show(context, 'No location available for this job.');
     }
   }
 
@@ -393,8 +450,10 @@ class _CustomerRouteCard extends StatelessWidget {
                 icon: AppIcons.nav,
                 filled: true,
                 onTap: () => _launchMaps(
+                  context,
                   job.dropLatitude,
                   job.dropLongitude,
+                  job.dropAddressText ?? '',
                 ),
               ),
             ],
@@ -418,7 +477,7 @@ class _CustomerRouteCard extends StatelessWidget {
 class _StatusCard extends StatelessWidget {
   const _StatusCard({required this.job});
 
-  final dynamic job;
+  final JobDetail job;
 
   @override
   Widget build(BuildContext context) {
@@ -480,7 +539,7 @@ class _StatusCard extends StatelessWidget {
               _Eyebrow('Your payout'),
               SizedBox(height: 2.h),
               Text(
-                Formatters.money(payout.toInt()),
+                Formatters.money(payout),
                 style: AppText.figtree(size: 16, weight: FontWeight.w700),
               ),
             ],
@@ -493,25 +552,51 @@ class _StatusCard extends StatelessWidget {
 
 // ── Bill summary card (completed only) ───────────────────────────────────────
 
+/// Payment state for the job the driver is on.
+///
+/// Two independent money events: the upfront booking payment (`is_paid` /
+/// `paid_at`) and, once the job ends, the balance for extra time or charges
+/// (`balance_due` / `balance_paid` / `balance_paid_at`). The driver needs to
+/// know whether the customer has settled *both* — anything outstanding is cash
+/// they still have to collect.
+///
+/// Figures come from the final-bill endpoint when it loaded, otherwise from the
+/// job detail payload itself; the paid flags always come from the job, since
+/// the bill carries no timestamps.
 class _FareSummaryCard extends StatelessWidget {
-  const _FareSummaryCard({required this.job, required this.bill});
+  const _FareSummaryCard({
+    required this.job,
+    required this.bill,
+    required this.isCompleted,
+  });
 
-  final dynamic job;
-  final dynamic bill;
+  final JobDetail job;
+  final Bill? bill;
+  final bool isCompleted;
 
   @override
   Widget build(BuildContext context) {
-    if (bill == null) {
-      return const SizedBox.shrink();
-    }
+    final b = bill;
 
-    final balanceDue = double.tryParse(bill.balanceDue) ?? 0;
-    final advancePaid = double.tryParse(bill.advancePaid) ?? 0;
-    final additionalCharges = double.tryParse(bill.additionalCharges) ?? 0;
-    final finalTotal = double.tryParse(bill.finalTotal) ?? 0;
+    // quoted_fee arrives as '0' when the API sends null.
+    final quoted = _amount(job.quotedFee);
+    final baseFare = _amount(b?.advancePaid) > 0
+        ? _amount(b?.advancePaid)
+        : (quoted > 0 ? quoted : _amount(job.estimatedFee));
+    final additionalCharges =
+        _amount(b?.additionalCharges ?? job.additionalCharges);
+    final finalTotal = _amount(b?.finalTotal ?? job.finalTotal);
+    final balanceDue = _amount(b?.balanceDue ?? job.balanceDue);
+    final balancePaid = job.balancePaid || (b?.balancePaid ?? false);
+    final actualHours = b?.actualHours ?? job.actualHours?.toString();
+
+    // Settlement figures are only meaningful once the job has ended.
+    final showSettlement = isCompleted || balancePaid || balanceDue > 0;
+    final toCollect = balanceDue > 0 && !balancePaid;
+    final fullyPaid = job.isPaid && !toCollect;
 
     return AppCard(
-      accent: AppColors.success,
+      accent: fullyPaid ? AppColors.success : AppColors.amberDot,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -520,7 +605,7 @@ class _FareSummaryCard extends StatelessWidget {
               Icon(AppIcons.receipt, size: 16.sp, color: AppColors.fgSecondary),
               SizedBox(width: 8.w),
               Text(
-                'Job Summary'.toUpperCase(),
+                'PAYMENT',
                 style: AppText.figtree(
                   size: 11,
                   weight: FontWeight.w700,
@@ -528,77 +613,149 @@ class _FareSummaryCard extends StatelessWidget {
                   letterSpacing: 0.8,
                 ),
               ),
+              const Spacer(),
+              _PaidChip(
+                label: !job.isPaid
+                    ? 'UNPAID'
+                    : toCollect
+                        ? 'BALANCE DUE'
+                        : 'PAID',
+                positive: fullyPaid,
+              ),
             ],
           ),
           SizedBox(height: 12.h),
-          _SummaryRow(label: 'Base fare', valueText: Formatters.money(advancePaid.toInt())),
-          if (additionalCharges > 0)
-            _SummaryRow(
-              label: 'Additional charges',
-              valueText: '+ ${Formatters.money(additionalCharges.toInt())}',
-              amber: true,
-            ),
-          SizedBox(height: 8.h),
-          Container(
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: AppColors.borderDefault)),
-            ),
-            padding: EdgeInsets.only(top: 11.h),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total',
-                  style: AppText.figtree(size: 14, weight: FontWeight.w700),
-                ),
-                Text(
-                  Formatters.money(finalTotal.toInt()),
-                  style: AppText.figtree(size: 18, weight: FontWeight.w700),
-                ),
-              ],
-            ),
+          _SummaryRow(
+            label: 'Base fare',
+            valueText: Formatters.money(baseFare),
+            note: job.isPaid
+                ? _withStamp('Paid in advance', job.paidAt)
+                : 'Not paid by customer',
+            noteColor: job.isPaid ? AppColors.greenFg : AppColors.redFg,
           ),
-          SizedBox(height: 10.h),
-          if (balanceDue > 0)
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
-              decoration: BoxDecoration(
-                color: AppColors.amberBg,
-                borderRadius: BorderRadius.circular(10.r),
+          if (showSettlement) ...[
+            if (additionalCharges > 0)
+              _SummaryRow(
+                label: actualHours == null
+                    ? 'Additional charges'
+                    : 'Additional charges · $actualHours hr worked',
+                valueText: '+ ${Formatters.money(additionalCharges)}',
+                amber: true,
               ),
+            SizedBox(height: 8.h),
+            Container(
+              decoration: const BoxDecoration(
+                border: Border(top: BorderSide(color: AppColors.borderDefault)),
+              ),
+              padding: EdgeInsets.only(top: 11.h),
               child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Icon(AppIcons.alert, size: 15.sp, color: AppColors.amberFg),
-                  SizedBox(width: 8.w),
-                  Expanded(
-                    child: Text(
-                      'Collect extra ${Formatters.money(balanceDue.toInt())} from customer',
-                      style: AppText.figtree(
-                        size: 12.5,
-                        weight: FontWeight.w700,
-                        color: AppColors.amberFg,
-                      ),
-                    ),
+                  Text(
+                    'Total',
+                    style: AppText.figtree(size: 14, weight: FontWeight.w700),
+                  ),
+                  Text(
+                    Formatters.money(finalTotal),
+                    style: AppText.figtree(size: 18, weight: FontWeight.w700),
                   ),
                 ],
               ),
-            )
-          else
-            Row(
-              children: [
-                Icon(AppIcons.checkCircle,
-                    size: 14.sp, color: AppColors.greenFg),
-                SizedBox(width: 6.w),
-                Text(
-                  'Nothing extra to collect',
-                  style: AppText.figtree(
-                    size: 12,
-                    weight: FontWeight.w600,
-                    color: AppColors.greenFg,
-                  ),
-                ),
-              ],
             ),
+            SizedBox(height: 10.h),
+            if (toCollect)
+              _Banner(
+                icon: AppIcons.alert,
+                bg: AppColors.amberBg,
+                fg: AppColors.amberFg,
+                text:
+                    'Collect ${Formatters.money(balanceDue)} from customer — final amount not paid',
+              )
+            else if (balancePaid)
+              _Banner(
+                icon: AppIcons.checkCircle,
+                bg: AppColors.greenBg,
+                fg: AppColors.greenFg,
+                text: _withStamp(
+                  'Final amount of ${Formatters.money(balanceDue)} paid by customer',
+                  job.balancePaidAt,
+                ),
+              )
+            else
+              _Banner(
+                icon: AppIcons.checkCircle,
+                bg: AppColors.greenBg,
+                fg: AppColors.greenFg,
+                text: 'Nothing extra to collect',
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PaidChip extends StatelessWidget {
+  const _PaidChip({required this.label, required this.positive});
+
+  final String label;
+  final bool positive;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 3.h),
+      decoration: BoxDecoration(
+        color: positive ? AppColors.greenBg : AppColors.redBg,
+        borderRadius: BorderRadius.circular(6.r),
+      ),
+      child: Text(
+        label,
+        style: AppText.figtree(
+          size: 10,
+          weight: FontWeight.w700,
+          color: positive ? AppColors.greenFg : AppColors.redFg,
+        ),
+      ),
+    );
+  }
+}
+
+class _Banner extends StatelessWidget {
+  const _Banner({
+    required this.icon,
+    required this.bg,
+    required this.fg,
+    required this.text,
+  });
+
+  final IconData icon;
+  final Color bg;
+  final Color fg;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: 12.w, vertical: 10.h),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10.r),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 15.sp, color: fg),
+          SizedBox(width: 8.w),
+          Expanded(
+            child: Text(
+              text,
+              style: AppText.figtree(
+                size: 12.5,
+                weight: FontWeight.w700,
+                color: fg,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -609,11 +766,15 @@ class _SummaryRow extends StatelessWidget {
   const _SummaryRow({
     required this.label,
     required this.valueText,
+    this.note,
+    this.noteColor,
     this.amber = false,
   });
 
   final String label;
   final String valueText;
+  final String? note;
+  final Color? noteColor;
   final bool amber;
 
   @override
@@ -621,16 +782,33 @@ class _SummaryRow extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: 6.h),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Text(
-              label,
-              style: AppText.figtree(
-                size: amber ? 12.5 : 13,
-                weight: FontWeight.w500,
-                color: amber ? AppColors.fgTertiary : AppColors.fgSecondary,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: AppText.figtree(
+                    size: amber ? 12.5 : 13,
+                    weight: FontWeight.w500,
+                    color:
+                        amber ? AppColors.fgTertiary : AppColors.fgSecondary,
+                  ),
+                ),
+                if (note != null) ...[
+                  SizedBox(height: 2.h),
+                  Text(
+                    note!,
+                    style: AppText.figtree(
+                      size: 11,
+                      weight: FontWeight.w600,
+                      color: noteColor ?? AppColors.fgTertiary,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
           SizedBox(width: 12.w),
@@ -646,6 +824,17 @@ class _SummaryRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// `"437.56"` → `437.56`; null/garbage → `0`.
+double _amount(String? raw) => double.tryParse(raw?.trim() ?? '') ?? 0;
+
+/// Appends ` · 5 Aug, 10:56 AM` when the timestamp parses, else returns [text].
+String _withStamp(String text, String? iso) {
+  if (iso == null || iso.isEmpty) return text;
+  final parsed = DateTime.tryParse(iso);
+  if (parsed == null) return text;
+  return '$text · ${DateFormat('d MMM, h:mm a').format(parsed.toLocal())}';
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

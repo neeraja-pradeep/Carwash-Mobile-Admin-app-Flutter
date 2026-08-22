@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/job_detail_model.dart';
 import '../models/bill_model.dart';
+import '../models/cash_collection_model.dart';
 
 class JobDetailApi {
   late Dio _dio;
@@ -77,6 +78,22 @@ class JobDetailApi {
     }
   }
 
+  /// Mark the outstanding balance as collected in cash.
+  ///
+  /// [amount] must equal the job's `balance_due` exactly (e.g. `"120.00"`) —
+  /// the API rejects a partial or mismatched figure.
+  Future<CashCollectionModel> collectCash(String jobId, String amount) async {
+    try {
+      final response = await _dio.post(
+        '$_basePath/$jobId/collect-cash/',
+        data: {'amount': amount},
+      );
+      return CashCollectionModel.fromJson(response.data);
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
   /// Get final bill for completed job
   Future<BillModel> getFinalBill(String jobId) async {
     try {
@@ -89,6 +106,16 @@ class JobDetailApi {
 
   /// Handle DioException and throw appropriate error
   Exception _handleError(DioException e) {
+    // These endpoints are scoped to the assigned worker, so a 404 means the job
+    // isn't this driver's (typically still unclaimed) rather than nonexistent.
+    // The raw DRF body ("No DriverAndInspectionBooking matches the given query")
+    // is not something to show a driver.
+    if (e.response?.statusCode == 404) {
+      return Exception(
+        "This job isn't yours yet — claim it to see the full details.",
+      );
+    }
+
     if (e.response != null) {
       final errorData = e.response?.data;
       if (errorData is Map<String, dynamic>) {

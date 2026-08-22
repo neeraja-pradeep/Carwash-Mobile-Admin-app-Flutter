@@ -231,7 +231,7 @@ class ShopCard extends StatelessWidget {
                 children: [
                   _MetricCell(label: 'Today', value: '${shop.todayBookings}', color: AppColors.fgPrimary, isFirst: true),
                   _MetricCell(label: 'Capacity', value: '${shop.todayBookings}/${shop.cap}', color: capColor),
-                  _MetricCell(label: 'Commission', value: shop.commission.label, color: AppColors.fgPrimary),
+                  _MetricCell(label: 'Commission', value: shop.commissionText, color: AppColors.fgPrimary),
                   _MetricCell(label: 'Services', value: '$activeServices', color: AppColors.fgPrimary),
                 ],
               ),

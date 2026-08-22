@@ -38,6 +38,26 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
 
   void _toast(String msg) => AppToast.show(context, msg);
 
+  /// Takes the shop live (or hides it) and says what actually happened.
+  ///
+  /// The toggle used to flip a local flag only: it looked activated until the
+  /// screen was reopened. The switch moves first so it feels immediate, and
+  /// falls back if the write is refused — the backend rejects activating a
+  /// shop with no active service, and that reason is what gets shown.
+  Future<void> _setActive(bool next) async {
+    final previous = _activeOverride;
+    setState(() => _activeOverride = next);
+    try {
+      await ref.read(updateShopProvider).setActive(widget.shopId, next);
+      if (!mounted) return;
+      _toast(next ? 'Shop activated' : 'Shop marked inactive');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _activeOverride = previous);
+      _toast(e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
   @override
   void didUpdateWidget(ShopDetailScreen old) {
     super.didUpdateWidget(old);
@@ -76,7 +96,13 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
       data: (shop) {
         // With the new provider, shop is never null
         final isActive = _activeOverride ?? shop.active;
-        final services = _servicesOverride ?? shop.services;
+        // The detail response carries no service rows — they have their own
+        // endpoint. Reading `shop.services` left the count at 0 for every
+        // shop, so the activation gate refused a shop that had five active
+        // services.
+        final loadedServices =
+            ref.watch(shopServicesProvider(widget.shopId)).value;
+        final services = _servicesOverride ?? loadedServices ?? shop.services;
         final live = _buildLiveShop(shop, isActive, services);
 
         return Scaffold(
@@ -102,7 +128,14 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: EdgeInsets.fromLTRB(16.w, 16.h, 16.w, 28.h),
                           child:
-                              _buildTabBody(context, live, services, isActive),
+                              _buildTabBody(
+                            context,
+                            live,
+                            services,
+                            isActive,
+                            servicesLoaded: _servicesOverride != null ||
+                                loadedServices != null,
+                          ),
                         ),
                       ),
                     ),
@@ -242,14 +275,16 @@ class _ShopDetailScreenState extends ConsumerState<ShopDetailScreen> {
     BuildContext context,
     Shop live,
     List<ShopService> services,
-    bool isActive,
-  ) {
+    bool isActive, {
+    required bool servicesLoaded,
+  }) {
     switch (_tab) {
       case 0:
         return InfoSection(
           shop: live,
           active: isActive,
-          onActiveChanged: (v) => setState(() => _activeOverride = v),
+          servicesLoaded: servicesLoaded,
+          onActiveChanged: _setActive,
         );
       case 1:
         return _ServicesTabBody(

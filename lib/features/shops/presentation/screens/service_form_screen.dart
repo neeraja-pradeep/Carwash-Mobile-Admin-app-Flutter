@@ -127,22 +127,26 @@ class _ServiceFormBodyState extends ConsumerState<_ServiceFormBody> {
     _flatMin = (ex?.flatMinutes != null) ? '${ex!.flatMinutes}' : '';
     _active = ex?.active ?? true;
     _rows = kVehicleTypes.map((t) {
+      // Stored variants carry the API slug (`hatchback`, `suv`, …), so compare
+      // slugs rather than display labels — otherwise nothing ever prefills.
+      final slug = vehicleTypeSlug(t);
       final found = (ex != null && !ex.samePrice)
-          ? ex.pricing.firstWhere(
-              (p) => p.type == t,
-              orElse: () => ServicePricing(
-                type: t,
-                price: 0,
-                minutes: 0,
-                active: widget.shop.vehicleTypes.contains(t),
-              ),
-            )
+          ? ex.pricing.cast<ServicePricing?>().firstWhere(
+                (p) => p != null && vehicleTypeSlug(p.type) == slug,
+                orElse: () => null,
+              )
           : null;
+      final hasPrice = found != null && found.price > 0;
       return _PricingRow(
         type: t,
-        price: found != null && found.price > 0 ? '${found.price}' : '',
+        price: hasPrice ? '${found.price}' : '',
         min: found != null && found.minutes > 0 ? '${found.minutes}' : '',
-        active: found?.active ?? widget.shop.vehicleTypes.contains(t),
+        // A row is only ever on once it carries a price — an empty row stays
+        // off so it can be filled in later without being saved as ₹0.
+        active: hasPrice && found.active,
+        // Remembered so a row can still be sent as `active: false` even if the
+        // user clears its price on the way to switching it off.
+        savedPrice: found?.price,
       );
     }).toList();
   }
@@ -163,11 +167,23 @@ class _ServiceFormBodyState extends ConsumerState<_ServiceFormBody> {
     setState(() {
       _rows = _rows.map((r) {
         if (r.type != type) return r;
+        final nextPrice = price ?? r.price;
+        var nextActive = active ?? r.active;
+        if (price != null) {
+          // The toggle is meaningless without a price: entering the first one
+          // switches the row on, clearing it switches the row back off.
+          if (nextPrice.trim().isEmpty) {
+            nextActive = false;
+          } else if (r.price.trim().isEmpty) {
+            nextActive = true;
+          }
+        }
         return _PricingRow(
           type: r.type,
-          price: price ?? r.price,
+          price: nextPrice,
           min: min ?? r.min,
-          active: active ?? r.active,
+          active: nextActive,
+          savedPrice: r.savedPrice,
         );
       }).toList();
     });
@@ -215,7 +231,7 @@ class _ServiceFormBodyState extends ConsumerState<_ServiceFormBody> {
             _name,
             inclusions,
             true,
-            true,
+            _active,
             price,
             minutes ~/ 30,
             null,
@@ -226,21 +242,25 @@ class _ServiceFormBodyState extends ConsumerState<_ServiceFormBody> {
             _name,
             inclusions,
             true,
-            true,
+            _active,
             price,
             minutes ~/ 30,
             null,
           );
         }
       } else {
-        // Per-vehicle pricing
+        // Per-vehicle pricing. Switched-off rows must still be sent, carrying
+        // `active: false` — this is a PATCH, so a variant left out of the
+        // payload keeps its old state on the server rather than being
+        // deactivated.
         final variants = _rows
-            .where((r) => r.active && r.price.isNotEmpty)
+            .where((r) => r.price.trim().isNotEmpty || r.savedPrice != null)
             .map((r) => (
                   type: r.type,
-                  price: int.tryParse(r.price) ?? 0,
+                  price: int.tryParse(r.price) ?? r.savedPrice ?? 0,
                   minutes: int.tryParse(r.min) ?? 30,
-                  active: r.active,
+                  // Never send a priceless row as active — it would store ₹0.
+                  active: r.active && r.price.trim().isNotEmpty,
                 ))
             .toList();
 
@@ -250,7 +270,7 @@ class _ServiceFormBodyState extends ConsumerState<_ServiceFormBody> {
             _name,
             inclusions,
             false,
-            true,
+            _active,
             null,
             null,
             variants,
@@ -261,7 +281,7 @@ class _ServiceFormBodyState extends ConsumerState<_ServiceFormBody> {
             _name,
             inclusions,
             false,
-            true,
+            _active,
             null,
             null,
             variants,
@@ -457,22 +477,27 @@ class _ServiceFormBodyState extends ConsumerState<_ServiceFormBody> {
                               final r = _rows[i];
                               final supported =
                                   widget.shop.vehicleTypes.contains(r.type);
+                              // Rows keep their inputs at full strength even
+                              // when off, so an empty type can still be priced
+                              // up later; only the label dims.
+                              final priced = r.price.trim().isNotEmpty;
                               return Padding(
                                 padding: EdgeInsets.only(bottom: 10.h),
-                                child: Opacity(
-                                  opacity: r.active ? 1.0 : 0.5,
-                                  child: Row(
+                                child: Row(
                                     children: [
                                       Expanded(
                                         flex: 14,
-                                        child: Text(
-                                          r.type,
-                                          style: AppText.figtree(
-                                            size: 12.5,
-                                            weight: FontWeight.w600,
-                                            color: supported
-                                                ? AppColors.fgPrimary
-                                                : AppColors.fgMuted,
+                                        child: Opacity(
+                                          opacity: r.active ? 1.0 : 0.5,
+                                          child: Text(
+                                            r.type,
+                                            style: AppText.figtree(
+                                              size: 12.5,
+                                              weight: FontWeight.w600,
+                                              color: supported
+                                                  ? AppColors.fgPrimary
+                                                  : AppColors.fgMuted,
+                                            ),
                                           ),
                                         ),
                                       ),
@@ -498,6 +523,7 @@ class _ServiceFormBodyState extends ConsumerState<_ServiceFormBody> {
                                         width: 40.w,
                                         child: _SmallToggle(
                                           on: r.active,
+                                          enabled: priced,
                                           onTap: () => _setRow(
                                             r.type,
                                             active: !r.active,
@@ -506,7 +532,6 @@ class _ServiceFormBodyState extends ConsumerState<_ServiceFormBody> {
                                       ),
                                     ],
                                   ),
-                                ),
                               );
                             }),
                           ],
@@ -858,12 +883,26 @@ class _AppToggle extends StatelessWidget {
 }
 
 class _SmallToggle extends StatelessWidget {
-  const _SmallToggle({required this.on, required this.onTap});
+  const _SmallToggle({
+    required this.on,
+    required this.onTap,
+    this.enabled = true,
+  });
   final bool on;
   final VoidCallback onTap;
 
+  /// Off rows with no price yet can't be switched on — there'd be nothing to
+  /// save. Typing a price enables the toggle.
+  final bool enabled;
+
   @override
   Widget build(BuildContext context) {
+    if (!enabled) {
+      return Opacity(
+        opacity: 0.4,
+        child: IgnorePointer(child: _SmallToggle(on: on, onTap: onTap)),
+      );
+    }
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -907,10 +946,14 @@ class _PricingRow {
     required this.price,
     required this.min,
     required this.active,
+    this.savedPrice,
   });
 
   final String type;
   final String price;
   final String min;
   final bool active;
+
+  /// Price this row was last saved with, or null if it has no stored variant.
+  final int? savedPrice;
 }

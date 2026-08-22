@@ -8,6 +8,7 @@ import '../../../../app/router/app_router.dart';
 import '../../../../app/theme/colors.dart';
 import '../../../../app/theme/typography.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/map_launcher.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_card.dart';
 import '../../../../core/widgets/app_icons.dart';
@@ -64,25 +65,34 @@ class _DriverTodayScreenState extends ConsumerState<DriverTodayScreen> {
   }
 
   void _viewJobDetail(BuildContext context, Job job) {
-    // Navigate to job detail using go_router
-    context.push(Routes.driverJob(job.id.toString()));
+    // Route to correct detail screen based on job source
+    debugPrint('Navigating to job detail: id=${job.id}, source=${job.source}, status=${job.status}');
+
+    if (job.source == 'carwash' || job.kind == 'carwash' || job.washingStatus != null) {
+      debugPrint('→ Opening CarwashDetailScreen');
+      // Pass job status as query parameter
+      final url = job.status == 'completed'
+        ? '${Routes.driverCarwash(job.id.toString())}?completed=true'
+        : Routes.driverCarwash(job.id.toString());
+      context.push(url);
+    } else {
+      debugPrint('→ Opening DriverJobDetailScreen');
+      context.push(Routes.driverJob(job.id.toString()));
+    }
   }
 
-  Future<void> _launchMaps(double? latitude, double? longitude) async {
-    if (latitude == null || longitude == null) {
-      return;
-    }
-
-    final googleMapsUrl = Uri.parse(
-      'https://www.google.com/maps?q=$latitude,$longitude',
+  Future<void> _launchMaps(
+    double? latitude,
+    double? longitude,
+    String label,
+  ) async {
+    final opened = await launchMapPin(
+      latitude: latitude,
+      longitude: longitude,
+      label: label,
     );
-
-    try {
-      if (await canLaunchUrl(googleMapsUrl)) {
-        await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
-      }
-    } catch (e) {
-      debugPrint('Error launching maps: $e');
+    if (!opened && mounted) {
+      AppToast.show(context, 'No location available for this job.');
     }
   }
 
@@ -339,7 +349,11 @@ class _DriverTodayScreenState extends ConsumerState<DriverTodayScreen> {
                     SizedBox(width: 8.w),
                     _IconButton(
                       icon: AppIcons.nav,
-                      onTap: () => _launchMaps(job.pickupLat, job.pickupLng),
+                      onTap: () => _launchMaps(
+                        job.pickupLat,
+                        job.pickupLng,
+                        job.pickupAddress,
+                      ),
                     ),
                     SizedBox(width: 8.w),
                     AppButton(

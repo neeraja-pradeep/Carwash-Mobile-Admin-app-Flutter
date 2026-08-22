@@ -27,7 +27,7 @@ class LiveJobCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = job.location;
     // Shorten booking ID prefix for display
-    final shortId = job.bookingId
+    final shortId = job.reference
         .replaceFirst(RegExp(r'^DD-KL-2026|^SR-[A-Z]{2}-2026'), '#…');
 
     return Container(

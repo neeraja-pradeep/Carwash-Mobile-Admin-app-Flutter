@@ -13,6 +13,8 @@ class CarwashBookingModel extends CarwashBooking {
     required super.address,
     required super.appointmentDate,
     required super.startTime,
+    super.latitude,
+    super.longitude,
   });
 
   factory CarwashBookingModel.fromJson(Map<String, dynamic> json) {
@@ -21,14 +23,6 @@ class CarwashBookingModel extends CarwashBooking {
     final id = json['id'];
     final idStr = id is int ? id.toString() : id?.toString() ?? 'unknown';
 
-    // Extract shop details if available
-    final shop = json['shop'];
-    final shopMap = shop is Map<String, dynamic> ? shop : null;
-    final shopUser = shopMap?['user'];
-    final shopUserMap = shopUser is Map<String, dynamic> ? shopUser : null;
-    final shopName = shopMap?['name']?.toString() ?? 'Mirror Finish Detailing';
-    final shopPhone = shopUserMap?['phone']?.toString() ?? '+919850000002';
-
     // Safe field extraction helper
     String? getStringField(dynamic value) {
       if (value == null) return null;
@@ -36,32 +30,68 @@ class CarwashBookingModel extends CarwashBooking {
       return value.toString();
     }
 
+    // The pickup address and its coordinates both live on the nested
+    // `address_detail`; the top-level `address` is only its numeric id. Absent
+    // on partial PATCH payloads, where coordinates resolve to 0 and are merged
+    // away by CarwashBooking.copyWith.
+    double parseCoordinate(dynamic value) {
+      if (value is num) return value.toDouble();
+      return double.tryParse(value?.toString() ?? '') ?? 0;
+    }
+
+    final addressDetail = json['address_detail'];
+    final detail =
+        addressDetail is Map<String, dynamic> ? addressDetail : const {};
+
+    // `/bookings/{id}/` carries no ready-made address string: `address_detail`
+    // holds the parts and the top-level `address` is just its id. Join the
+    // parts the way the worker list endpoints pre-join their `pickup_address`,
+    // so both routes read the same — "G87P+2G3, Alappuzha, 688006".
+    String? joinAddressParts() {
+      const keys = ['address_line', 'landmark', 'city', 'state', 'pincode'];
+      final joined = keys
+          .map((key) => getStringField(detail[key])?.trim() ?? '')
+          .where((part) => part.isNotEmpty)
+          .join(', ');
+      return joined.isEmpty ? null : joined;
+    }
+
+    // Absent fields resolve to empty, never to invented data. This parses
+    // partial payloads too — `PATCH /bookings/{id}/` answers with only the
+    // fields it changed — and stand-in values there were being shown as though
+    // the server had sent them: a real shop's name and phone number in place of
+    // the customer's, and a status of "completed" for a job still in progress.
+    // The remaining `??` chains are alternate key names for the same value
+    // across endpoints, not substitutes for missing data.
     return CarwashBookingModel(
       id: idStr,
-      reference: getStringField(json['reference']) ?? 'BK-$idStr',
-      washingStatus: getStringField(json['washing_status']) ?? 'completed',
-      status: getStringField(json['status']) ?? 'completed',
-      amount: getStringField(json['amount'] ?? json['base_amount'] ?? '0') ?? '0',
-      // Try to get customer name from multiple sources
-      customerName: getStringField(json['customer_name']) ??
-          (shopMap != null ? getStringField(shopMap['name']) : null) ??
-          shopName,
-      // Try to get customer phone from multiple sources
-      customerPhone: getStringField(json['customer_phone']) ??
-          (shopUserMap != null ? getStringField(shopUserMap['phone']) : null) ??
-          shopPhone,
+      reference: getStringField(json['reference']) ?? '',
+      washingStatus: getStringField(json['washing_status']) ?? '',
+      status: getStringField(json['status']) ?? '',
+      amount: getStringField(json['amount'] ?? json['base_amount']) ?? '',
+      customerName: getStringField(json['customer_name']) ?? '',
+      customerPhone: getStringField(json['customer_phone']) ?? '',
       vehicleText: getStringField(json['vehicle']) ??
           getStringField(json['vehicle_text']) ??
-          'Carwash Service',
-      address: getStringField(json['address']) ??
-          getStringField(json['delivery_address']) ??
-          'Shop Location',
+          '',
+      // A top-level `address` is the FK id on `/bookings/{id}/` and only ever
+      // text on the worker list endpoints, so take it only when it really is a
+      // String — stringifying the id rendered "5" as the service location.
+      address: getStringField(json['pickup_address']) ??
+          joinAddressParts() ??
+          (json['address'] is String ? json['address'] as String : null) ??
+          (json['delivery_address'] is String
+              ? json['delivery_address'] as String
+              : null) ??
+          '',
       appointmentDate: getStringField(json['appointment_date']) ??
           getStringField(json['date']) ??
-          '2026-06-18',
+          '',
       startTime: getStringField(json['start_time']) ??
           getStringField(json['start_slot_time']) ??
-          '00:00:00',
+          '',
+      latitude: parseCoordinate(detail['latitude']),
+      longitude: parseCoordinate(detail['longitude']),
     );
   }
 
@@ -77,5 +107,7 @@ class CarwashBookingModel extends CarwashBooking {
     address: address,
     appointmentDate: appointmentDate,
     startTime: startTime,
+    latitude: latitude,
+    longitude: longitude,
   );
 }

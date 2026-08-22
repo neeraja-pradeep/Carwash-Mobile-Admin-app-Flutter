@@ -80,6 +80,7 @@ class HttpClient {
     ));
 
     // Add session and CSRF interceptor
+    _dio.interceptors.add(_CacheBustInterceptor());
     _dio.interceptors.add(_SessionInterceptor());
     _dio.interceptors.add(_CsrfInterceptor());
     // Must come after the two above so it sees the final outcome of the call.
@@ -134,6 +135,45 @@ class HttpClient {
     } catch (e) {
       debugPrint('❌ Error removing session: $e');
     }
+  }
+}
+
+/// Defeats the reverse proxy's response cache on reads of mutable data.
+///
+/// The API serves most GETs with `Cache-Control: max-age=600` and does not
+/// invalidate on write, so for up to ten minutes after a save the proxy keeps
+/// replaying the pre-save body — a shop's hours, services or config come back
+/// with the old values and the edit looks like it was dropped. It reproduces
+/// as an `Age:` response header on a request made straight after a successful
+/// PATCH.
+///
+/// A request `Cache-Control: no-cache` / `Pragma: no-cache` is ignored by this
+/// proxy (measured: still served from cache). The cache key includes the query
+/// string, so a value unique per request is the one thing that reliably misses.
+///
+/// This is a client-side workaround. The real fix is server-side: stop caching
+/// authenticated, per-shop responses, or purge the entry when one is written.
+class _CacheBustInterceptor extends Interceptor {
+  /// Paths whose responses are genuinely immutable and worth caching. The slot
+  /// grid is a fixed 48-entry timetable served with `max-age=86400`.
+  static const _cacheable = <String>['/api/shop/v1/slots/'];
+
+  static int _seq = 0;
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    final isRead = options.method.toUpperCase() == 'GET';
+    final isCacheable = _cacheable.any((p) => options.path.startsWith(p));
+    if (isRead && !isCacheable) {
+      // Monotonic within a run, plus the clock so a relaunch can't collide with
+      // keys this device populated earlier.
+      _seq++;
+      options.queryParameters = {
+        ...options.queryParameters,
+        '_': '${DateTime.now().millisecondsSinceEpoch}$_seq',
+      };
+    }
+    super.onRequest(options, handler);
   }
 }
 

@@ -42,8 +42,17 @@ class CarwashNotifier extends StateNotifier<CarwashState> {
     state = CarwashSuccess(booking: success.booking, isUpdating: true);
 
     try {
-      final updatedBooking = await _repository.advanceWashingStatus(_bookingId, newStatus);
-      state = CarwashSuccess(booking: updatedBooking);
+      final updatedBooking =
+          await _repository.advanceWashingStatus(_bookingId, newStatus);
+      // The PATCH replies with only `id` / `washing_status` / `updated_at`, so
+      // its parsed booking has placeholder values for everything else. Take
+      // just the advanced status and keep the loaded booking underneath —
+      // swapping the whole object in blanked the fare, customer and vehicle.
+      state = CarwashSuccess(
+        booking: success.booking.copyWith(
+          washingStatus: updatedBooking.washingStatus,
+        ),
+      );
     } catch (e) {
       state = CarwashSuccess(booking: success.booking);
       rethrow;

@@ -115,6 +115,26 @@ String _formatTime(String? timeStr) {
   }
 }
 
+const List<String> _kMonths = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/// Format an ISO-8601 timestamp as `8 Aug, 9:38 AM` for timeline rows.
+///
+/// The API sends offset-aware stamps (`…+05:30`), which [DateTime.tryParse]
+/// normalises to UTC — hence the `toLocal()` before reading the clock fields,
+/// so a row shows the device's wall-clock time rather than 04:08 for 09:38 IST.
+String _formatTimestamp(String? iso) {
+  if (iso == null || iso.isEmpty) return '';
+  final parsed = DateTime.tryParse(iso)?.toLocal();
+  if (parsed == null) return iso;
+  final hour = parsed.hour % 12 == 0 ? 12 : parsed.hour % 12;
+  final minute = parsed.minute.toString().padLeft(2, '0');
+  final period = parsed.hour < 12 ? 'AM' : 'PM';
+  return '${parsed.day} ${_kMonths[parsed.month - 1]}, $hour:$minute $period';
+}
+
 /// Parse vehicle label "Make Model · Plate" into parts
 Vehicle _parseVehicleLabel(String? label) {
   if (label == null || label.isEmpty) {
@@ -163,8 +183,13 @@ int _parseAmount(String? amountStr) {
 
 /// Convert detail_models.BookingDetailResponse to Booking entity for compatibility
 Booking _bookingFromDetail(detail_models.BookingDetailResponse detail) {
-  // Parse actual status from API response
-  final status = bookingStatusFromKey(detail.status);
+  // `washing_status` is what the driver app advances, so it has to win over
+  // `status` — otherwise a completed job still reads as "Assigned" here.
+  final status = resolveBookingStatus(
+    status: detail.status,
+    washingStatus: detail.washingStatus,
+    hasAssignee: detail.driver != null,
+  );
 
   return Booking(
     id: detail.id.toString(),
@@ -194,12 +219,16 @@ Booking _bookingFromDetail(detail_models.BookingDetailResponse detail) {
             .toList() ??
         [],
     total: _parseAmount(detail.amount),
-    payment: _parsePaymentStatus(detail.paymentStatus),
+    payment: resolvePaymentStatus(
+      bookingStatus: detail.status,
+      paymentStatus: detail.paymentStatus,
+      isPaid: detail.isPaid,
+    ),
     createdAt: '',
     timeline: detail.timeline
             ?.map((t) => TimelineEntry(
-                  status: bookingStatusFromKey(t.washingStatus ?? ''),
-                  at: t.createdAt ?? '',
+                  status: washingStatusFromKey(t.washingStatus),
+                  at: _formatTimestamp(t.createdAt),
                   by: t.actor ?? '',
                 ))
             .toList() ??
@@ -208,17 +237,6 @@ Booking _bookingFromDetail(detail_models.BookingDetailResponse detail) {
     driverId: detail.driver?.id.toString(),
     assigneeName: detail.driver?.name,
   );
-}
-
-/// Parse payment status from API string response
-PaymentStatus _parsePaymentStatus(String? status) {
-  if (status == null || status.isEmpty) return PaymentStatus.pending;
-  return switch (status.toLowerCase()) {
-    'paid' => PaymentStatus.paid,
-    'refunded' => PaymentStatus.refunded,
-    'pending' => PaymentStatus.pending,
-    _ => PaymentStatus.pending,
-  };
 }
 
 // ── Detail screen providers ──────────────────────────────────────────────

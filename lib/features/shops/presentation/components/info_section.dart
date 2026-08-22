@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:new_flutter_project/app/theme/colors.dart';
 import 'package:new_flutter_project/app/theme/typography.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
+import 'package:new_flutter_project/core/utils/map_launcher.dart';
 import 'package:new_flutter_project/core/widgets/widgets.dart';
 
 import '../../application/providers/shops_providers.dart';
@@ -23,12 +24,18 @@ class InfoSection extends ConsumerStatefulWidget {
     required this.shop,
     required this.active,
     required this.onActiveChanged,
+    this.servicesLoaded = true,
     super.key,
   });
 
   final Shop shop;
   final bool active;
   final ValueChanged<bool> onActiveChanged;
+
+  /// Whether [shop] carries a real service list. False while the services call
+  /// is still in flight or failed — the activation gate then lets the request
+  /// through and shows whatever the backend says.
+  final bool servicesLoaded;
 
   @override
   ConsumerState<InfoSection> createState() => _InfoSectionState();
@@ -149,7 +156,7 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
                     Text(
                       s.slotCapacityEnabled
                           ? 'Per-slot capacity on (default ${s.slotCap}/slot)'
-                          : 'Daily cap ${s.cap} · hourly slots',
+                          : 'Daily cap ${s.slotCap} · hourly slots',
                       style: AppText.figtree(
                         size: 12,
                         weight: FontWeight.w500,
@@ -188,7 +195,7 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _FieldRow(label: 'Daily booking cap', value: '${s.cap}'),
+              _FieldRow(label: 'Daily booking cap', value: '${s.slotCap}'),
               Padding(
                 padding: EdgeInsets.symmetric(vertical: 11.h),
                 child: Column(
@@ -266,13 +273,20 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
                     on: widget.active,
                     onChanged: (v) {
                       // Activation gate: a shop can't go live without at least
-                      // one active service (matches the add-shop rule).
-                      if (v && widget.shop.activeServices == 0) {
+                      // one active service (matches the add-shop rule, and the
+                      // backend enforces it too). [Shop.activeServices] is only
+                      // meaningful once the caller has the service list, so an
+                      // unknown count defers to the server rather than blocking.
+                      if (v &&
+                          widget.servicesLoaded &&
+                          widget.shop.activeServices == 0) {
                         _toast('Add an active service before activating');
                         return;
                       }
+                      // The screen owns the write and reports what happened —
+                      // toasting "Shop activated" here would announce a save
+                      // that hadn't been attempted yet.
                       widget.onActiveChanged(v);
-                      _toast(v ? 'Shop activated' : 'Shop marked inactive');
                     },
                   ),
                 ],
@@ -420,21 +434,14 @@ class _InfoSectionState extends ConsumerState<InfoSection> {
   /// carries 0/0, which is a real point in the Atlantic — search the address
   /// instead of dropping the admin in the ocean.
   Future<void> _openInMaps(Shop s) async {
-    final located = s.latitude != 0 || s.longitude != 0;
-    final query = located
-        ? '${s.latitude},${s.longitude}'
-        : (s.address.trim().isNotEmpty ? s.address.trim() : '');
-
-    if (query.isEmpty) {
+    final opened = await launchMapPin(
+      latitude: s.latitude,
+      longitude: s.longitude,
+      label: s.name,
+      address: s.address,
+    );
+    if (!opened && mounted) {
       _toast('No location saved for this shop');
-      return;
-    }
-
-    final uri = Uri.https('www.google.com', '/maps/search/', {'api': '1', 'query': query});
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else if (mounted) {
-      _toast('Cannot open maps');
     }
   }
 

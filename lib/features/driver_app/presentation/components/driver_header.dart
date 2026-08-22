@@ -9,7 +9,6 @@ import '../../../../core/widgets/avatar.dart';
 import '../../../auth/application/providers/auth_provider.dart';
 import '../../../auth/application/states/auth_state.dart';
 import '../../application/providers/driver_home_provider.dart';
-import '../../application/states/driver_home_state.dart';
 
 /// Persistent driver-app header: the signed-in driver's avatar + first
 /// name/role and the Online/Offline toggle pill. Rendered once in
@@ -33,11 +32,13 @@ class DriverHeader extends ConsumerWidget {
       fullName = authState.user.fullName;
     }
 
-    // Get online status from home state
-    bool isOnline = false;
-    if (homeState is DriverHomeSuccess) {
-      isOnline = homeState.availability.online;
-    }
+    // Availability survives loading/error states, so the pill reflects the
+    // server's flag rather than the load status. `null` = never fetched, which
+    // renders as "unknown" — showing "Offline" there is a lie the admin
+    // console (reading the same flag) would contradict.
+    final availability = homeState.availability;
+    final isKnown = availability != null;
+    final isOnline = availability?.online ?? false;
 
     return Container(
       padding: EdgeInsets.fromLTRB(16.w, 6.h, 16.w, 12.h),
@@ -78,6 +79,12 @@ class DriverHeader extends ConsumerWidget {
           GestureDetector(
             onTap: () async {
               final ctx = context;
+              if (!isKnown) {
+                // Nothing to toggle from — a blind PATCH could flip the driver
+                // to the state they are already in.
+                AppToast.show(ctx, 'Still checking your status — try again.');
+                return;
+              }
               try {
                 await ref
                     .read(driverHomeStateProvider.notifier)
@@ -117,12 +124,15 @@ class DriverHeader extends ConsumerWidget {
                   ),
                   SizedBox(width: 7.w),
                   Text(
-                    isOnline ? 'Online' : 'Offline',
+                    isKnown ? (isOnline ? 'Online' : 'Offline') : 'Checking…',
                     style: AppText.figtree(
                       size: 12.5,
                       weight: FontWeight.w700,
-                      color:
-                          isOnline ? AppColors.greenFg : AppColors.fgSecondary,
+                      color: switch ((isKnown, isOnline)) {
+                        (false, _) => AppColors.fgMuted,
+                        (true, true) => AppColors.greenFg,
+                        (true, false) => AppColors.fgSecondary,
+                      },
                     ),
                   ),
                 ],

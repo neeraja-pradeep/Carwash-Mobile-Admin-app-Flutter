@@ -226,6 +226,8 @@ class Shop {
     this.pincode = '',
     this.latitude = 0.0,
     this.longitude = 0.0,
+    this.commissionLabel,
+    this.servicesCount,
   });
 
   final String id;
@@ -238,6 +240,12 @@ class Shop {
   final double rating;
   final int reviews;
   final int todayBookings;
+
+  /// Total bookable capacity as the server computes it (`capacity.total`) —
+  /// read-only, and the denominator for utilisation like `todayBookings/cap`.
+  /// It is NOT the configured daily cap: with per-slot capacity on it is
+  /// derived from the slot grid. Editing or displaying the setting means
+  /// [slotCap].
   final int cap;
   final int avgServiceMin;
   final bool active;
@@ -252,6 +260,11 @@ class Shop {
   final Settlement settlement;
   final List<WeeklyDay> weekly;
   final bool slotCapacityEnabled;
+
+  /// `operational_config.daily_booking_cap` — the editable setting the shop
+  /// form writes back. Read as a daily total when [slotCapacityEnabled] is
+  /// false, and as the default per-slot allowance when it is true. Despite the
+  /// name this, not [cap], is the "Daily booking cap" users type in.
   final int slotCap;
 
   /// Postal code as its own column server-side — it is not always present in
@@ -260,5 +273,18 @@ class Shop {
   final double latitude;
   final double longitude;
 
-  int get activeServices => services.where((s) => s.active).length;
+  /// The list endpoint sends ready-made summaries (`commission_label`,
+  /// `services_count`) instead of the commission object and the service rows —
+  /// a shop built from a list row has neither, so it would otherwise read as
+  /// "₹0/booking · 0 services" for every shop. Null on a detail-built shop,
+  /// which carries the real values.
+  final String? commissionLabel;
+  final int? servicesCount;
+
+  /// What the card shows for commission: the list row's own label when that is
+  /// all there is, the computed one otherwise.
+  String get commissionText => commissionLabel ?? commission.label;
+
+  int get activeServices =>
+      servicesCount ?? services.where((s) => s.active).length;
 }

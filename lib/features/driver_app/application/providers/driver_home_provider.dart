@@ -18,11 +18,16 @@ class DriverHomeNotifier extends StateNotifier<DriverHomeState> {
 
   DriverHomeNotifier(this._repository) : super(const DriverHomeInitial());
 
-  /// Load all home data (availability, stats, jobs)
+  /// Load all home data (availability, stats, jobs).
+  ///
+  /// Availability is fetched first and threaded through every exit path: a
+  /// stats or feed failure must not throw away a known-good online flag, or
+  /// the header falls back to "Offline" while the server says otherwise.
   Future<void> loadHomeData() async {
-    state = const DriverHomeLoading();
+    var availability = state.availability;
+    state = DriverHomeLoading(availability: availability);
     try {
-      final availability = await _repository.getAvailability();
+      availability = await _repository.getAvailability();
       final stats = await _repository.getStats();
       final jobFeed = await _repository.getJobFeed();
 
@@ -32,7 +37,10 @@ class DriverHomeNotifier extends StateNotifier<DriverHomeState> {
         jobFeed: jobFeed,
       );
     } catch (e) {
-      state = DriverHomeError(message: e.toString());
+      state = DriverHomeError(
+        message: e.toString(),
+        availability: availability,
+      );
     }
   }
 
@@ -70,7 +78,10 @@ class DriverHomeNotifier extends StateNotifier<DriverHomeState> {
         );
       }
     } catch (e) {
-      state = DriverHomeError(message: e.toString());
+      state = DriverHomeError(
+        message: e.toString(),
+        availability: state.availability,
+      );
     }
   }
 
@@ -88,7 +99,10 @@ class DriverHomeNotifier extends StateNotifier<DriverHomeState> {
         );
       }
     } catch (e) {
-      state = DriverHomeError(message: e.toString());
+      state = DriverHomeError(
+        message: e.toString(),
+        availability: state.availability,
+      );
     }
   }
 }

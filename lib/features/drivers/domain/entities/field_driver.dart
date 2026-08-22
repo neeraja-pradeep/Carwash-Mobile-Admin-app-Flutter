@@ -113,13 +113,32 @@ class LiveLocation {
 class DriverCurrentJob {
   const DriverCurrentJob({
     required this.bookingId,
+    required this.reference,
+    required this.kind,
     required this.type,
     required this.customer,
     required this.stage,
     required this.location,
   });
 
+  /// Raw job kind from the API — `carwash`, `driver_hire` or `inspection`.
+  ///
+  /// Decides which resource [bookingId] belongs to: carwash ids live under
+  /// `/booking/v1/bookings/`, the other two under
+  /// `/booking/v1/driver-inspection-requests/`. [type] is the display label
+  /// and must not be used for this.
+  final String kind;
+
+  /// Numeric booking id, for routing to the booking detail screen. Empty when
+  /// the API sent no `booking_id` — callers must check before navigating.
+  ///
+  /// Kept apart from [reference]: these were one field, so a job with a
+  /// reference routed to `/bookings/DT-0005-9E`, which parses to no int and
+  /// resolved to nothing.
   final String bookingId;
+
+  /// Human-facing booking reference (e.g. `DT-0005-9E`), for display only.
+  final String reference;
   final String type;
   final String customer;
   final String stage;

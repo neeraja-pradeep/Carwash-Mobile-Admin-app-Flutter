@@ -12,6 +12,7 @@ import 'package:new_flutter_project/core/widgets/app_icons.dart';
 import 'package:new_flutter_project/core/widgets/app_toast.dart';
 import 'package:new_flutter_project/core/widgets/top_bar.dart';
 import 'package:new_flutter_project/core/constants/app_options.dart';
+import 'package:new_flutter_project/core/utils/expiry_date.dart';
 import 'package:new_flutter_project/core/utils/license_number.dart';
 import 'package:new_flutter_project/core/utils/phone_number.dart';
 
@@ -83,7 +84,8 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
         ? roleLabelFromSubRole(d.subRole)
         : _roleOptions.first;
     _licenseNo = d?.license.number ?? '';
-    _licenseExpiry = d?.license.expiry ?? '';
+    // Stored as ISO `YYYY-MM-DD`; the field edits it as `MM-YYYY`.
+    _licenseExpiry = ExpiryDate.fromStored(d?.license.expiry ?? '');
     _verified = d?.license.verified ?? false;
     _classes = d != null ? [...d.vehicleClasses] : ['Hatchback', 'Sedan'];
     _docs = d != null ? [...d.documents] : [];
@@ -128,20 +130,6 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
     if (confirmed && mounted) {
       Navigator.of(context).pop();
     }
-  }
-
-  /// Converts the form's `MM-YYYY` expiry to an ISO `YYYY-MM-DD` date (assumes
-  /// the 1st of the month) — required by PATCH. Returns the raw value if it is
-  /// not in `MM-YYYY` form (e.g. already ISO or empty).
-  String? _expiryForPatch(String raw) {
-    final v = raw.trim();
-    if (v.isEmpty) return null;
-    final m = RegExp(r'^(\d{1,2})-(\d{4})$').firstMatch(v);
-    if (m != null) {
-      final month = m.group(1)!.padLeft(2, '0');
-      return '${m.group(2)}-$month-01';
-    }
-    return v;
   }
 
   /// Sends the documents attached on the form now that the worker exists and
@@ -197,7 +185,7 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
           subRole: subRoleFromLabel(_role),
           vehicleClasses: _classes,
           licenseNumber: LicenseNumber.format(_licenseNo),
-          licenseExpiry: _expiryForPatch(_licenseExpiry),
+          licenseExpiry: ExpiryDate.toStored(_licenseExpiry),
           licenseVerified: _verified,
           phone: PhoneNumber.e164(_phone),
         );
@@ -381,6 +369,11 @@ class _HireDriverScreenState extends ConsumerState<HireDriverScreen> {
                         label: 'Expiry (MM-YYYY)',
                         value: _licenseExpiry,
                         placeholder: '08-2029',
+                        keyboardType: TextInputType.number,
+                        // The admin types digits only — the hyphen lands
+                        // itself once the month is complete.
+                        inputFormatters: const [ExpiryDateInputFormatter()],
+                        errorText: ExpiryDate.errorFor(_licenseExpiry),
                         onChanged: (v) => setState(() => _licenseExpiry = v),
                       ),
                       Row(
@@ -480,7 +473,7 @@ class _InfoBanner extends StatelessWidget {
           SizedBox(width: 10.w),
           Expanded(
             child: Text(
-              'Saving sends an invite SMS to this number. The driver signs in to the Driver app with OTP — only numbers added here can sign in.',
+              'The driver signs in to the Driver app with OTP — only numbers added here can sign in.',
               style: AppText.figtree(
                 size: 12.5,
                 weight: FontWeight.w500,
